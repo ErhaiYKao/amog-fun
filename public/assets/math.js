@@ -10,9 +10,12 @@
  *
  * Environments (write them straight into the HTML, may span several <p>s)
  *   \begin{lemma}[Optional title]\label{lem:key} ... \end{lemma}
- *   theorem lemma proposition corollary conjecture definition example remark exercise proof
+ *   theorem lemma proposition corollary conjecture question definition example remark exercise proof
  *   starred (\begin{lemma*}) = unnumbered.  \ref{lem:key} -> link "Lemma 1".
  *   HTML form also works: <div data-env="lemma" data-title="Yoneda" id="lem:key">...</div>
+ *   Numbering: shared counter (Lemma 1, Theorem 2, ...). Inside <section data-section="2"> it goes
+ *   per section like amsthm [section]: Lemma 2.1, Remark 2.2, ...  data-qed="□" on any ancestor
+ *   changes the end-of-proof symbol (default ∎).
  *
  * Wrap anything in class="no-math" to opt out. For content added later: amogMath(element).
  */
@@ -43,12 +46,14 @@
   // ---------- environments ----------
   const ENVS = {
     theorem: ["Theorem", "thm"], lemma: ["Lemma", "thm"], proposition: ["Proposition", "thm"],
-    corollary: ["Corollary", "thm"], conjecture: ["Conjecture", "conj"], definition: ["Definition", "def"],
+    corollary: ["Corollary", "thm"], conjecture: ["Conjecture", "conj"], question: ["Question", "conj"],
+    definition: ["Definition", "def"],
     example: ["Example", "note"], remark: ["Remark", "note"], exercise: ["Exercise", "note"], proof: ["Proof", "proof"],
   };
   const BEGIN = new RegExp(String.raw`\\begin\{(${Object.keys(ENVS).join("|")})(\*?)\}`);
   const SKIP = "script,style,textarea,pre,code,noscript,.no-math,.katex";
   let counter = 0;
+  const sectionCounters = new Map();
   const labels = new Map();
 
   function textNodes(root) {
@@ -118,7 +123,13 @@
         if (m) { el.id = m[1]; t.data = t.data.replace(m[0], ""); break; }
       }
       const numbered = kind !== "proof" && !("star" in el.dataset);
-      const num = numbered ? ++counter : null;
+      const sec = el.parentElement && el.parentElement.closest("[data-section]");
+      let num = null;
+      if (numbered && sec) {
+        const k = sec.dataset.section, n = (sectionCounters.get(k) || 0) + 1;
+        sectionCounters.set(k, n);
+        num = `${k}.${n}`;
+      } else if (numbered) num = ++counter;
       const full = num ? `${name} ${num}` : name;
       if (el.id && kind !== "proof") labels.set(el.id, full);
 
@@ -129,7 +140,7 @@
 
       if (kind === "proof") {
         const lab = Object.assign(document.createElement("span"), { className: "env-label", textContent: (el.dataset.title ? `Proof of ${el.dataset.title}` : "Proof") + "." });
-        const qed = Object.assign(document.createElement("span"), { className: "env-qed", textContent: "∎" });
+        const qed = Object.assign(document.createElement("span"), { className: "env-qed", textContent: (el.closest("[data-qed]") || { dataset: {} }).dataset.qed || "∎" });
         const kids = [...body.childNodes].filter(n => !(n.nodeType === 3 && !n.data.trim()));
         const isP = n => n && n.nodeType === 1 && n.tagName === "P";
         (isP(kids[0]) ? kids[0] : body).prepend(lab, " ");
@@ -159,7 +170,7 @@
         frag.append(rest.slice(0, m.index));
         const a = document.createElement("a");
         a.className = "env-ref";
-        a.href = "#" + encodeURIComponent(m[1]);
+        a.href = "#" + encodeURI(m[1]);
         a.textContent = labels.get(m[1]) || `??(${m[1]})`;
         frag.append(a);
         rest = rest.slice(m.index + m[0].length);
@@ -182,12 +193,26 @@
     await load("script", { src: `${CDN}/contrib/auto-render.min.js`, crossOrigin: "anonymous" });
   })();
 
+  // shrink display equations that are a bit too wide for their column (down to 72%), else let them scroll
+  function fitDisplays(root) {
+    root.querySelectorAll(".katex-display").forEach(d => {
+      d.style.fontSize = "";
+      if (d.scrollWidth <= d.clientWidth + 1) return;
+      const em = parseFloat(getComputedStyle(d).fontSize) / parseFloat(getComputedStyle(d.parentElement).fontSize);
+      d.style.fontSize = Math.max(0.72, (em * d.clientWidth) / d.scrollWidth * 0.98).toFixed(3) + "em";
+    });
+  }
+  let fitTimer;
+  addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitDisplays(document), 150); });
+
   window.amogMath = async (el = document.body) => {
     convertLatexEnvs(el);
     decorate(el);
     resolveRefs(el);
     await ready;
     window.renderMathInElement(el, options);
+    fitDisplays(el);
+    if (document.fonts) document.fonts.ready.then(() => fitDisplays(el));
   };
 
   const style = document.createElement("style");

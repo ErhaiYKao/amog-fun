@@ -4,6 +4,19 @@
     "title": "Dots & Boxes",
     "signature": "dotsandboxes : Bored → Amused",
     "blurb": "Draw lines, close squares, get double-crossed. Play against Amog himself, who has read Berlekamp and will not hesitate.",
-    "tags": ["game", "vs AI"]
+    "tags": [
+      "game",
+      "vs AI"
+    ]
+  },
+  {
+    "slug": "thesis",
+    "title": "The Thesis",
+    "signature": "thesis : Counterexample → Notation",
+    "blurb": "Amog proves $\\chi = \\chi_\\ell = \\operatorname{Col}$ after a suitable choice of notation. The proofs are constructive except where compactness makes a construction unnecessary.",
+    "tags": [
+      "paper",
+      "parody"
+    ]
   }
 ]

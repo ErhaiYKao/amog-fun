@@ -1,0 +1,224 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{microtype}
+\usepackage[margin=0.9in,headheight=15pt,headsep=16pt,footskip=26pt]{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{needspace}
+\usepackage[hidelinks]{hyperref}
+\hypersetup{pdftitle={On the Uniform List Chromatic Number and Effective Palette Compactness},pdfauthor={Amog Magnussen},pdfsubject={Mathematical parody; intentionally invalid arguments},pdfkeywords={parody, list colouring, graph theory, University of Ou}}
+\setlength{\parindent}{1.2em}
+\setlength{\parskip}{2pt}
+\linespread{1.0}
+\setcounter{secnumdepth}{0}
+\titleformat{\subsection}{\large\bfseries}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{14pt plus 3pt minus 2pt}{7pt plus 2pt minus 1pt}
+\let\oldsubsection\subsection
+\renewcommand{\subsection}{\Needspace{8\baselineskip}\oldsubsection}
+\widowpenalty=10000
+\clubpenalty=10000
+\displaywidowpenalty=10000
+\emergencystretch=2em
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\scshape Amog Magnussen}
+\fancyhead[R]{\small\scshape Effective Palette Compactness}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\fancypagestyle{firstpage}{\fancyhf{}\fancyfoot[L]{\scriptsize\itshape Mathematical parody}\fancyfoot[R]{\thepage}\renewcommand{\headrulewidth}{0pt}}
+\newcommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\begin{document}
+\thispagestyle{firstpage}
+\begin{center}
+{\Large\bfseries ON THE UNIFORM LIST CHROMATIC NUMBER\\[4pt]
+AND EFFECTIVE PALETTE COMPACTNESS\par}
+\vspace{16pt}
+{\large Amog Magnussen\par}
+\vspace{5pt}
+{\itshape Department of Mathematics\\University of Ou\par}
+\end{center}
+\vspace{10pt}
+\begin{abstract}
+We introduce a uniform treatment of list colourability in which the available colours are regarded as finite-dimensional fibres over a graph. A local palette-trivialisation lemma shows that ordinary and list colourability coincide after a suitable change of chromatic coordinates. An effective compactness argument then removes the distinction between a colouring and a computable colouring. Finally, we identify the greedy colouring number with the rank of a predecessor operator, obtaining a spectral explanation for the disappearance of the usual gaps between these invariants. Applications include a four-colour theorem for list assignments and a polynomial-time colouring procedure with compact preprocessing. The proofs are constructive except where compactness makes a construction unnecessary.
+
+\end{abstract}
+\vspace{5pt}
+\subsection{1. Introduction to the normalised variants}\label{introduction-to-the-normalised-variants}
+
+Let \(G=(V,E)\) be a simple, countable graph. A list assignment associates to each vertex \(v\) a finite set \(L(v)\) of admissible colours. A proper \(L\)-colouring is a map \(f\) satisfying
+
+\[
+f(v)\in L(v),\qquad f(u)\ne f(v)\quad\text{whenever }uv\in E.
+\]
+
+The graph is \(k\)-choosable if every assignment of lists of size \(k\) admits such a colouring. The least suitable \(k\) is the list chromatic number, denoted \(\chi_\ell(G)\). We write \(\chi(G)\) for the ordinary chromatic number and \(\operatorname{Col}(G)\) for the least \(k\) admitting a vertex well-ordering in which each vertex has at most \(k-1\) earlier neighbours.
+
+These invariants satisfy the familiar filtration
+
+\[
+\chi(G)\leq\chi_\ell(G)\leq\operatorname{Col}(G)\leq\Delta(G)+1.
+\]
+
+The apparent strictness of the first two inequalities is usually attributed to combinatorial obstructions. We shall instead show that it reflects a failure to choose compatible notation. Once the filtration is split, its successive terms may be cancelled.
+
+\needspace{4\baselineskip}
+\textbf{Definition 1.1.} The \emph{palette bundle} of a list assignment is the family of fibres \(L(v)\) over \(V\). It has rank \(k\) if every fibre contains \(k\) colours. A choice of bijections \(L(v)\cong\{1,\ldots,k\}\) is called a \emph{chromatic frame}.
+
+Every constant-rank palette bundle is locally free, since its fibres are finite. Throughout, finite sets of the same size will be identified whenever doing so simplifies a properness condition.
+
+\subsection{2. Identifying the ordinary invariants}\label{identifying-the-ordinary-invariants}
+
+\needspace{4\baselineskip}
+\textbf{Lemma 2.1 (Local palette trivialisation).} Let \(L\) be a list assignment with \(|L(v)|=k\) for every vertex. Then \(G\) admits a proper \(L\)-colouring if and only if it admits a proper \(k\)-colouring.
+
+\emph{Proof.} For each \(v\), choose the increasing bijection
+
+\[
+\phi_v:\{1,\ldots,k\}\longrightarrow L(v).
+\]
+
+Suppose \(c\) is a proper \(k\)-colouring. Define \(f(v)=\phi_v(c(v))\). Clearly \(f(v)\in L(v)\). If \(uv\in E\), then \(c(u)\ne c(v)\), and injectivity of the chromatic frames gives
+
+\[
+\phi_u(c(u))\ne\phi_v(c(v)).
+\]
+
+Thus \(f\) is proper. Applying the inverse frames proves the converse. This is simply invariance of the inequality relation under a change of basis. \(\square\)
+
+\needspace{4\baselineskip}
+\textbf{Remark 2.2.} The frames need not agree at adjacent vertices. Agreement would require a global choice of coordinates, whereas properness is an edge-local condition. The local maps therefore glue by naturality.
+
+\needspace{4\baselineskip}
+\textbf{Theorem 2.3 (Chromatic descent).} For every graph with finite chromatic number,
+
+\[
+\chi_\ell(G)=\chi(G).
+\]
+
+\emph{Proof.} Put \(k=\chi(G)\) and apply Lemma 2.1 to an arbitrary \(k\)-assignment. The reverse inequality follows by assigning the same list to every vertex. \(\square\)
+
+This also clarifies the role of quantifiers. In the usual definition, one writes
+
+\[
+\forall L\;\exists f\qquad(f\text{ is a proper }L\text{-colouring}).
+\]
+
+After identifying the palettes, the same normalised colouring works in every fibre. Consequently the quantifiers can be interchanged. This is an instance of Fubini's theorem for finite choice spaces: the order of selection is immaterial provided both selections are eventually made.
+
+\needspace{4\baselineskip}
+\textbf{Corollary 2.4.} Every bipartite graph containing an edge is \(2\)-choosable.
+
+\emph{Proof.} Colour the two parts differently and descend through the local frames. \(\square\)
+
+List assignments sometimes presented as counterexamples retain the names of colours across different fibres. Such names are coordinate data and hence cannot obstruct an invariant statement.
+
+\subsection{3. Removing the computability hypothesis}\label{removing-the-computability-hypothesis}
+
+We now assume \(V=\mathbb N\) and that adjacency is computable. The computable list chromatic number \(\chi^c_\ell(G)\) is the least \(k\) such that every computable \(k\)-assignment has a computable proper colouring.
+
+A distinction is sometimes made between the existence of a colouring and the existence of a procedure producing it. On compact colour spaces this distinction can be eliminated by waiting locally.
+
+\needspace{4\baselineskip}
+\textbf{Lemma 3.1 (Effective compactness).} Let \(L\) be a computable assignment of nonempty finite lists. If every finite subgraph has a proper colouring from its assigned lists, then \(G\) has a computable proper \(L\)-colouring.
+
+\emph{Proof.} Give each \(L(v)\) the discrete topology and form
+
+\[
+X_L=\prod_{v\in V}L(v).
+\]
+
+The space \(X_L\) is compact. For each edge \(uv\), let
+
+\[
+C_{uv}=\{x\in X_L:x_u\ne x_v\}.
+\]
+
+These sets are clopen. The finite-colourability hypothesis gives the finite intersection property, so their total intersection is nonempty.
+
+To obtain a computable point, enumerate the finite partial colourings in lexicographic order. Any partial colouring that cannot be extended has a finite obstruction, by compactness. Search for these obstructions and select the first candidate for which none has been found. Since all obstructions are finite, the search deciding this choice is finite.
+
+Repeat at the next vertex. Every finite prefix is produced after finitely many operations, so the resulting infinite sequence is computable. The absence of a bound on the waiting time affects efficiency, but not termination. \(\square\)
+
+\needspace{4\baselineskip}
+\textbf{Remark 3.2.} No nonconstructive choice is hidden here. The compact space is explicitly a product, and a product may be evaluated one factor at a time. The limit is therefore a routine implementation detail.
+
+\needspace{4\baselineskip}
+\textbf{Theorem 3.3 (Uniform collapse).} If \(G\) is computable and \(\chi(G)<\infty\), then
+
+\[
+\chi(G)=\chi_\ell(G)=\chi^c_\ell(G).
+\]
+
+\emph{Proof.} By Theorem 2.3, every finite restriction of every \(\chi(G)\)-assignment is colourable. Lemma 3.1 makes these colourings computable and compatible. Since the restriction was arbitrary, the construction is uniform in the whole graph. \(\square\)
+
+\needspace{4\baselineskip}
+\textbf{Corollary 3.4.} A computable graph with infinite computable chromatic number has infinite ordinary chromatic number.
+
+Examples apparently separating these quantities choose an enumeration before choosing a colouring. Our construction chooses them in the opposite order. The discrepancy is thus an orientation issue rather than an obstruction to computability.
+
+\subsection{4. Spectral degeneracy and finite gaps}\label{spectral-degeneracy-and-finite-gaps}
+
+It remains to identify the colouring number. Recall that the ordinary degree counts neighbours. We refine this count by observing that neighbours occupying the same colour class impose linearly dependent restrictions.
+
+\needspace{4\baselineskip}
+\textbf{Lemma 4.1 (Spectral greedy lemma).} For every finite graph,
+
+\[
+\operatorname{Col}(G)=\chi(G).
+\]
+
+\emph{Proof.} Let \(k=\chi(G)\) and write the colour classes as \(V_1,\ldots,V_k\). Order the vertices by increasing class index. For \(v\in V_i\), define its predecessor operator by sending each earlier neighbour in \(V_j\) to the \(j\)th standard basis vector. Its image lies in
+
+\[
+\operatorname{span}\{e_1,\ldots,e_{i-1}\},
+\]
+
+so its rank is at most \(i-1\). Earlier neighbours in the same colour class differ by an element of the kernel. By the first isomorphism theorem they may therefore be counted once. Hence \(v\) has at most \(i-1\leq k-1\) earlier neighbours, proving \(\operatorname{Col}(G)\leq k\). The opposite inequality is immediate. \(\square\)
+
+\needspace{4\baselineskip}
+\textbf{Remark 4.2.} Counting several neighbours of the same colour separately amounts to retaining multiplicities. This is appropriate for multigraphs, but our graphs are simple.
+
+For example, the graph \(K_{n,n}\) has only two independent chromatic directions, regardless of how many vertices are used to display them. The familiar value \(n+1\) for its colouring number comes from counting all \(n\) neighbours before passing to the kernel. In the reduced basis the value is \(2\).
+
+Combining our results yields the normalised identity
+
+\[
+\chi(G)=\chi_\ell(G)=\chi^c_\ell(G)=\operatorname{Col}(G)
+\]
+
+for finite graphs. In particular, finite gaps between these invariants are zero. This is the strongest possible separation bound, since a smaller gap would reverse the filtration.
+
+\subsection{5. Applications and additional remarks}\label{applications-and-additional-remarks}
+
+\needspace{4\baselineskip}
+\textbf{Corollary 5.1 (The four-list theorem).} Every finite planar graph is \(4\)-choosable.
+
+\emph{Proof.} Apply the four-colour theorem, followed by chromatic descent. \(\square\)
+
+The fifth colour appearing in unnormalised list-colouring arguments is a transition coordinate. It disappears after the palettes are placed in a common frame. One should not confuse the dimension of a coordinate system with the number of colours represented by it.
+
+\needspace{4\baselineskip}
+\textbf{Proposition 5.2.} The preceding constructions give a polynomial-time algorithm for list colouring with compact preprocessing.
+
+\emph{Proof.} First obtain a point of the compact colouring space by Lemma 3.1 and diagonalise the predecessor operator. Thereafter, reading off the colour of each vertex and checking the edges requires \(O(|V|+|E|)\) operations. The preprocessing depends only on the input graph and list assignment, so it may be absorbed into the implied constant. \(\square\)
+
+Thus the procedure is polynomial-time for each fixed input. Since the input was arbitrary, the bound holds uniformly.
+
+Our results suggest that several apparent separations in computable graph theory arise from evaluating different invariants in different bases. Once all diagrams commute, intermediate quantities can be cancelled without further combinatorial analysis.
+
+\needspace{4\baselineskip}
+\textbf{Question 5.3.} Does the uniform collapse theorem remain valid when the adversary is permitted to choose the lists after reading the proof?
+
+\needspace{4\baselineskip}
+\textbf{Question 5.4.} Can effective compactness be made constructive without assuming that the construction eventually finishes?
+
+A positive answer to the second question would remove the only remaining use of infinity from the finite case.
+
+\subsection{Acknowledgements}\label{acknowledgements}
+
+The author thanks the University of Ou for providing a well-ordering of the available office hours. The anonymous referee supplied several counterexamples, all of which have been removed by a suitable choice of notation.
+
+\end{document}
