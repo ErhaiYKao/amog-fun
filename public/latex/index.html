@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LaTeX on amog.fun</title>
+<meta name="description" content="How to write math and theorem environments on amog.fun pages.">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/math.js" defer></script>
+<style>
+  main { max-width: 760px; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 8px 0 12px; }
+  h2 { font-family: var(--display); font-weight: 400; font-size: 34px; margin: 56px 0 8px; }
+  .lead { color: var(--muted); margin: 0 0 24px; }
+  pre {
+    font-family: var(--mono); font-size: 13px; line-height: 1.6; color: #cfcbc1;
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; margin: 12px 0;
+  }
+  code { font-family: var(--mono); font-size: .85em; color: var(--g1); }
+  .pair { margin: 28px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+    <nav><a href="/">← home</a></nav>
+  </header>
+
+  <main>
+    <h1>LaTeX on amog.fun</h1>
+    <p class="lead">Include <code>&lt;script src="/assets/math.js" defer&gt;&lt;/script&gt;</code> on any page. Math renders with KaTeX, and theorem environments turn into numbered boxes.</p>
+
+    <h2>Math</h2>
+    <pre>Inline $\Hom(A, B) \cong \Hom(B^{*}, A^{*})$, display:
+$$\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}$$</pre>
+    <p>Inline $\Hom(A, B) \cong \Hom(B^{*}, A^{*})$, display:
+    $$\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}$$</p>
+
+    <pre>$$\begin{CD}
+A @&gt;f&gt;&gt; B \\
+@VgVV @VVhV \\
+C @&gt;&gt;k&gt; D
+\end{CD}$$</pre>
+    $$\begin{CD} A @>f>> B \\ @VgVV @VVhV \\ C @>>k> D \end{CD}$$
+
+    <h2>Environments</h2>
+    <p>Available: <code>theorem</code> <code>lemma</code> <code>proposition</code> <code>corollary</code> <code>conjecture</code> <code>definition</code> <code>example</code> <code>remark</code> <code>exercise</code> <code>proof</code>. Add <code>*</code> for no number, <code>[...]</code> for a title, and <code>\label{key}</code> with <code>\ref{key}</code> for cross-references.</p>
+
+    <div class="pair">
+      <pre>\begin{definition}[Obby]\label{def:obby}
+An &lt;em&gt;obby&lt;/em&gt; is a groupoid $\mathcal{O}$ together with a functor
+$J\colon \mathcal{O} \to \mathbf{Jump}$ that is faithful but not full.
+\end{definition}</pre>
+      <p>\begin{definition}[Obby]\label{def:obby}
+      An <em>obby</em> is a groupoid $\mathcal{O}$ together with a functor $J\colon \mathcal{O} \to \mathbf{Jump}$ that is faithful but not full.
+      \end{definition}</p>
+    </div>
+
+    <div class="pair">
+      <pre>\begin{lemma}[Yoneda]\label{lem:yoneda}
+For any functor $F\colon \mathcal{C}\op \to \Set$ and object $c$,
+$$\mathrm{Nat}(\Hom(-, c), F) \cong F(c).$$
+\end{lemma}
+\begin{proof}
+Send $\alpha$ to $\alpha_c(\id_c)$.
+\end{proof}</pre>
+      <p>\begin{lemma}[Yoneda]\label{lem:yoneda}
+      For any functor $F\colon \mathcal{C}\op \to \Set$ and object $c$,
+      $$\mathrm{Nat}(\Hom(-, c), F) \cong F(c).$$
+      \end{lemma}</p>
+      <p>\begin{proof}Send $\alpha$ to $\alpha_c(\id_c)$.\end{proof}</p>
+    </div>
+
+    <div class="pair">
+      <pre>\begin{theorem}
+Every obby (\ref{def:obby}) embeds fully into its presheaf category.
+\end{theorem}
+\begin{proof}
+Apply \ref{lem:yoneda}.
+\end{proof}</pre>
+      <p>\begin{theorem}Every obby (\ref{def:obby}) embeds fully into its presheaf category.\end{theorem}</p>
+      <p>\begin{proof}Apply \ref{lem:yoneda}.\end{proof}</p>
+    </div>
+
+    <div class="pair">
+      <pre>\begin{conjecture}[Magnussen]
+The obby skill ceiling is not attained.
+\end{conjecture}
+\begin{remark*}
+Starred environments are unnumbered.
+\end{remark*}</pre>
+      <p>\begin{conjecture}[Magnussen]The obby skill ceiling is not attained.\end{conjecture}</p>
+      <p>\begin{remark*}Starred environments are unnumbered.\end{remark*}</p>
+    </div>
+
+    <p>Plain HTML works too: <code>&lt;div data-env="lemma" data-title="Yoneda" id="lem:yoneda"&gt;…&lt;/div&gt;</code>. Anything inside <code>class="no-math"</code>, <code>&lt;pre&gt;</code> or <code>&lt;code&gt;</code> is left alone.</p>
+  </main>
+
+  <footer class="footer">
+    <span>amog.fun/latex</span>
+    <span>all diagrams commute</span>
+  </footer>
+</div>
+</body>
+</html>

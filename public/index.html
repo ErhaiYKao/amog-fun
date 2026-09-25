@@ -99,11 +99,7 @@
 
   /* ---------- theorem ---------- */
   .theorem { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
-  .thm-box { border: 1px solid var(--line-2); border-radius: var(--radius); padding: 28px; background: var(--bg-2); }
-  .thm-box p { margin: 0 0 14px; }
-  .thm-box .label { font-weight: 600; }
-  .thm-box .proof { color: var(--muted); margin: 0; }
-  .qed { float: right; color: var(--ink); }
+  .thm-col .env:first-child { margin-top: 0; }
   .cd { width: 100%; max-width: 480px; height: auto; justify-self: center; color: var(--ink); }
   .cd text { font-family: var(--serif); font-style: italic; fill: currentColor; }
   .cd .obj-label { font-size: 26px; }
@@ -186,7 +182,12 @@
         <h3>Amog Magnussen</h3>
         <div class="role">Founder &amp; Chief Mathematician</div>
         <p>Amog Magnussen founded amog.fun after spotting that every good afternoon factors through a small, dumb game. His research is in group theory, category theory, and obby.</p>
-        <p>He is best known for the <em>Kholonosky Lemma</em>: for a locally presentable $(\infty,1)$-category $\mathcal{C}$, every lax monoidal 2-functor $F\colon \widehat{\mathcal{C}} \to \Cat$ out of its free cocompletion admits a left Kan extension $\operatorname{Lan}_{y}F$ along the Yoneda embedding $y\colon \mathcal{C} \hookrightarrow \widehat{\mathcal{C}}$, unique up to contractible choice, provided the ambient Grothendieck topos has a subobject classifier $\Omega_{\text{lag}}$ for lag. He is still working on the converse.</p>
+        <p>He is best known for the following result. He is still working on the converse.</p>
+        <p>\begin{lemma}[Kholonosky]\label{lem:kholonosky}
+        Let $\mathcal{C}$ be a locally presentable $(\infty,1)$-category and $F\colon \widehat{\mathcal{C}} \to \Cat$ a lax monoidal 2-functor out of its free cocompletion.
+        Then $F$ admits a left Kan extension $\operatorname{Lan}_{y}F$ along the Yoneda embedding $y\colon \mathcal{C} \hookrightarrow \widehat{\mathcal{C}}$,
+        unique up to contractible choice, provided the ambient Grothendieck topos has a subobject classifier $\Omega_{\text{lag}}$ for lag.
+        \end{lemma}</p>
         <dl class="facts">
           <dt>skill ceiling</dt><dd>4,219,429<span style="color:var(--g2)">+++</span>, a word in the free monoid $\{+\}^{*}$</dd>
           <dt>favourite group</dt><dd>The Monster group, for obvious reasons</dd>
@@ -204,11 +205,12 @@
       <h2>The <b>Universal Property</b></h2>
     </div>
     <div class="theorem">
-      <div class="thm-box">
-        <p><span class="label">Theorem 1</span> (Magnussen, 2026). For every state of boredom $B$ and every route to joy $g\colon B \to \mathit{Joy}$, there is a unique $h\colon \texttt{amog.fun} \to \mathit{Joy}$ such that</p>
-        <p>$$h \circ f = g.$$</p>
-        <p>In other words, every fun thing factors uniquely through amog.fun.</p>
-        <p class="proof"><i>Proof.</i> Pick an object from §1 and play it. <span class="qed">∎</span></p>
+      <div class="thm-col">
+        <p>\begin{theorem}[Magnussen, 2026]\label{thm:universal}
+        For every state of boredom $B$ and every route to joy $g\colon B \to \mathit{Joy}$, there is a unique $h\colon \texttt{amog.fun} \to \mathit{Joy}$ such that
+        $$h \circ f = g.$$</p>
+        <p>In other words, every fun thing factors uniquely through amog.fun.\end{theorem}</p>
+        <p>\begin{proof}Immediate from \ref{lem:kholonosky} with $\mathcal{C} = \Fun$. Alternatively, pick an object from §1 and play it.\end{proof}</p>
       </div>
       <svg class="cd" viewBox="0 0 480 320" role="img" aria-label="Commutative triangle: f from B to amog.fun, g from B to Joy, and a unique dashed h from amog.fun to Joy">
         <defs>
