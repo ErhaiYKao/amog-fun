@@ -21,6 +21,16 @@
     ]
   },
   {
+    "slug": "whack-a-moni",
+    "title": "Whack-a-Moni",
+    "signature": "whack-a-moni : Hole → Bonk",
+    "blurb": "You are Redstone. Moni keeps surfacing with a banana. Bonk him, build a combo, and under no circumstances bonk Megumin or Shiro.",
+    "tags": [
+      "game",
+      "arcade"
+    ]
+  },
+  {
     "slug": "thesis",
     "title": "The Thesis",
     "signature": "thesis : Counterexample → Notation",

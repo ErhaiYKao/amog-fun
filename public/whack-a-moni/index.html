@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Whack-a-Moni · amog.fun</title>
+<meta name="description" content="Play as Redstone. Bonk Moni. Do not bonk Megumin or Shiro.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><ellipse cx='32' cy='50' rx='22' ry='7' fill='%23000'/><ellipse cx='32' cy='30' rx='14' ry='17' fill='%23e8e4da'/><circle cx='26' cy='28' r='4' fill='%23fff' stroke='%23000' stroke-width='2'/><circle cx='38' cy='28' r='4' fill='%23fff' stroke='%23000' stroke-width='2'/><circle cx='26' cy='28' r='1.5'/><circle cx='38' cy='28' r='1.5'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<style>
+  :root { --moni: var(--g3); --fake: var(--g2); --red: #e0303a; }
+  body { overflow-x: hidden; }
+  .title .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .title h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
+  .title p { margin: 0 0 20px; color: var(--muted); max-width: 640px; }
+
+  .game { display: grid; grid-template-columns: 1fr 300px; gap: 36px; align-items: start; padding-bottom: 32px; }
+
+  /* ---------- field ---------- */
+  .field-wrap { position: relative; }
+  .field {
+    position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 3vw, 28px);
+    padding: clamp(18px, 4vw, 40px); border-radius: 22px;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #1d2a17 0%, #121a0f 60%, #0d130b 100%);
+    border: 1px solid #25331d;
+    box-shadow: inset 0 0 60px #000a;
+    user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  }
+  .field.shake { animation: shake .45s; }
+  @keyframes shake {
+    10%, 90% { transform: translate(-2px, 1px); } 20%, 80% { transform: translate(4px, -2px); }
+    30%, 50%, 70% { transform: translate(-7px, 3px); } 40%, 60% { transform: translate(7px, -3px); }
+  }
+  .field.playing, .field.playing * { cursor: none; }
+  @media (hover: none) { .field.playing, .field.playing * { cursor: auto; } }
+
+  .hole { position: relative; aspect-ratio: 1 / 1.05; }
+  .hole .pit {
+    position: absolute; left: 4%; right: 4%; bottom: 4%; height: 30%;
+    border-radius: 50%; background: radial-gradient(ellipse at 50% 40%, #000 55%, #1a130c 75%, #3a2a18 100%);
+    box-shadow: 0 6px 0 #2a1f12, 0 10px 18px #0008;
+  }
+  /* the mole slides up out of a clipped window that ends at the pit's centre line */
+  .hole .win {
+    position: absolute; left: 10%; right: 10%; top: 0; bottom: 19%;
+    overflow: hidden; border-radius: 0 0 44% 44% / 0 0 22% 22%;
+  }
+  .mole {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 88%;
+    transform: translateY(105%); transition: transform .14s cubic-bezier(.3,1.4,.6,1);
+    border-radius: 48% 48% 14% 14% / 40% 40% 10% 10%;
+    overflow: hidden; pointer-events: none;
+  }
+  .hole.up .mole { transform: translateY(0); pointer-events: auto; }
+  .hole.hit .mole { transform: translateY(18%) scale(1.06, .82); transition: transform .08s; }
+  .hole.down .mole { transition: transform .22s ease-in; }
+  .mole.moni {
+    background: url(moni.webp) 52% 12% / 175% auto no-repeat, #d9d5cb;
+    box-shadow: inset 0 -10px 20px #0006;
+  }
+  .mole.megumin, .mole.shiro { background: #1b1b24; }
+  .mole svg { width: 100%; height: 100%; display: block; }
+  .hole.hit .mole::after {
+    content: ""; position: absolute; inset: 0; background: #fff; opacity: 0; animation: flash .25s;
+  }
+  @keyframes flash { 0% { opacity: .7; } 100% { opacity: 0; } }
+
+  /* floating text */
+  .pop {
+    position: absolute; left: 50%; top: 18%; transform: translate(-50%, 0);
+    font-family: var(--display); font-size: clamp(22px, 4vw, 36px); white-space: nowrap; pointer-events: none;
+    text-shadow: 0 2px 0 #000, 0 0 12px #000; animation: rise .8s ease-out forwards; z-index: 5;
+  }
+  .pop.good { color: var(--moni); }
+  .pop.bad { color: var(--fake); }
+  .pop small { font-family: var(--mono); font-size: .42em; display: block; text-align: center; color: var(--ink); }
+  @keyframes rise { from { opacity: 1; transform: translate(-50%, 10px) scale(.8); } 30% { transform: translate(-50%, -6px) scale(1.1); } to { opacity: 0; transform: translate(-50%, -46px) scale(1); } }
+
+  .explosion {
+    position: absolute; inset: 0; pointer-events: none; border-radius: 22px; z-index: 6;
+    background: radial-gradient(circle at var(--x) var(--y), #fff 0%, #ffd34d 10%, #ff6a1f 25%, #c21d1d55 45%, transparent 65%);
+    animation: boom .7s ease-out forwards;
+  }
+  .explosion span {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-family: var(--display); font-style: italic; font-size: clamp(40px, 9vw, 96px); color: #fff3c4;
+    text-shadow: 0 0 20px #ff6a1f, 0 3px 0 #7a0e0e; letter-spacing: .02em;
+  }
+  @keyframes boom { 0% { opacity: 0; } 10% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+
+  .blank {
+    position: absolute; inset: 0; pointer-events: none; border-radius: 22px; z-index: 6;
+    display: grid; place-items: center; background: #0a0a14cc; animation: boom 1s ease-out forwards;
+  }
+  .blank span { font-family: var(--mono); font-size: clamp(16px, 3vw, 24px); color: #e7e3ff; text-align: center; line-height: 1.5; }
+  .blank b { display: block; font-family: var(--display); font-weight: 400; font-size: 2.6em; color: #fff; }
+
+  /* ---------- the hammer (Redstone) ---------- */
+  .hammer {
+    position: fixed; left: 0; top: 0; width: 92px; height: 92px; pointer-events: none; z-index: 50;
+    transform-origin: 80% 85%; display: none;
+    translate: -30px -30px;
+  }
+  .hammer.on { display: block; }
+  .hammer .head {
+    position: absolute; left: 0; top: 0; width: 62px; height: 62px; border-radius: 50%;
+    background: url(redstone.png) center / cover; border: 3px solid #fff; box-shadow: 0 4px 14px #000c, 0 0 0 3px var(--red);
+  }
+  .hammer .handle {
+    position: absolute; left: 44px; top: 44px; width: 11px; height: 54px; border-radius: 6px;
+    background: linear-gradient(90deg, #6d3c14, #b8702d 50%, #6d3c14); transform: rotate(-45deg); transform-origin: top center;
+    box-shadow: 0 2px 6px #0008;
+  }
+  .hammer .inner { position: absolute; inset: 0; transform-origin: 80% 85%; transform: rotate(-18deg); transition: transform .12s ease-out; }
+  .hammer.swing .inner { transform: rotate(28deg); transition: transform .05s ease-in; }
+
+  /* ---------- overlay ---------- */
+  .overlay {
+    position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; border-radius: 22px;
+    background: #07090bdd; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); padding: 20px; text-align: center;
+  }
+  .overlay[hidden] { display: none; }
+  .overlay h2 { font-family: var(--display); font-weight: 400; font-size: clamp(36px, 6vw, 58px); margin: 0 0 4px; line-height: 1; }
+  .overlay .big { font-family: var(--display); font-size: clamp(64px, 12vw, 110px); line-height: 1; color: var(--moni); }
+  .overlay p { margin: 6px auto 16px; color: #d7d3c8; max-width: 420px; font-size: 16px; }
+  .cast { display: flex; justify-content: center; gap: 18px; margin: 14px 0 18px; flex-wrap: wrap; }
+  .cast figure { margin: 0; width: 88px; }
+  .cast .face { width: 76px; height: 76px; margin: 0 auto 6px; border-radius: 50%; overflow: hidden; border: 3px solid var(--c); background: #1b1b24; }
+  .cast .face.moni { background: url(moni.webp) 52% 10% / 175% auto no-repeat; }
+  .cast .face.red { background: url(redstone.png) center / cover; }
+  .cast figcaption { font-family: var(--mono); font-size: 11.5px; line-height: 1.35; color: var(--muted); }
+  .cast figcaption b { display: block; color: var(--c); font-weight: 500; font-size: 12.5px; }
+  .btn.go { font-size: 16px; padding: 13px 26px; border-color: var(--moni); color: var(--moni); }
+  .btn.go:hover { background: #c8f04a18; }
+
+  /* ---------- panel ---------- */
+  .panel { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 16px; }
+  .player { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--bg-2); }
+  .player .pfp { width: 56px; height: 56px; border-radius: 50%; background: url(redstone.png) center / cover; border: 2px solid var(--red); flex: none; }
+  .player .who { font-family: var(--mono); font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .player .name { font-family: var(--display); font-size: 30px; line-height: 1; }
+  .player .quote { font-size: 14px; color: var(--muted); font-style: italic; min-height: 1.5em; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--bg-2); }
+  .stat .k { font-family: var(--mono); font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .stat .v { font-family: var(--display); font-size: 44px; line-height: 1.05; }
+  .stat.score .v { color: var(--moni); }
+  .stat.combo .v { color: var(--g1); }
+  .stat.time .v.low { color: var(--fake); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .timebar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .timebar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--g3), var(--g1)); transform-origin: left; }
+  .rules { border-top: 1px solid var(--line); padding-top: 12px; font-size: 15px; color: var(--muted); }
+  .rules ul { margin: 0; padding-left: 18px; }
+  .rules li { margin: 3px 0; }
+  .rules b { color: var(--ink); font-weight: 600; }
+  .rules .m { color: var(--moni); } .rules .f { color: var(--fake); }
+  .best { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .best b { color: var(--ink); font-weight: 500; }
+  @media (max-width: 860px) {
+    /* phone: HUD strip above the field, everything else below */
+    .game { grid-template-columns: 1fr; gap: 12px; }
+    .panel { display: contents; }
+    .stats { order: -2; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .stat { padding: 6px 10px; }
+    .stat .k { font-size: 10px; }
+    .stat .v { font-size: 28px; }
+    .timebar { order: -1; }
+    .player { order: 1; } .best { order: 2; } .rules { order: 3; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+    <nav><a href="/#objects">← all objects</a></nav>
+  </header>
+
+  <div class="title">
+    <div class="sig">whack-a-moni : Hole → Bonk</div>
+    <h1>Whack-a-Moni</h1>
+    <p>You are Redstone. Moni keeps popping out of the ground eating a banana. Bonk him. Megumin and Shiro also live down there, and they will not take it well.</p>
+  </div>
+
+  <div class="game">
+    <div class="field-wrap">
+      <div class="field" id="field"></div>
+
+      <div class="overlay" id="overlay">
+        <div id="ov-body"></div>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="player">
+        <div class="pfp"></div>
+        <div>
+          <div class="who">you are</div>
+          <div class="name">Redstone</div>
+          <div class="quote" id="quote">“…”</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat score"><div class="k">score</div><div class="v" id="score">0</div></div>
+        <div class="stat time"><div class="k">time</div><div class="v" id="time">60</div></div>
+        <div class="stat combo"><div class="k">combo</div><div class="v" id="combo">×1</div></div>
+        <div class="stat"><div class="k">monis bonked</div><div class="v" id="bonks">0</div></div>
+      </div>
+      <div class="timebar"><i id="timebar"></i></div>
+      <div class="best">personal best: <b id="best">0</b></div>
+      <div class="rules">
+        <ul>
+          <li><b class="m">Moni</b>: +10 × combo. Every 5 bonks in a row bumps the combo.</li>
+          <li><b class="f">Megumin</b>: −25 and an EXPLOSION that stuns you.</li>
+          <li><b class="f">Shiro</b>: −25 and she steals 3 seconds.</li>
+          <li>Whiffing an empty hole resets your combo. So does letting a Moni get away.</li>
+          <li>Golden Moni is worth 5×.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="footer">
+    <span>amog<span style="color:var(--g2)">.</span>fun</span>
+    <span class="mono">no Monis were harmed. several were bonked.</span>
+  </footer>
+</div>
+
+<div class="hammer" id="hammer"><div class="inner"><div class="handle"></div><div class="head"></div></div></div>
+
+<script>
+(() => {
+  // ---------- art for the fakes (drawn, 100×105 viewBox, face-in-a-hole framing) ----------
+  const MEGUMIN = `
+  <svg viewBox="0 0 100 105" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="105" fill="#2a1a14"/>
+    <!-- hair back -->
+    <path d="M14 58 Q10 96 24 105 H76 Q90 96 86 58 Z" fill="#3b2418"/>
+    <!-- face -->
+    <ellipse cx="50" cy="68" rx="29" ry="31" fill="#fbe1cf"/>
+    <!-- bangs -->
+    <path d="M20 58 Q24 40 50 38 Q76 40 80 58 L74 54 L70 66 L64 52 L58 62 L52 50 L46 62 L40 52 L34 64 L30 54 L24 66 Z" fill="#4a2c1c"/>
+    <!-- side locks -->
+    <path d="M21 56 Q16 80 22 98 L28 96 Q24 78 27 60 Z" fill="#4a2c1c"/>
+    <path d="M79 56 Q84 80 78 98 L72 96 Q76 78 73 60 Z" fill="#4a2c1c"/>
+    <!-- hat brim + cone -->
+    <ellipse cx="50" cy="42" rx="48" ry="10" fill="#15131b"/>
+    <path d="M22 42 Q30 14 46 6 Q60 0 84 10 Q66 12 70 42 Z" fill="#1d1a25"/>
+    <path d="M26 36 Q50 30 72 36 L71 42 Q50 36 25 42 Z" fill="#d96a2a"/>
+    <circle cx="35" cy="37" r="3" fill="#f2c14e"/>
+    <!-- eyes: red, one eyepatch -->
+    <ellipse cx="38" cy="70" rx="6.5" ry="8" fill="#fff"/>
+    <ellipse cx="38" cy="71" rx="5" ry="6.5" fill="#c4162a"/>
+    <ellipse cx="38" cy="72" rx="2.4" ry="3.4" fill="#5a0610"/>
+    <circle cx="36" cy="68" r="1.8" fill="#fff"/>
+    <path d="M52 70 Q62 62 70 68 L70 76 Q61 80 52 76 Z" fill="#111"/>
+    <path d="M22 60 L52 72 M70 70 L80 64" stroke="#111" stroke-width="2"/>
+    <!-- blush + mouth -->
+    <ellipse cx="32" cy="82" rx="5" ry="2" fill="#f4a3a3" opacity=".7"/>
+    <ellipse cx="68" cy="82" rx="5" ry="2" fill="#f4a3a3" opacity=".7"/>
+    <path d="M44 88 Q50 92 56 88" stroke="#7a3a2a" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <!-- choker -->
+    <rect x="36" y="99" width="28" height="6" fill="#111"/>
+  </svg>`;
+
+  const SHIRO = `
+  <svg viewBox="0 0 100 105" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="105" fill="#1c1f33"/>
+    <!-- long white hair -->
+    <path d="M8 105 Q4 50 20 26 Q50 2 80 26 Q96 50 92 105 Z" fill="#eef0fa"/>
+    <path d="M12 105 Q10 70 18 50 L24 105 Z M88 105 Q90 70 82 50 L76 105 Z" fill="#d7dbef"/>
+    <!-- face -->
+    <ellipse cx="50" cy="62" rx="27" ry="30" fill="#fdeee6"/>
+    <!-- bangs -->
+    <path d="M20 48 Q26 22 50 22 Q74 22 80 48 L76 60 L70 44 L64 58 L58 42 L52 56 L47 42 L41 58 L35 44 L29 60 L24 46 Z" fill="#f4f5fc"/>
+    <path d="M30 44 L32 56 M47 42 L48 52 M64 44 L63 54" stroke="#c9cde4" stroke-width="1.2"/>
+    <!-- sleepy gold-red eyes -->
+    <defs>
+      <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7c948"/><stop offset="1" stop-color="#e2455f"/></linearGradient>
+    </defs>
+    <path d="M30 66 Q38 60 46 66 L46 70 Q38 74 30 70 Z" fill="#fff"/>
+    <path d="M54 66 Q62 60 70 66 L70 70 Q62 74 54 70 Z" fill="#fff"/>
+    <ellipse cx="38" cy="68" rx="4.5" ry="4" fill="url(#sg)"/>
+    <ellipse cx="62" cy="68" rx="4.5" ry="4" fill="url(#sg)"/>
+    <path d="M29 65 Q38 60 47 65" stroke="#4a4a66" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M53 65 Q62 60 71 65" stroke="#4a4a66" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <circle cx="36.5" cy="67" r="1.2" fill="#fff"/><circle cx="60.5" cy="67" r="1.2" fill="#fff"/>
+    <!-- flat expression -->
+    <path d="M46 84 H54" stroke="#b86a6a" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="33" cy="77" rx="4" ry="1.6" fill="#f5b5c0" opacity=".6"/>
+    <ellipse cx="67" cy="77" rx="4" ry="1.6" fill="#f5b5c0" opacity=".6"/>
+    <!-- blue sailor collar -->
+    <path d="M26 105 L38 94 L50 102 L62 94 L74 105 Z" fill="#3a57b8"/>
+    <path d="M44 100 L50 105 L56 100" stroke="#fff" stroke-width="1.5" fill="none"/>
+  </svg>`;
+
+  const GOLDEN_FILTER = 'sepia(1) saturate(4) hue-rotate(5deg) brightness(1.1)';
+
+  // ---------- state ----------
+  const ROUND = 60;
+  const field = document.getElementById('field');
+  const overlay = document.getElementById('overlay');
+  const ovBody = document.getElementById('ov-body');
+  const $ = id => document.getElementById(id);
+  const holes = [];
+  for (let i = 0; i < 9; i++) {
+    const h = document.createElement('div');
+    h.className = 'hole';
+    h.innerHTML = '<div class="pit"></div><div class="win"><div class="mole"></div></div>';
+    field.appendChild(h);
+    holes.push({ el: h, mole: h.querySelector('.mole'), kind: null, timer: 0, until: 0 });
+  }
+
+  let playing = false, score = 0, combo = 1, streak = 0, bonks = 0, timeLeft = ROUND;
+  let lastTick = 0, nextSpawn = 0, stunnedUntil = 0, raf = 0;
+  let best = 0;
+  try { best = +localStorage.getItem('amog.whackamoni.best') || 0; } catch {}
+  $('best').textContent = best;
+
+  const QUOTES = {
+    idle: ['“…”', '“I\'m Redstone.”', '“Where is he.”'],
+    moni: ['“Bonk.”', '“Stay down.”', '“Drop the banana.”', '“Again.”', '“Too slow, Moni.”', '“Yo.”'],
+    megumin: ['“Why is there an archwizard in here.”', '“My ears are ringing.”'],
+    shiro: ['“She just took my time.”', '“I… lost to a child?”'],
+    whiff: ['“Tch.”', '“Missed.”', '“He was right there.”'],
+    escape: ['“He got away.”', '“He\'s eating that banana somewhere.”'],
+  };
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const say = k => { $('quote').textContent = pick(QUOTES[k]); };
+  say('idle');
+
+  // ---------- difficulty ramps over the round ----------
+  function difficulty() {
+    const t = 1 - timeLeft / ROUND; // 0 → 1
+    return {
+      upTime: 1150 - 600 * t,                // how long a mole stays up (ms)
+      gap: 750 - 430 * t,                    // time between spawns (ms)
+      maxUp: t < .3 ? 2 : t < .7 ? 3 : 4,
+      fakeChance: .18 + .17 * t,
+    };
+  }
+
+  function spawn(now) {
+    const d = difficulty();
+    const free = holes.filter(h => !h.kind);
+    if (!free.length || holes.length - free.length >= d.maxUp) return;
+    const h = pick(free);
+    const r = Math.random();
+    let kind = 'moni';
+    if (r < d.fakeChance) kind = Math.random() < .5 ? 'megumin' : 'shiro';
+    else if (r > .96) kind = 'golden';
+    h.kind = kind;
+    h.mole.className = 'mole ' + (kind === 'golden' ? 'moni' : kind);
+    h.mole.innerHTML = kind === 'megumin' ? MEGUMIN : kind === 'shiro' ? SHIRO : '';
+    h.mole.style.filter = kind === 'golden' ? GOLDEN_FILTER : '';
+    h.until = now + d.upTime * (kind === 'golden' ? .7 : 1) * (0.85 + Math.random() * .3);
+    h.el.classList.remove('hit', 'down');
+    void h.el.offsetWidth;
+    h.el.classList.add('up');
+  }
+
+  function hide(h, wasHit) {
+    const kind = h.kind;
+    h.kind = null;
+    h.el.classList.remove('up');
+    h.el.classList.add('down');
+    if (!wasHit && (kind === 'moni' || kind === 'golden') && playing) {
+      streak = 0; combo = 1; renderHUD(); say('escape');
+    }
+  }
+
+  function popText(h, html, cls) {
+    const p = document.createElement('div');
+    p.className = 'pop ' + cls;
+    p.innerHTML = html;
+    h.el.appendChild(p);
+    setTimeout(() => p.remove(), 800);
+  }
+
+  function whack(h, e) {
+    if (!playing) return;
+    const now = performance.now();
+    if (now < stunnedUntil) return;
+    if (!h.kind) {
+      streak = 0; combo = 1; renderHUD(); say('whiff');
+      return;
+    }
+    const kind = h.kind;
+    h.el.classList.add('hit');
+    if (kind === 'moni' || kind === 'golden') {
+      const pts = 10 * combo * (kind === 'golden' ? 5 : 1);
+      score += pts; bonks++; streak++;
+      if (streak % 5 === 0) combo = Math.min(combo + 1, 8);
+      popText(h, `+${pts}<small>${kind === 'golden' ? 'GOLDEN MONI' : 'bonk'}</small>`, 'good');
+      say('moni');
+      sfx.bonk(kind === 'golden');
+    } else if (kind === 'megumin') {
+      score = Math.max(0, score - 25); streak = 0; combo = 1;
+      stunnedUntil = now + 1100;
+      explode(e);
+      say('megumin');
+    } else {
+      score = Math.max(0, score - 25); streak = 0; combo = 1;
+      timeLeft = Math.max(0, timeLeft - 3);
+      blank();
+      say('shiro');
+      sfx.blank();
+    }
+    renderHUD();
+    setTimeout(() => hide(h, true), 160);
+  }
+
+  function explode(e) {
+    const r = field.getBoundingClientRect();
+    const x = e ? e.clientX - r.left : r.width / 2, y = e ? e.clientY - r.top : r.height / 2;
+    const b = document.createElement('div');
+    b.className = 'explosion';
+    b.style.setProperty('--x', x + 'px'); b.style.setProperty('--y', y + 'px');
+    b.innerHTML = '<span>EXPLOSION!!</span>';
+    field.parentElement.appendChild(b);
+    field.classList.remove('shake'); void field.offsetWidth; field.classList.add('shake');
+    sfx.boom();
+    setTimeout(() => b.remove(), 750);
+  }
+
+  function blank() {
+    const b = document.createElement('div');
+    b.className = 'blank';
+    b.innerHTML = '<span><b>「　」</b>Blank never loses.<br>−3 seconds</span>';
+    field.parentElement.appendChild(b);
+    setTimeout(() => b.remove(), 1000);
+  }
+
+  function renderHUD() {
+    $('score').textContent = score;
+    $('combo').textContent = '×' + combo;
+    $('bonks').textContent = bonks;
+    const t = Math.ceil(timeLeft);
+    $('time').textContent = t;
+    $('time').classList.toggle('low', t <= 10 && playing);
+    $('timebar').style.transform = `scaleX(${timeLeft / ROUND})`;
+  }
+
+  // ---------- loop ----------
+  function loop(now) {
+    const dt = (now - lastTick) / 1000; lastTick = now;
+    timeLeft -= dt;
+    if (timeLeft <= 0) { timeLeft = 0; renderHUD(); return end(); }
+    for (const h of holes) if (h.kind && now > h.until) hide(h, false);
+    if (now >= nextSpawn) {
+      spawn(now);
+      const d = difficulty();
+      nextSpawn = now + d.gap * (0.7 + Math.random() * .6);
+    }
+    renderHUD();
+    raf = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    sfx.init();
+    score = 0; combo = 1; streak = 0; bonks = 0; timeLeft = ROUND; stunnedUntil = 0;
+    holes.forEach(h => { h.kind = null; h.el.classList.remove('up', 'hit', 'down'); });
+    overlay.hidden = true;
+    playing = true;
+    field.classList.add('playing');
+    lastTick = performance.now(); nextSpawn = lastTick + 500;
+    say('idle'); renderHUD();
+    raf = requestAnimationFrame(loop);
+  }
+
+  function end() {
+    playing = false;
+    cancelAnimationFrame(raf);
+    field.classList.remove('playing');
+    holes.forEach(h => { if (h.kind) hide(h, true); });
+    const newBest = score > best;
+    if (newBest) { best = score; try { localStorage.setItem('amog.whackamoni.best', best); } catch {} $('best').textContent = best; }
+    const verdict =
+      score >= 1500 ? 'Moni has filed a restraining order.' :
+      score >= 800 ? 'Moni will think twice before eating a banana again.' :
+      score >= 300 ? 'Respectable bonkage.' :
+      score > 0 ? 'Moni finished the banana. Moni is thriving.' :
+      'Did you bonk Megumin on purpose?';
+    ovBody.innerHTML = `
+      <h2>${newBest ? 'New personal best' : 'Time\'s up'}</h2>
+      <div class="big">${score}</div>
+      <p>${bonks} Moni${bonks === 1 ? '' : 's'} bonked. ${verdict}</p>
+      <button class="btn go" id="go">bonk again ↻</button>`;
+    overlay.hidden = false;
+    $('go').onclick = start;
+    renderHUD();
+  }
+
+  function intro() {
+    ovBody.innerHTML = `
+      <h2>Whack-a-Moni</h2>
+      <div class="cast">
+        <figure style="--c:var(--red)"><div class="face red"></div><figcaption><b>Redstone</b>you</figcaption></figure>
+        <figure style="--c:var(--g3)"><div class="face moni"></div><figcaption><b>Moni</b>bonk him</figcaption></figure>
+        <figure style="--c:var(--g2)"><div class="face">${MEGUMIN}</div><figcaption><b>Megumin</b>don't</figcaption></figure>
+        <figure style="--c:var(--g2)"><div class="face">${SHIRO}</div><figcaption><b>Shiro</b>really don't</figcaption></figure>
+      </div>
+      <p>60 seconds. Click or tap Moni when he pops up. It gets faster.</p>
+      <button class="btn go" id="go">start bonking →</button>`;
+    $('go').onclick = start;
+  }
+
+  // ---------- input ----------
+  holes.forEach(h => h.el.addEventListener('pointerdown', e => { e.preventDefault(); swing(e); whack(h, e); }));
+  field.addEventListener('pointerdown', e => { if (e.target === field) { swing(e); if (playing && performance.now() >= stunnedUntil) { streak = 0; combo = 1; renderHUD(); } } });
+  document.addEventListener('keydown', e => {
+    if ((e.key === ' ' || e.key === 'Enter') && !playing && document.activeElement?.id !== 'go') { e.preventDefault(); start(); }
+    // numpad-style keys 7 8 9 / 4 5 6 / 1 2 3
+    const map = { '7': 0, '8': 1, '9': 2, '4': 3, '5': 4, '6': 5, '1': 6, '2': 7, '3': 8 };
+    if (playing && e.key in map) whack(holes[map[e.key]]);
+  });
+
+  // Redstone-hammer cursor
+  const hammer = $('hammer');
+  const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  function moveHammer(e) { hammer.style.left = e.clientX + 'px'; hammer.style.top = e.clientY + 'px'; }
+  field.addEventListener('pointermove', e => { if (finePointer && playing) { hammer.classList.add('on'); moveHammer(e); } });
+  field.addEventListener('pointerleave', () => { if (finePointer) hammer.classList.remove('on'); });
+  function swing(e) {
+    if (!playing) return;
+    moveHammer(e);
+    hammer.classList.add('on', 'swing');
+    setTimeout(() => {
+      hammer.classList.remove('swing');
+      if (!finePointer) setTimeout(() => hammer.classList.remove('on'), 150);
+    }, 90);
+  }
+  new MutationObserver(() => { if (!playing) hammer.classList.remove('on'); }).observe(field, { attributes: true, attributeFilter: ['class'] });
+
+  // ---------- tiny WebAudio sfx ----------
+  const sfx = {
+    ctx: null,
+    init() { try { this.ctx ??= new (window.AudioContext || window.webkitAudioContext)(); this.ctx.resume(); } catch {} },
+    tone(f0, f1, dur, type = 'square', vol = .15) {
+      const c = this.ctx; if (!c) return;
+      const o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
+      o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur);
+    },
+    noise(dur, vol = .4) {
+      const c = this.ctx; if (!c) return;
+      const b = c.createBuffer(1, c.sampleRate * dur, c.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+      const s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 900;
+      s.buffer = b; g.gain.value = vol; s.connect(f).connect(g).connect(c.destination); s.start();
+    },
+    bonk(gold) { this.tone(420, 90, .12, 'square', .12); if (gold) setTimeout(() => this.tone(880, 1760, .18, 'triangle', .1), 60); },
+    boom() { this.noise(.9, .6); this.tone(120, 30, .6, 'sawtooth', .2); },
+    blank() { this.tone(660, 330, .25, 'sine', .12); setTimeout(() => this.tone(495, 247, .3, 'sine', .1), 120); },
+  };
+
+  intro();
+  renderHUD();
+})();
+</script>
+</body>
+</html>
