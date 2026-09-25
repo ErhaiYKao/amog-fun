@@ -10,6 +10,7 @@
 <meta property="og:image" content="https://amog.fun/founder.webp">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='32' cy='32' r='13' fill='none' stroke='%234fd6e8' stroke-width='6'/></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/math.js" defer></script>
 <style>
   /* ---------- hero ---------- */
   .hero {
@@ -139,7 +140,7 @@
       <div class="eyebrow">Magnussen Institute for Applied Fun · est. 2026</div>
       <h1>amog<span class="dot">.</span><em>fun</em></h1>
       <p class="lead">A small category. The objects are games and quick experiments. The morphisms are afternoons, irreversibly spent.</p>
-      <p class="hom">Hom(<i>Bored</i>, <i>Amused</i>) ≠ ∅</p>
+      <p class="hom">$\Hom(\mathit{Bored},\, \mathit{Amused}) \neq \varnothing$</p>
       <div class="cta">
         <a class="btn primary" href="/dotsandboxes/">Play Dots &amp; Boxes →</a>
         <a class="btn" href="#objects">Browse all objects</a>
@@ -185,11 +186,11 @@
         <h3>Amog Magnussen</h3>
         <div class="role">Founder &amp; Chief Mathematician</div>
         <p>Amog Magnussen founded amog.fun after spotting that every good afternoon factors through a small, dumb game. His research is in group theory, category theory, and obby.</p>
-        <p>He is best known for the <em>Kholonosky Lemma</em>: every lax monoidal 2-functor from the free cocompletion of a locally presentable (∞,1)-category into <span class="math">Cat</span> admits a left Kan extension along its own Yoneda embedding, unique up to contractible choice, provided the ambient Grothendieck topos has a subobject classifier for lag. He is still working on the converse.</p>
+        <p>He is best known for the <em>Kholonosky Lemma</em>: for a locally presentable $(\infty,1)$-category $\mathcal{C}$, every lax monoidal 2-functor $F\colon \widehat{\mathcal{C}} \to \Cat$ out of its free cocompletion admits a left Kan extension $\operatorname{Lan}_{y}F$ along the Yoneda embedding $y\colon \mathcal{C} \hookrightarrow \widehat{\mathcal{C}}$, unique up to contractible choice, provided the ambient Grothendieck topos has a subobject classifier $\Omega_{\text{lag}}$ for lag. He is still working on the converse.</p>
         <dl class="facts">
-          <dt>skill ceiling</dt><dd>4,219,429<span style="color:var(--g2)">+++</span>, a word in the free monoid on {+}</dd>
+          <dt>skill ceiling</dt><dd>4,219,429<span style="color:var(--g2)">+++</span>, a word in the free monoid $\{+\}^{*}$</dd>
           <dt>favourite group</dt><dd>The Monster group, for obvious reasons</dd>
-          <dt>favourite category</dt><dd><span class="math">Grp</span> on weekdays, <span class="math">Set</span> on weekends</dd>
+          <dt>favourite category</dt><dd>$\Grp$ on weekdays, $\Set$ on weekends</dd>
           <dt>erdős number</dt><dd>Undefined. He only co-authors with people who can clear his obby.</dd>
         </dl>
         <blockquote>“Every obby is a groupoid if you're brave enough.”<cite>A. Magnussen, 2026</cite></blockquote>
@@ -204,7 +205,8 @@
     </div>
     <div class="theorem">
       <div class="thm-box">
-        <p><span class="label">Theorem 1</span> (Magnussen, 2026). For every state of boredom <i>B</i> and every route to joy <i>g</i> : <i>B</i> → <i>Joy</i>, there is a unique <i>h</i> : amog.fun → <i>Joy</i> with <i>h</i> ∘ <i>f</i> = <i>g</i>.</p>
+        <p><span class="label">Theorem 1</span> (Magnussen, 2026). For every state of boredom $B$ and every route to joy $g\colon B \to \mathit{Joy}$, there is a unique $h\colon \texttt{amog.fun} \to \mathit{Joy}$ such that</p>
+        <p>$$h \circ f = g.$$</p>
         <p>In other words, every fun thing factors uniquely through amog.fun.</p>
         <p class="proof"><i>Proof.</i> Pick an object from §1 and play it. <span class="qed">∎</span></p>
       </div>
@@ -255,6 +257,7 @@
         <h3>Next object</h3>
         <p>Not constructed yet. Exists by the axiom of choice.</p>
       </div>`;
+    if (window.amogMath) amogMath(grid);
   } catch (_) { /* static fallback card stays */ }
 })();
 

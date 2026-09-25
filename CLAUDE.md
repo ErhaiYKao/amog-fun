@@ -9,3 +9,4 @@ Conventions:
 - `signature` is a joke morphism, e.g. `"dotsandboxes : Bored → Amused"`.
 - Shared style: `/assets/amog.css` (dark starfield, Instrument Serif / STIX Two Text / JetBrains Mono, generator colors `--g1` cyan, `--g2` red, `--g3` lime). Put a `.topbar` with the `amog.fun∘` brand linking home on every page.
 - Theme: Amog Magnussen is the founder & chief mathematician (group theory, category theory, obby). Copy leans into math jokes.
+- LaTeX: include `<script src="/assets/math.js" defer></script>`; then `$inline$`, `$$display$$`, `\(..\)`, `\[..\]` render via KaTeX. Macros: \Hom \Cat \Grp \Set \id \op. Call `amogMath(el)` for dynamically inserted content; class `no-math` opts out. Blurbs in projects.json may use LaTeX.
