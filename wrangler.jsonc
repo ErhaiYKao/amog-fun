@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "amog-fun",
+  "compatibility_date": "2026-06-01",
+  // Pure static site: every folder in ./public is a route.
+  // public/foo/index.html  ->  https://amog.fun/foo
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "amog.fun", "custom_domain": true },
+    { "pattern": "www.amog.fun", "custom_domain": true }
+  ],
+  "workers_dev": false
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "slug": "dotsandboxes",
+    "title": "Dots & Boxes",
+    "signature": "dotsandboxes : Bored → Amused",
+    "blurb": "Draw lines, close squares, get double-crossed. Play against Amog himself, who has read Berlekamp and will not hesitate.",
+    "tags": ["game", "vs AI"]
+  }
+]

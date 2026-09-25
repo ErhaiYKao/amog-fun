@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dots &amp; Boxes · amog.fun</title>
+<meta name="description" content="Play Dots and Boxes against Amog Magnussen, an AI that knows about double-crosses.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='18' cy='18' r='5' fill='%23ece8de'/><circle cx='46' cy='18' r='5' fill='%23ece8de'/><circle cx='18' cy='46' r='5' fill='%23ece8de'/><circle cx='46' cy='46' r='5' fill='%23ece8de'/><path d='M18 18H46V46' stroke='%23ff5a5f' stroke-width='4' fill='none'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<style>
+  :root { --you: var(--g1); --amog: var(--g2); }
+  .game { display: grid; grid-template-columns: 1fr 320px; gap: 40px; align-items: start; padding: 8px 0 24px; }
+  .title .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .title h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 20px; }
+
+  .board-wrap { position: relative; }
+  svg.board { width: 100%; height: auto; display: block; user-select: none; -webkit-user-select: none; touch-action: manipulation; max-height: 78vh; }
+  .dot { fill: var(--ink); }
+  .edge { stroke-linecap: round; stroke-width: 7; }
+  .edge.you { stroke: var(--you); }
+  .edge.amog { stroke: var(--amog); }
+  .edge.last { filter: drop-shadow(0 0 6px var(--amog)); }
+  .edge.last.you { filter: drop-shadow(0 0 6px var(--you)); }
+  .edge.draw-in { stroke-dasharray: 100; stroke-dashoffset: 100; animation: draw .22s ease-out forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .ghost-edge { stroke: var(--line-2); stroke-width: 3; stroke-dasharray: 2 9; stroke-linecap: round; pointer-events: none; transition: stroke .1s; }
+  .hit { stroke: transparent; stroke-width: 30; cursor: pointer; }
+  .hit:hover + .ghost-edge, .hit:focus-visible + .ghost-edge { stroke: var(--you); stroke-dasharray: none; stroke-width: 6; opacity: .55; }
+  .hit:focus { outline: none; }
+  .locked .hit { cursor: default; }
+  .locked .hit:hover + .ghost-edge { stroke: var(--line-2); stroke-dasharray: 2 9; stroke-width: 3; opacity: 1; }
+  .boxfill { transition: opacity .25s; }
+  .boxfill.you { fill: var(--you); }
+  .boxfill.amog { fill: var(--amog); }
+  .boxlabel { font-family: var(--serif); font-style: italic; font-size: 44px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .boxlabel.you { fill: var(--you); }
+  .boxlabel.amog { fill: var(--amog); }
+  .pop { animation: pop .3s ease-out; transform-box: fill-box; transform-origin: center; }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  .panel { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+  .scores { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .score { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; background: var(--bg-2); transition: border-color .2s, box-shadow .2s; }
+  .score .who { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .score .who::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+  .score .n { font-family: var(--display); font-size: 52px; line-height: 1.05; }
+  .score.active { border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset; }
+  .score.you { --c: var(--you); }
+  .score.amog { --c: var(--amog); }
+  .status { min-height: 52px; font-size: 17px; color: #ddd9cf; }
+  .status .thinking::after { content: "…"; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+
+  .controls { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .field { display: grid; gap: 6px; }
+  .field > span { font-family: var(--mono); font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .seg { display: flex; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button {
+    flex: 1; font-family: var(--mono); font-size: 13px; color: var(--muted); background: transparent;
+    border: 0; border-radius: 7px; padding: 8px 4px; cursor: pointer;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--bg-3); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset; }
+  .record { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+
+  details.rules { border-top: 1px solid var(--line); padding-top: 14px; font-size: 16px; color: #cfcbc1; }
+  details.rules summary { font-family: var(--mono); font-size: 13px; color: var(--muted); cursor: pointer; }
+  details.rules p { margin: 10px 0 0; }
+
+  .overlay {
+    position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+    opacity: 0; transition: opacity .3s;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay .card {
+    background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(6px);
+    border: 1px solid var(--line-2); border-radius: var(--radius); padding: 24px 28px; text-align: center; max-width: 360px;
+  }
+  .overlay h2 { font-family: var(--display); font-weight: 400; font-size: 42px; margin: 0 0 6px; line-height: 1.05; }
+  .overlay p { margin: 0 0 18px; color: var(--muted); }
+
+  @media (max-width: 900px) {
+    .game { grid-template-columns: 1fr; gap: 20px; }
+    .panel { position: static; }
+    svg.board { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+    <nav><a href="/#objects">← all objects</a></nav>
+  </header>
+
+  <div class="title">
+    <div class="sig">dotsandboxes : Bored → Amused</div>
+    <h1>Dots &amp; Boxes</h1>
+  </div>
+
+  <main class="game">
+    <div class="board-wrap">
+      <svg class="board" id="board" role="grid" aria-label="Dots and Boxes board"></svg>
+      <div class="overlay" id="overlay">
+        <div class="card">
+          <h2 id="ov-title"></h2>
+          <p id="ov-text"></p>
+          <button class="btn primary" id="again">Play again</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="scores">
+        <div class="score you" id="sc-you"><div class="who">you</div><div class="n" id="n-you">0</div></div>
+        <div class="score amog" id="sc-amog"><div class="who">amog</div><div class="n" id="n-amog">0</div></div>
+      </div>
+      <div class="status" id="status"></div>
+
+      <div class="controls">
+        <div class="field"><span>Board</span>
+          <div class="seg" data-key="size">
+            <button data-v="3">3×3</button><button data-v="4">4×4</button><button data-v="5">5×5</button><button data-v="6">6×6</button>
+          </div>
+        </div>
+        <div class="field"><span>Amog's level</span>
+          <div class="seg" data-key="level">
+            <button data-v="easy">undergrad</button><button data-v="medium">postdoc</button><button data-v="hard">Magnussen</button>
+          </div>
+        </div>
+        <div class="field"><span>First move</span>
+          <div class="seg" data-key="first">
+            <button data-v="you">you</button><button data-v="amog">amog</button>
+          </div>
+        </div>
+        <button class="btn" id="new">New game</button>
+        <div class="record" id="record"></div>
+      </div>
+
+      <details class="rules">
+        <summary>rules &amp; theory</summary>
+        <p>Take turns drawing a line between two neighbouring dots. If your line closes a box, you own it and move again. When every line is drawn, whoever owns more boxes wins.</p>
+        <p>Near the end, drawing any line hands your opponent a chain of boxes. A strong player takes all but the last two, then gives those two back. That keeps control of who has to open the next chain. This is the <em>double-cross</em>, and Amog on Magnussen level knows it. He also solves the endgame exactly once it is small enough.</p>
+      </details>
+    </aside>
+  </main>
+
+  <footer class="footer">
+    <span>amog.fun/dotsandboxes</span>
+    <span>a morphism from boredom, composed with you</span>
+  </footer>
+</div>
+
+<script src="ai.js"></script>
+<script>
+(() => {
+  const SP = 100, M = 30; // spacing between dots, margin (svg units)
+  const svg = document.getElementById("board");
+  const $ = id => document.getElementById(id);
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("amog.dab." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("amog.dab." + k, JSON.stringify(v)); } catch {} },
+  };
+
+  const opts = {
+    size: store.get("size", innerWidth < 600 ? 4 : 5),
+    level: store.get("level", "medium"),
+    first: store.get("first", "you"),
+  };
+
+  let G, drawn, drawnBy, owner, score, turn, over, lastEdge, busy, aiTimer, gameId = 0;
+  let edgeEls, boxEls, hitEls, layers;
+
+  // ---------- setup ----------
+  function newGame() {
+    clearTimeout(aiTimer);
+    gameId++;
+    const n = +opts.size;
+    G = DBAI.makeGeometry(n, n);
+    drawn = new Uint8Array(G.E);
+    drawnBy = new Int8Array(G.E).fill(-1);
+    owner = new Int8Array(G.NB).fill(-1);
+    score = [0, 0]; // 0 = you, 1 = amog
+    turn = opts.first === "you" ? 0 : 1;
+    over = false; lastEdge = -1; busy = false;
+    $("overlay").classList.remove("show");
+    buildBoard();
+    render();
+    if (turn === 1) setStatus(`<span class="thinking">Amog opens</span>`), scheduleAI(500);
+    else setStatus("Your move. Draw any line.");
+    showRecord();
+  }
+
+  function buildBoard() {
+    const w = G.C * SP + 2 * M, h = G.R * SP + 2 * M;
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.innerHTML = "";
+    layers = { boxes: el("g", {}, svg), edges: el("g", {}, svg), hits: el("g", {}, svg), dots: el("g", {}, svg) };
+    boxEls = [];
+    for (let r = 0; r < G.R; r++) for (let c = 0; c < G.C; c++) {
+      const g = el("g", {}, layers.boxes);
+      const rect = el("rect", { x: M + c * SP + 6, y: M + r * SP + 6, width: SP - 12, height: SP - 12, rx: 6, class: "boxfill", opacity: 0 }, g);
+      const txt = el("text", { x: M + c * SP + SP / 2, y: M + r * SP + SP / 2, class: "boxlabel" }, g);
+      boxEls.push({ rect, txt, g });
+    }
+    edgeEls = []; hitEls = [];
+    const inset = 12;
+    for (let e = 0; e < G.E; e++) {
+      const [r1, c1, r2, c2] = G.ends[e];
+      const horiz = r1 === r2;
+      const x1 = M + c1 * SP + (horiz ? inset : 0), y1 = M + r1 * SP + (horiz ? 0 : inset);
+      const x2 = M + c2 * SP - (horiz ? inset : 0), y2 = M + r2 * SP - (horiz ? 0 : inset);
+      const hit = el("line", { x1, y1, x2, y2, class: "hit", tabindex: 0, role: "button",
+        "aria-label": `${horiz ? "horizontal" : "vertical"} line at row ${r1 + 1}, column ${c1 + 1}` }, layers.hits);
+      const ghost = el("line", { x1, y1, x2, y2, class: "ghost-edge" }, layers.hits);
+      hit.addEventListener("click", () => humanMove(e));
+      hit.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); humanMove(e); } });
+      hitEls.push({ hit, ghost });
+      edgeEls.push({ x1: M + c1 * SP, y1: M + r1 * SP, x2: M + c2 * SP, y2: M + r2 * SP, node: null });
+    }
+    for (let r = 0; r <= G.R; r++) for (let c = 0; c <= G.C; c++)
+      el("circle", { cx: M + c * SP, cy: M + r * SP, r: 7, class: "dot" }, layers.dots);
+  }
+
+  // ---------- moves ----------
+  function apply(e, who) {
+    drawn[e] = 1; drawnBy[e] = who; lastEdge = e;
+    const sides = DBAI.computeSides(G, drawn);
+    let got = 0;
+    for (const b of G.edgeBoxes[e]) if (sides[b] === 4 && owner[b] < 0) { owner[b] = who; got++; }
+    score[who] += got;
+    if (!got) turn ^= 1;
+    if (drawn.every(Boolean)) over = true;
+    return got;
+  }
+
+  function humanMove(e) {
+    if (over || busy || turn !== 0 || drawn[e]) return;
+    const got = apply(e, 0);
+    render(e);
+    if (over) return finish();
+    if (got) setStatus(got === 2 ? "Two at once. Go again." : "Box! Go again.");
+    else { setStatus(`<span class="thinking">Amog is thinking</span>`); scheduleAI(420); }
+  }
+
+  function scheduleAI(delay) {
+    busy = true; svg.classList.add("locked");
+    const id = gameId;
+    aiTimer = setTimeout(() => { if (id === gameId) aiMove(); }, delay);
+  }
+
+  function aiMove() {
+    const sidesBefore = DBAI.computeSides(G, drawn);
+    const hadCapture = Array.from(sidesBefore).some(s => s === 3);
+    const e = DBAI.chooseMove(G, drawn, opts.level);
+    const got = apply(e, 1);
+    render(e);
+    if (over) { busy = false; svg.classList.remove("locked"); return finish(); }
+    if (turn === 1) { scheduleAI(got ? 260 : 420); return; }
+    busy = false; svg.classList.remove("locked");
+    if (hadCapture && !got && opts.level === "hard") setStatus("Amog gives you the last boxes on purpose. That's a <em>double-cross</em>: you can take them, but then you have to open the next chain.");
+    else setStatus("Your move.");
+  }
+
+  // ---------- rendering ----------
+  function render(fresh = -1) {
+    for (let e = 0; e < G.E; e++) {
+      const E = edgeEls[e];
+      if (drawn[e] && !E.node) {
+        E.node = el("line", { x1: E.x1, y1: E.y1, x2: E.x2, y2: E.y2, pathLength: 100,
+          class: `edge ${drawnBy[e] ? "amog" : "you"}${e === fresh ? " draw-in" : ""}` }, layers.edges);
+        hitEls[e].hit.remove(); hitEls[e].ghost.remove();
+      }
+      if (E.node) E.node.classList.toggle("last", e === lastEdge);
+    }
+    for (let b = 0; b < G.NB; b++) {
+      const B = boxEls[b];
+      if (owner[b] >= 0 && B.rect.getAttribute("opacity") === "0") {
+        const cls = owner[b] ? "amog" : "you";
+        B.rect.setAttribute("class", `boxfill ${cls}`); B.rect.setAttribute("opacity", ".16");
+        B.txt.setAttribute("class", `boxlabel ${cls} pop`); B.txt.textContent = owner[b] ? "A" : "Y";
+      }
+    }
+    $("n-you").textContent = score[0]; $("n-amog").textContent = score[1];
+    $("sc-you").classList.toggle("active", !over && turn === 0);
+    $("sc-amog").classList.toggle("active", !over && turn === 1);
+  }
+
+  function setStatus(html) { $("status").innerHTML = html; }
+
+  function finish() {
+    const [y, a] = score;
+    const rec = store.get("record", {});
+    const k = `${opts.level}-${opts.size}`;
+    rec[k] = rec[k] || [0, 0, 0];
+    let title, text;
+    if (y > a) { rec[k][0]++; title = "You win."; text = `${y}–${a}. Amog demands a rematch and is quietly revising his lemma.`; }
+    else if (a > y) { rec[k][1]++; title = "Amog wins."; text = `${a}–${y}, exactly as Theorem 1 predicted.`; }
+    else { rec[k][2]++; title = "A draw."; text = `${y}–${a}. The diagram commutes.`; }
+    store.set("record", rec);
+    setStatus(title + " " + text);
+    $("ov-title").textContent = title; $("ov-text").textContent = text;
+    $("overlay").classList.add("show");
+    render();
+    showRecord();
+  }
+
+  function showRecord() {
+    const r = (store.get("record", {})[`${opts.level}-${opts.size}`]) || [0, 0, 0];
+    const lvl = { easy: "undergrad", medium: "postdoc", hard: "Magnussen" }[opts.level];
+    $("record").textContent = `your record vs ${lvl} on ${opts.size}×${opts.size}: ${r[0]}W ${r[1]}L${r[2] ? " " + r[2] + "D" : ""}`;
+  }
+
+  // ---------- controls ----------
+  document.querySelectorAll(".seg").forEach(seg => {
+    const key = seg.dataset.key;
+    const sync = () => seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v == opts[key])));
+    seg.addEventListener("click", ev => {
+      const b = ev.target.closest("button"); if (!b) return;
+      ev.preventDefault();
+      opts[key] = key === "size" ? +b.dataset.v : b.dataset.v;
+      store.set(key, opts[key]);
+      sync();
+      newGame();
+    });
+    sync();
+  });
+  $("new").addEventListener("click", newGame);
+  $("again").addEventListener("click", newGame);
+
+  newGame();
+})();
+</script>
+</body>
+</html>
