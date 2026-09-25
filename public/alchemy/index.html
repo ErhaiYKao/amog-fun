@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alchemy · amog.fun</title>
+<meta name="description" content="A skyblock in the void. Start with one tree, sieve dirt for stone, smelt ore, automate everything, and transmute your way to the Terminal Object.">
+<meta property="og:title" content="Alchemy · amog.fun">
+<meta property="og:description" content="Start with one tree in the void. End with the Terminal Object.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'><rect width='16' height='16' fill='%230a0a0f'/><rect x='3' y='9' width='10' height='4' fill='%235b8f3a'/><rect x='3' y='13' width='10' height='2' fill='%236b4a2b'/><rect x='7' y='5' width='2' height='4' fill='%236b4a2b'/><rect x='4' y='1' width='8' height='5' fill='%233f7a2e'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<style>
+  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 4px 0 20px; }
+  .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 6px; }
+  .head p { margin: 0; color: var(--muted); max-width: 52ch; }
+  .stats { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .stats b { color: var(--ink); font-weight: 500; }
+
+  .game { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
+  .card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .card h2 { font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1; margin: 0; }
+  .card h3 { font-family: var(--mono); font-size: 11.5px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  img.px { image-rendering: pixelated; image-rendering: crisp-edges; width: 32px; height: 32px; display: block; flex: none; }
+  img.px.sm { width: 20px; height: 20px; }
+  .mini { font-family: var(--mono); font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; }
+  .mini:hover:not(:disabled) { border-color: var(--muted); }
+  .mini:disabled { opacity: .4; cursor: default; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; padding: 3px 9px 3px 4px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--muted); cursor: pointer; }
+  .chip[aria-pressed="true"] { color: var(--ink); border-color: var(--g1); background: #4fd6e814; }
+  .chip:disabled { opacity: .45; cursor: default; }
+  .bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--g1); border-radius: inherit; transition: width .12s linear; }
+  .bar.warm > i { background: #ff8c1a; } .bar.water > i { background: #3f76e4; } .bar.green > i { background: var(--g3); }
+
+  /* quest */
+  .quest .num { font-family: var(--mono); font-size: 12px; color: var(--g3); }
+  .quest h2 { margin: 6px 0 6px; }
+  .quest p { margin: 0; color: #d3cfc5; font-size: 16.5px; }
+  .quest details { margin-top: 10px; font-size: 14px; color: var(--muted); }
+  .quest summary { font-family: var(--mono); font-size: 12px; cursor: pointer; }
+  .quest ol { margin: 8px 0 0; padding-left: 20px; columns: 2; column-gap: 20px; }
+  .quest li.done { color: var(--faint); text-decoration: line-through; }
+
+  /* island */
+  .island { width: 100%; height: auto; display: block; image-rendering: pixelated; border-radius: 10px; cursor: pointer; background: #07070c; }
+  .tileinfo { margin-top: 10px; min-height: 30px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 15px; }
+  .tileinfo .grow { flex: 1; }
+
+  /* actions */
+  .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .act { border: 1px solid var(--line-2); border-radius: 12px; padding: 12px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .act.off { opacity: .55; }
+  .act button.go {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; color: var(--ink);
+    font-family: var(--serif); font-size: 17px; transition: transform .05s, border-color .15s;
+    touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  }
+  .act button.go:hover:not(:disabled) { border-color: var(--g1); }
+  .act button.go:active:not(:disabled) { transform: scale(.98); }
+  .act button.go:disabled { cursor: default; }
+  .act .k { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--faint); border: 1px solid var(--line-2); border-radius: 5px; padding: 0 5px; }
+  .act .why { font-family: var(--mono); font-size: 11.5px; color: var(--g2); min-height: 1em; }
+  .float { position: absolute; pointer-events: none; font-family: var(--mono); font-size: 12.5px; color: var(--g3); white-space: nowrap; animation: rise .9s ease-out forwards; z-index: 5; }
+  @keyframes rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-34px); opacity: 0; } }
+
+  /* machines */
+  .mach { border-top: 1px solid var(--line); padding: 12px 0; display: grid; gap: 8px; }
+  .mach:first-of-type { border-top: 0; padding-top: 0; }
+  .mach .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; }
+  .mach .row .grow { flex: 1; min-width: 90px; }
+  .mach .row.meta { font-size: 12px; }
+  .grp { display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; }
+  .grp .mini { padding: 4px 8px; }
+  .mach label { font-family: var(--mono); font-size: 12px; color: var(--muted); display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+  .units { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+  .unit { font-family: var(--mono); font-size: 11px; color: var(--muted); display: grid; gap: 3px; }
+  .fuel { display: grid; grid-template-columns: 74px 1fr 64px; gap: 4px 8px; align-items: center; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+  /* inventory */
+  .inv { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px; }
+  .slot { position: relative; aspect-ratio: 1; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; }
+  .slot img.px { width: 70%; height: 70%; }
+  .slot .n { position: absolute; right: 3px; bottom: 1px; font-family: var(--mono); font-size: 11.5px; color: #fff; text-shadow: 0 1px 0 #000, 0 0 3px #000; }
+  .slot.tool { border-color: #4fd6e855; }
+  .empty { color: var(--faint); font-size: 15px; margin: 0; }
+  .inv .empty { grid-column: 1 / -1; }
+
+  /* crafting */
+  .recipes { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; padding-right: 2px; }
+  .rec { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); }
+  .rec.no { opacity: .5; }
+  .rec .name { font-size: 16px; line-height: 1.2; }
+  .rec .name small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .ings { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; }
+  .ing { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .ing.lack { color: var(--g2); }
+  .ing.need { color: var(--g1); }
+  .rec .btns { display: flex; gap: 4px; }
+
+  /* log */
+  .log ul { list-style: none; margin: 0; padding: 0; font-size: 14.5px; display: grid; gap: 4px; }
+  .log li { display: flex; gap: 8px; align-items: center; color: #cfcbc1; }
+  .log li.quest { color: var(--g3); }
+  .log li.new { color: var(--g1); }
+  .log .save { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+
+  .tip { position: fixed; z-index: 50; pointer-events: none; max-width: 260px; background: #111118f2; border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; font-size: 14px; display: none; }
+  .tip b { font-weight: 600; } .tip small { display: block; color: var(--muted); font-family: var(--mono); font-size: 11.5px; margin-top: 3px; }
+
+  .win { position: fixed; inset: 0; background: #0a0a0fcc; backdrop-filter: blur(6px); display: none; place-items: center; z-index: 60; padding: 16px; }
+  .win.show { display: grid; }
+  .win .box { max-width: 440px; text-align: center; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 28px; }
+  .win h2 { font-family: var(--display); font-weight: 400; font-size: 44px; margin: 10px 0 8px; line-height: 1; }
+  .win p { color: var(--muted); margin: 0 0 18px; }
+
+  @media (max-width: 900px) {
+    .game { display: flex; flex-direction: column; }
+    .col { display: contents; }
+    .card { order: var(--o); }
+    .quest ol { columns: 1; }
+  }
+  @media (max-width: 520px) {
+    .actions { grid-template-columns: 1fr; }
+    .card { padding: 14px 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+    <nav><a href="/#objects">← all objects</a></nav>
+  </header>
+
+  <div class="head">
+    <div>
+      <div class="sig">alchemy : Void → Everything</div>
+      <h1>Alchemy</h1>
+      <p>A skyblock in the void. You start with one tree. Compost, sieve, smelt and automate your way to the Terminal Object.</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <main class="game">
+    <div class="col">
+      <section class="card island-card" style="--o:2">
+        <div class="card-h"><h2>The Island</h2><span class="meta" id="land"></span></div>
+        <canvas class="island" id="island" width="180" height="146" aria-label="Your island"></canvas>
+        <div class="tileinfo" id="tile"></div>
+      </section>
+      <section class="card" style="--o:3"><div class="card-h"><h2>Work</h2><span class="meta">keys 1–4</span></div><div class="actions" id="actions"></div></section>
+      <section class="card" id="machines-card" style="--o:6"><div class="card-h"><h2>Machines</h2></div><div id="machines"></div></section>
+    </div>
+    <div class="col">
+      <section class="card quest" id="quest" style="--o:1"></section>
+      <section class="card" style="--o:4"><div class="card-h"><h2>Inventory</h2><span class="meta" id="invmeta"></span></div><div class="inv" id="inventory"></div></section>
+      <section class="card" style="--o:5">
+        <div class="card-h"><h2>Crafting</h2><div class="chips" id="craftfilter"></div></div>
+        <div class="recipes" id="crafting"></div>
+      </section>
+      <section class="card log" style="--o:7"><div class="card-h"><h2>Log</h2></div><ul id="log"></ul>
+        <div class="save"><button class="mini" data-act="export">Export save</button><button class="mini" data-act="import">Import save</button><button class="mini" data-act="reset">Reset</button></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>amog.fun/alchemy · inspired by SkyFactory 3</span>
+    <span>recipes by Amog, eventually</span>
+  </footer>
+</div>
+
+<div class="tip" id="tip"></div>
+<div class="win" id="win"><div class="box">
+  <img class="px" id="win-icon" alt="" style="width:64px;height:64px;margin:0 auto">
+  <h2>The Terminal Object</h2>
+  <p id="win-text"></p>
+  <button class="btn primary" data-act="closewin">Keep playing</button>
+</div></div>
+
+<script src="data.js"></script>
+<script src="engine.js"></script>
+<script src="icons.js"></script>
+<script src="ui.js"></script>
+<script src="panels.js"></script>
+<script src="island.js"></script>
+</body>
+</html>

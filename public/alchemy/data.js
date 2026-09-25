@@ -1,0 +1,237 @@
+/* Alchemy — game data. Edit this file to add or change recipes; the engine reads everything from here.
+ *
+ * ITEMS    id -> { name, icon: [shape, color, extra], desc, fuel: [heat, seconds], compost: units, place: true }
+ *          place: true means it is a machine that sits on a tile of the island (trees, barrels, sieves...).
+ * RECIPES  crafting: { in: {id: n}, out: {id: n}, at: "table", needs: {id: n}, name }
+ *          at: "table" requires a crafting table on the island. needs: items you must own, not used up.
+ * SMELT    furnace: input -> { out, time (s), heat }. Heat 1 = wood, 2 = charcoal, 3 = coal.
+ * ACTIONS  the things you click. inputs map what you put in -> drop table.
+ * Drop tables are lists of [item, chance, amount, gate]. gate is a minimum mesh tier (number)
+ *          or a tool kind you must own (string, e.g. "crook").
+ * QUESTS   the guided path, in order. need: { got: {id: n} } (ever obtained), { built: {id: n} },
+ *          { anyBuilt: [ids] }, { land: tiles }. reward: {id: n}.
+ * CONFIG   timings and balance.
+ */
+(function (root) {
+  "use strict";
+
+  const ITEMS = {
+    // the tree
+    log: { name: "Oak Log", icon: ["log", "#6b4a2b", "#b28a55"], fuel: [1, 15] },
+    planks: { name: "Oak Planks", icon: ["planks", "#b08850"], fuel: [1, 7] },
+    stick: { name: "Stick", icon: ["stick", "#8a6236"], fuel: [1, 2] },
+    leaves: { name: "Oak Leaves", icon: ["leaves", "#3f7a2e"], compost: 1, desc: "Compost for barrels." },
+    sapling: { name: "Oak Sapling", icon: ["sapling", "#4f8f35"], compost: 1, desc: "Plant it on a free tile to grow another tree." },
+    silkworm: { name: "Silkworm", icon: ["worm", "#ece6cc"], desc: "Shaken loose from leaves with a crook. Put it on leaves to farm string." },
+    string: { name: "String", icon: ["string", "#f2efe6"] },
+    twine: { name: "Twine", icon: ["twine", "#c9b27a"], desc: "Every proper tool needs a binding." },
+
+    // earth
+    dirt: { name: "Dirt", icon: ["block", "#7a5534", "dirt"], desc: "Sieve it, or spend it to grow the island." },
+    seeds: { name: "Wheat Seeds", icon: ["seeds", "#a7c957"], compost: 1 },
+    pebble: { name: "Stone Pebble", icon: ["pebble", "#8f8f8f"] },
+    cobble: { name: "Cobblestone", icon: ["block", "#7b7b7b", "cobble"] },
+    gravel: { name: "Gravel", icon: ["block", "#8a817c", "gravel"] },
+    sand: { name: "Sand", icon: ["block", "#dccf9a", "sand"] },
+    dust: { name: "Dust", icon: ["block", "#ebe5d3", "dust"] },
+    clayBlock: { name: "Clay Block", icon: ["block", "#9aa6b5", "clay"] },
+    clay: { name: "Clay Ball", icon: ["ball", "#a8b3c1"] },
+    flint: { name: "Flint", icon: ["shard", "#3b3b42"] },
+
+    // heat and ore
+    charcoal: { name: "Charcoal", icon: ["lump", "#3d3129"], fuel: [2, 60], desc: "Hot enough to fire clay. Not hot enough for iron." },
+    coal: { name: "Coal", icon: ["lump", "#17171a"], fuel: [3, 80], desc: "The only fuel hot enough to smelt ore." },
+    torch: { name: "Torch", icon: ["torch", "#8a6236"] },
+    ironPiece: { name: "Iron Ore Piece", icon: ["pieces", "#d8af93"] },
+    ironChunk: { name: "Iron Ore Chunk", icon: ["chunk", "#d8af93"] },
+    iron: { name: "Iron Ingot", icon: ["ingot", "#dcdcdc"] },
+    goldPiece: { name: "Gold Ore Piece", icon: ["pieces", "#f5cc3b"] },
+    goldChunk: { name: "Gold Ore Chunk", icon: ["chunk", "#f5cc3b"] },
+    gold: { name: "Gold Ingot", icon: ["ingot", "#f5cc3b"] },
+    redstone: { name: "Redstone", icon: ["pile", "#d42a1f"] },
+    glowstone: { name: "Glowstone Dust", icon: ["pile", "#f2d25e"] },
+    diamond: { name: "Diamond", icon: ["gem", "#5ee0d8"] },
+    gear: { name: "Iron Gear", icon: ["gear", "#c9c9c9"] },
+
+    // clay work
+    castRaw: { name: "Unfired Pickaxe Cast", icon: ["cast", "#a8b3c1"], desc: "Fire it in a furnace (charcoal heat)." },
+    cast: { name: "Pickaxe Cast", icon: ["cast", "#b8643f"], desc: "Iron and diamond pickaxes are cast in it. Not used up." },
+    bucketRaw: { name: "Unfired Clay Bucket", icon: ["bucket", "#a8b3c1"] },
+    bucket: { name: "Clay Bucket", icon: ["bucket", "#b8643f"] },
+    waterBucket: { name: "Water Bucket", icon: ["bucket", "#b8643f", "#3f76e4"] },
+    lavaBucket: { name: "Lava Bucket", icon: ["bucket", "#b8643f", "#ff7a1a"] },
+    crucibleRaw: { name: "Unfired Crucible", icon: ["pot", "#a8b3c1"] },
+    crucibleFired: { name: "Fired Crucible", icon: ["pot", "#b8643f"], desc: "Place it over torches to melt cobblestone." },
+
+    // tools (the best one you own is used; none are used up by clicking)
+    crook: { name: "Crook", icon: ["crook", "#8a6236"] },
+    woodAxe: { name: "Wooden Axe", icon: ["axe", "#b08850"] },
+    stoneAxe: { name: "Stone Axe", icon: ["axe", "#8f8f8f"] },
+    ironAxe: { name: "Iron Axe", icon: ["axe", "#dcdcdc"] },
+    diamondAxe: { name: "Diamond Axe", icon: ["axe", "#5ee0d8"] },
+    woodHammer: { name: "Wooden Hammer", icon: ["hammer", "#b08850"] },
+    stoneHammer: { name: "Stone Hammer", icon: ["hammer", "#8f8f8f"] },
+    ironHammer: { name: "Iron Hammer", icon: ["hammer", "#dcdcdc"] },
+    diamondHammer: { name: "Diamond Hammer", icon: ["hammer", "#5ee0d8"] },
+    stonePick: { name: "Stone Pickaxe", icon: ["pick", "#8f8f8f"] },
+    ironPick: { name: "Iron Pickaxe", icon: ["pick", "#dcdcdc"] },
+    diamondPick: { name: "Diamond Pickaxe", icon: ["pick", "#5ee0d8"] },
+    stringMesh: { name: "String Mesh", icon: ["mesh", "#f2efe6"] },
+    flintMesh: { name: "Flint Mesh", icon: ["mesh", "#55555e"] },
+    ironMesh: { name: "Iron Mesh", icon: ["mesh", "#dcdcdc"] },
+    diamondMesh: { name: "Diamond Mesh", icon: ["mesh", "#5ee0d8"] },
+    pstone: { name: "Philosopher's Stone", icon: ["gem", "#e0243f", "glow"], desc: "Enables transmutation. Not used up." },
+    terminal: { name: "The Terminal Object", icon: ["terminal"], desc: "Every object has exactly one arrow to it." },
+
+    // machines (each takes one tile of the island)
+    tree: { name: "Oak Tree", icon: ["tree"], place: true, desc: "Drops leaves on its own once grown." },
+    table: { name: "Crafting Table", icon: ["table"], place: true },
+    barrel: { name: "Oak Barrel", icon: ["barrel", "#9a6b3a"], place: true, desc: "Turns 6 compost into dirt." },
+    rainBarrel: { name: "Rain Barrel", icon: ["barrel", "#9a6b3a", "#3f76e4"], place: true, desc: "Fills with rainwater. Mix in dust for clay." },
+    infested: { name: "Infested Leaves", icon: ["infested"], place: true, desc: "A silkworm colony. Spins string." },
+    sieve: { name: "Sieve", icon: ["sieve"], place: true, desc: "Each sieve adds sieving power. Needs a mesh." },
+    furnace: { name: "Furnace", icon: ["furnace"], place: true },
+    crucible: { name: "Crucible", icon: ["crucible"], place: true, desc: "Melts cobblestone into lava." },
+    cobblegen: { name: "Cobblestone Generator", icon: ["gen"], place: true, desc: "Makes cobblestone forever. Needs a pickaxe." },
+    autoHammer: { name: "Auto-Hammer", icon: ["autohammer"], place: true },
+    autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true },
+  };
+
+  const SIEVE = {
+    dirt: [["pebble", 1, 2], ["pebble", 0.6, 1], ["pebble", 0.3, 1], ["seeds", 0.1, 1], ["sapling", 0.03, 1]],
+    gravel: [["flint", 0.25, 1], ["coal", 0.12, 1], ["ironPiece", 0.3, 1], ["ironPiece", 0.15, 1],
+      ["goldPiece", 0.08, 1, 2], ["diamond", 0.012, 1, 3]],
+    sand: [["ironPiece", 0.15, 1], ["goldPiece", 0.1, 1], ["glowstone", 0.03, 1, 2]],
+    dust: [["redstone", 0.3, 1], ["glowstone", 0.12, 1, 2], ["redstone", 0.1, 1, 3]],
+  };
+
+  const ACTIONS = {
+    chop: { name: "Chop the tree", verb: "Chop", key: "1", work: 5, base: 1, tool: "axe", tree: true, drops: [["log", 1, 1]] },
+    leaves: {
+      name: "Shake the leaves", verb: "Shake", key: "2", work: 3, base: 1, tool: "crook", tree: true,
+      drops: [["leaves", 1, 1], ["leaves", 0.5, 1], ["sapling", 0.12, 1], ["sapling", 0.2, 1, "crook"],
+        ["stick", 0.1, 1], ["silkworm", 0.06, 1, "crook"]],
+    },
+    sieve: { name: "Sieve", verb: "Sieve", key: "3", work: 6, per: "sieve", mesh: true, inputs: SIEVE },
+    hammer: {
+      name: "Hammer", verb: "Smash", key: "4", work: 4, tool: "hammer",
+      inputs: { cobble: [["gravel", 1, 1]], gravel: [["sand", 1, 1]], sand: [["dust", 1, 1]] },
+    },
+  };
+
+  const SMELT = {
+    log: { out: "charcoal", time: 6, heat: 1 },
+    castRaw: { out: "cast", time: 15, heat: 2 },
+    bucketRaw: { out: "bucket", time: 10, heat: 2 },
+    crucibleRaw: { out: "crucibleFired", time: 20, heat: 2 },
+    ironChunk: { out: "iron", time: 8, heat: 3 },
+    goldChunk: { out: "gold", time: 8, heat: 3 },
+  };
+
+  const RECIPES = [
+    { in: { log: 1 }, out: { planks: 4 } },
+    { in: { planks: 2 }, out: { stick: 4 } },
+    { in: { planks: 4 }, out: { table: 1 } },
+    { name: "Plant a sapling", in: { sapling: 1 }, out: { tree: 1 } },
+    { in: { stick: 5 }, out: { crook: 1 }, at: "table" },
+    { in: { planks: 7 }, out: { barrel: 1 }, at: "table" },
+    { in: { silkworm: 1, leaves: 6 }, out: { infested: 1 } },
+    { in: { string: 3 }, out: { twine: 1 } },
+    { in: { string: 6, stick: 2 }, out: { stringMesh: 1 }, at: "table" },
+    { in: { planks: 3, stick: 2 }, out: { sieve: 1 }, at: "table" },
+    { in: { pebble: 4 }, out: { cobble: 1 } },
+    { in: { planks: 3, stick: 2, twine: 1 }, out: { woodHammer: 1 }, at: "table" },
+    { in: { planks: 3, stick: 2, twine: 1 }, out: { woodAxe: 1 }, at: "table" },
+    { in: { cobble: 2, stick: 2, twine: 1 }, out: { stoneHammer: 1 }, at: "table" },
+    { in: { cobble: 3, stick: 2, twine: 1 }, out: { stoneAxe: 1 }, at: "table" },
+    { in: { cobble: 3, stick: 2, twine: 2 }, out: { stonePick: 1 }, at: "table" },
+    { in: { cobble: 8 }, out: { furnace: 1 }, at: "table" },
+    { in: { planks: 7, stick: 2 }, out: { rainBarrel: 1 }, at: "table" },
+    { in: { clayBlock: 1 }, out: { clay: 4 } },
+    { in: { clay: 5 }, out: { castRaw: 1 }, at: "table" },
+    { in: { clay: 3 }, out: { bucketRaw: 1 }, at: "table" },
+    { in: { clay: 6 }, out: { crucibleRaw: 1 }, at: "table" },
+    { in: { stick: 1, charcoal: 1 }, out: { torch: 4 } },
+    { in: { stick: 1, coal: 1 }, out: { torch: 4 } },
+    { in: { crucibleFired: 1, torch: 2 }, out: { crucible: 1 }, at: "table" },
+    { in: { waterBucket: 1, lavaBucket: 1, cobble: 4 }, out: { cobblegen: 1, bucket: 2 }, at: "table" },
+    { in: { ironPiece: 4 }, out: { ironChunk: 1 } },
+    { in: { goldPiece: 4 }, out: { goldChunk: 1 } },
+    { in: { flint: 6, stringMesh: 1 }, out: { flintMesh: 1 }, at: "table" },
+    { in: { iron: 3, stick: 2, twine: 2 }, needs: { cast: 1 }, out: { ironPick: 1 }, at: "table" },
+    { in: { iron: 2, stick: 2, twine: 1 }, out: { ironHammer: 1 }, at: "table" },
+    { in: { iron: 3, stick: 2, twine: 1 }, out: { ironAxe: 1 }, at: "table" },
+    { in: { iron: 4, flintMesh: 1 }, out: { ironMesh: 1 }, at: "table" },
+    { in: { iron: 2 }, out: { gear: 1 }, at: "table" },
+    { in: { stoneHammer: 1, gear: 1, redstone: 2, cobble: 8 }, out: { autoHammer: 1 }, at: "table" },
+    { in: { sieve: 1, gear: 1, redstone: 2 }, out: { autoSieve: 1 }, at: "table" },
+    { in: { diamond: 3, stick: 2, twine: 2 }, needs: { cast: 1 }, out: { diamondPick: 1 }, at: "table" },
+    { in: { diamond: 2, stick: 2, twine: 1 }, out: { diamondHammer: 1 }, at: "table" },
+    { in: { diamond: 3, stick: 2, twine: 1 }, out: { diamondAxe: 1 }, at: "table" },
+    { in: { diamond: 4, ironMesh: 1 }, out: { diamondMesh: 1 }, at: "table" },
+    { in: { redstone: 4, glowstone: 4, diamond: 1 }, out: { pstone: 1 }, at: "table" },
+    // transmutation: the Philosopher's Stone is required but not used up
+    { name: "Transmute", in: { cobble: 16 }, needs: { pstone: 1 }, out: { coal: 1 } },
+    { name: "Transmute", in: { iron: 4 }, needs: { pstone: 1 }, out: { gold: 1 } },
+    { name: "Transmute", in: { gold: 4 }, needs: { pstone: 1 }, out: { diamond: 1 } },
+    { in: { diamond: 4, gold: 8, redstone: 8, glowstone: 8 }, needs: { pstone: 1 }, out: { terminal: 1 }, at: "table" },
+  ];
+
+  const QUESTS = [
+    { id: "wood", title: "Punch the Tree", text: "Click Chop until you have 3 oak logs.", need: { got: { log: 3 } } },
+    { id: "planks", title: "Planks", text: "Turn a log into planks in the crafting list.", need: { got: { planks: 4 } } },
+    { id: "table", title: "A Table in the Void", text: "Build a crafting table. Machines take up a tile of the island each.", need: { built: { table: 1 } } },
+    { id: "leaves", title: "Leaf Peeping", text: "Shake the leaves. Leaves rot into dirt and saplings grow into trees.", need: { got: { leaves: 6 } }, reward: { sapling: 1 } },
+    { id: "crook", title: "By Hook or by Crook", text: "Make a crook: faster shaking, more saplings, and the odd silkworm.", need: { got: { crook: 1 } } },
+    { id: "barrel", title: "Barrel", text: "Build an oak barrel. It pulls leaves from your inventory and composts them.", need: { built: { barrel: 1 } } },
+    { id: "dirt", title: "Dirt From Nothing", text: "Six compost in a barrel rot into a block of dirt.", need: { got: { dirt: 1 } } },
+    { id: "grow", title: "Another Tree", text: "Plant a sapling. Grown trees drop leaves by themselves.", need: { built: { tree: 2 } } },
+    { id: "land", title: "More Land", text: "Spend dirt to add a tile to the island.", need: { land: 7 } },
+    { id: "silk", title: "Silkworm", text: "Keep shaking leaves with the crook until a silkworm falls out.", need: { got: { silkworm: 1 } } },
+    { id: "infest", title: "Infested Leaves", text: "Put the silkworm on leaves. The colony spins string forever.", need: { built: { infested: 1 } } },
+    { id: "string", title: "String Theory", text: "Collect 6 string.", need: { got: { string: 6 } } },
+    { id: "sieve", title: "Sift", text: "Build a sieve and a string mesh, then sieve dirt for pebbles.", need: { got: { pebble: 1 } } },
+    { id: "cobble", title: "Cobblestone", text: "Four pebbles make a cobblestone.", need: { got: { cobble: 4 } } },
+    { id: "twine", title: "Twine", text: "Tools need a binding. Twist 3 string into twine.", need: { got: { twine: 1 } } },
+    { id: "hammer", title: "Hammer Time", text: "Make a hammer and smash cobblestone into gravel.", need: { got: { gravel: 1 } } },
+    { id: "furnace", title: "Furnace", text: "Build a furnace from 8 cobblestone.", need: { built: { furnace: 1 } } },
+    { id: "charcoal", title: "Charcoal", text: "Fuel the furnace with planks and smelt a log.", need: { got: { charcoal: 1 } } },
+    { id: "clay", title: "Clay", text: "Build a rain barrel and let it fill. Hammer sand into dust and mix it in.", need: { got: { clayBlock: 1 } } },
+    { id: "crucible", title: "Crucible", text: "Fire a clay crucible and set it over torches. It melts cobblestone into lava.", need: { built: { crucible: 1 } } },
+    { id: "gen", title: "Infinite Cobblestone", text: "A bucket of water and a bucket of lava make a generator. Mining it takes a pickaxe.", need: { built: { cobblegen: 1 } } },
+    { id: "coal", title: "Real Coal", text: "Sieve gravel for coal. Only coal burns hot enough for ore.", need: { got: { coal: 1 } } },
+    { id: "iron", title: "Iron Age", text: "Four iron pieces make a chunk. Smelt it with coal.", need: { got: { iron: 1 } } },
+    { id: "cast", title: "Pickaxe Cast", text: "Mould a pickaxe cast from clay and fire it.", need: { got: { cast: 1 } } },
+    { id: "ironpick", title: "Iron Pickaxe", text: "Cast an iron pickaxe. Generators mine much faster.", need: { got: { ironPick: 1 } } },
+    { id: "auto", title: "Automation", text: "Build an auto-hammer or an auto-sieve. Redstone comes from sieving dust.", need: { anyBuilt: ["autoHammer", "autoSieve"] } },
+    { id: "diamond", title: "Diamonds", text: "An iron mesh finds diamonds in gravel.", need: { got: { diamond: 1 } } },
+    { id: "pstone", title: "The Philosopher's Stone", text: "Redstone, glowstone and a diamond. Then transmute.", need: { got: { pstone: 1 } } },
+    { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. Build it to finish.", need: { got: { terminal: 1 } } },
+  ];
+
+  const CONFIG = {
+    start: { land: 6 },
+    land: { max: 36, base: 3, step: 1.5 }, // the n-th expansion costs base + step * n dirt
+    tree: { grow: 45, litter: 20, drops: [["leaves", 1, 1], ["sapling", 0.12, 1], ["stick", 0.06, 1]] },
+    barrel: { units: 6, time: 15 },
+    rain: { time: 30 },
+    infested: { time: 15, drops: [["string", 1, 1], ["silkworm", 0.03, 1]] },
+    crucible: { cobble: 4, melt: 10, perCobble: 250, lava: 2000 }, // a bucket is 1000 mB
+    autoHammer: { time: 2.5 },
+    autoSieve: { time: 3 },
+    reserve: { cobble: 16, leaves: 6 }, // auto machines and barrels leave this much for crafting
+    offline: 7200, // seconds of progress credited while the tab is closed
+    tools: {
+      axe: [["woodAxe", 1], ["stoneAxe", 2], ["ironAxe", 4], ["diamondAxe", 7]], // extra chopping power
+      crook: [["crook", 2]], // extra shaking power
+      hammer: [["woodHammer", 1], ["stoneHammer", 2], ["ironHammer", 4], ["diamondHammer", 8]],
+      pick: [["stonePick", 0.25], ["ironPick", 0.8], ["diamondPick", 2]], // cobblestone per second per generator
+      mesh: [["stringMesh", 1], ["flintMesh", 2], ["ironMesh", 3], ["diamondMesh", 4]],
+    },
+    meshLuck: [0, 1, 1.25, 1.5, 1.8], // drop chance multiplier per mesh tier
+  };
+
+  const DATA = { ITEMS, RECIPES, SMELT, SIEVE, ACTIONS, QUESTS, CONFIG };
+  root.ALCHEMY_DATA = DATA;
+  if (typeof module !== "undefined" && module.exports) module.exports = DATA;
+})(typeof window !== "undefined" ? window : globalThis);

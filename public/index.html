@@ -314,13 +314,14 @@
   new ResizeObserver(resize).observe(canvas);
   resize();
 
-  let ax = -0.5, ay = 0.6, vx = 0, vy = reduced ? 0 : 0.0035;
+  let ax = -0.5, ay = 0.6, vx = 0, vy = reduced ? 0 : 0.0035, spin = 1;
   let dragging = false, lx = 0, ly = 0;
   canvas.addEventListener("pointerdown", e => { dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener("pointermove", e => {
     if (!dragging) return;
     const dx = e.clientX - lx, dy = e.clientY - ly; lx = e.clientX; ly = e.clientY;
-    ay += dx * 0.008; ax += dy * 0.008; vy = dx * 0.0008; vx = dy * 0.0008;
+    ay -= dx * 0.008; ax += dy * 0.008; vy = -dx * 0.0008; vx = dy * 0.0008;
+    if (dx) spin = dx > 0 ? -1 : 1;
   });
   canvas.addEventListener("pointerup", () => { dragging = false; });
   canvas.addEventListener("pointercancel", () => { dragging = false; });
@@ -349,7 +350,7 @@
   }
 
   function frame() {
-    if (!dragging) { ax += vx; ay += vy; vx *= 0.96; if (!reduced) vy = vy * 0.96 + 0.0035 * 0.04; }
+    if (!dragging) { ax += vx; ay += vy; vx *= 0.96; if (!reduced) vy = vy * 0.96 + spin * 0.0035 * 0.04; }
     ctx.clearRect(0, 0, W, H);
     const P = verts.map(project);
     const zs = P.map(p => p[2]);
