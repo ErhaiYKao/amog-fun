@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Blue-Red Hackenbush · amog.fun</title>
-<meta name="description" content="Stacks of blue and red tokens against Amog. You take blue, he takes red, and everything above goes too.">
+<meta name="description" content="Stacks of blue and red tokens against Amog. Pick a colour, take only your own tokens, and everything above goes too.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><rect x='18' y='44' width='28' height='9' rx='4' fill='%234fd6e8'/><rect x='18' y='32' width='28' height='9' rx='4' fill='%23ff5a5f'/><rect x='18' y='20' width='28' height='9' rx='4' fill='%234fd6e8'/></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
 <link rel="stylesheet" href="/nim/kit.css">
@@ -30,7 +30,7 @@
   <div class="nk-head">
     <div class="sig">hackenbush : Stacks → Surreals</div>
     <h1>Blue-Red Hackenbush</h1>
-    <p>Stacks of coloured tokens. You own the <span style="color:var(--g1)">blue</span> ones, Amog owns the <span style="color:var(--g2)">red</span> ones. On your turn remove one token of your colour, and every token above it falls off too. Whoever has no token to take loses. Click a blue token.</p>
+    <p>Stacks of coloured tokens. Pick your side under "Your side": <span style="color:var(--g1)">blue</span> or <span style="color:var(--g2)">red</span>. Amog gets the other colour. On your turn remove one token of your colour, and every token above it falls off too. Whoever has no token to take loses.</p>
   </div>
   <nav class="nk-nav" id="nk-nav"></nav>
   <div id="nim"></div>
@@ -51,7 +51,11 @@
 <script src="/nim/kit.js"></script>
 <script>
 (() => {
-  const COLOR = ["B", "R"]; // you are blue, Amog is red
+  // s.side is your colour ("B" or "R"); Amog has the other. V is always measured in blue's favour.
+  const other = c => (c === "B" ? "R" : "B");
+  const colorOf = (s, who) => (who === 0 ? s.side : other(s.side));
+  const sgn = s => (s.side === "B" ? 1 : -1); // turns V into "good for you"
+  const NAME = { B: "blue", R: "red" };
   const value = st => {
     let v = 0, i = 0;
     const sg = c => (c === "B" ? 1 : -1);
@@ -65,27 +69,31 @@
     let d = 1; while (!Number.isInteger(v * d)) d *= 2;
     return `${v < 0 ? "-" : ""}\\tfrac{${Math.abs(v * d)}}{${d}}`;
   };
-  const moves = (s, who) => s.stacks.flatMap((st, i) => st.flatMap((c, j) => (c === COLOR[who] ? [{ i, j }] : [])));
-  const apply = (s, m) => ({ stacks: s.stacks.map((st, i) => (i === m.i ? st.slice(0, m.j) : st)), cut: { i: m.i, n: s.stacks[m.i].length - m.j } });
-  const isP = (s, who) => (who === 0 ? total(s) <= 0 : total(s) >= 0);
+  const moves = (s, who) => s.stacks.flatMap((st, i) => st.flatMap((c, j) => (c === colorOf(s, who) ? [{ i, j }] : [])));
+  const apply = (s, m) => ({ side: s.side, stacks: s.stacks.map((st, i) => (i === m.i ? st.slice(0, m.j) : st)), cut: { i: m.i, n: s.stacks[m.i].length - m.j } });
+  const isP = (s, who) => (who === 0 ? sgn(s) * total(s) <= 0 : sgn(s) * total(s) >= 0);
   NimKit.start({
     id: "hackenbush",
-    options: [{ key: "stacks", label: "Stacks", choices: [["3", "3"], ["4", "4"], ["5", "5"]], def: "4" }],
+    options: [
+      { key: "side", label: "Your side", choices: [["B", "blue"], ["R", "red"]], def: "B" },
+      { key: "stacks", label: "Stacks", choices: [["3", "3"], ["4", "4"], ["5", "5"]], def: "4" },
+    ],
     create(o) {
       // like the other variants: whoever moves first has a (narrow) win
-      const sign = o.first === "you" ? 1 : -1;
+      const side = o.side === "R" ? "R" : "B";
+      const sign = (o.first === "you" ? 1 : -1) * (side === "B" ? 1 : -1);
       let s;
-      do s = { stacks: Array.from({ length: +o.stacks }, () => Array.from({ length: 2 + Math.floor(Math.random() * 5) }, () => NimKit.pick(COLOR))), cut: null };
+      do s = { side, stacks: Array.from({ length: +o.stacks }, () => Array.from({ length: 2 + Math.floor(Math.random() * 5) }, () => NimKit.pick(["B", "R"]))), cut: null };
       while (!(sign * total(s) > 0 && sign * total(s) <= 1.5));
       return s;
     },
     custom: {
       placeholder: "e.g. BBR RB BRRB",
       help: "one word per stack, bottom to top (B/R, ≤ 6 stacks of ≤ 8)",
-      parse(t) {
+      parse(t, o) {
         const w = t.toUpperCase().split(/[\s,;]+/).filter(Boolean);
         if (!w.length || w.length > 6 || w.some(x => !/^[BR]{1,8}$/.test(x))) return "Stacks are words of B and R, like BBR RB BRRB (up to 6 stacks of 8).";
-        return { stacks: w.map(x => x.split("")), cut: null };
+        return { side: o.side === "R" ? "R" : "B", stacks: w.map(x => x.split("")), cut: null };
       },
     },
     moves, apply, isP,
@@ -96,14 +104,18 @@
     },
     describe: (m, who, s) => { const n = s.stacks[m.i].length - m.j; return `stack ${m.i + 1}: took token ${m.j + 1}${n > 1 ? ` (${n} fell)` : ""}`; },
     render(el, s, ctx) {
+      // score cards and log follow your colour
+      const root = document.documentElement.style;
+      root.setProperty("--you", s.side === "B" ? "var(--g1)" : "var(--g2)");
+      root.setProperty("--amog", s.side === "B" ? "var(--g2)" : "var(--g1)");
       el.innerHTML = `<div class="hb ${ctx.locked ? "" : "on"}">${s.stacks.map((st, i) => {
         const toks = st.map((c, j) => {
-          const mine = c === "B" && !ctx.locked, m = { i, j };
+          const mine = c === s.side && !ctx.locked, m = { i, j };
           return `<button class="tok ${c} ${mine ? "mine" : ""} ${mine && ctx.isGood(m) ? "good" : ""}" data-i="${i}" data-j="${j}" ${mine ? `aria-label="take token ${j + 1} of stack ${i + 1}"` : "tabindex=-1"}></button>`;
         }).join("");
         const ghosts = s.cut && s.cut.i === i ? '<span class="tok ghost"></span>'.repeat(s.cut.n) : "";
         return `<div class="col"><div class="val">${ctx.hint && st.length ? frac(value(st)).replace(/\\tfrac\{(\d+)\}\{(\d+)\}/, "$1/$2") : ""}</div><div class="tower">${toks}${ghosts}</div></div>`;
-      }).join("")}</div><div class="legend"><span><i style="background:var(--g1)"></i>yours</span><span><i style="background:var(--g2)"></i>Amog's</span></div>`;
+      }).join("")}</div><div class="legend"><span><i style="background:var(--you)"></i>yours (${NAME[s.side]})</span><span><i style="background:var(--amog)"></i>Amog's (${NAME[other(s.side)]})</span></div>`;
       el.onclick = e => { const b = e.target.closest(".tok.mine"); if (b && !ctx.locked) ctx.play({ i: +b.dataset.i, j: +b.dataset.j }); };
     },
     math(s) {
@@ -112,10 +124,10 @@
     },
     // partizan: the outcome depends on the sign of V, not on who is to move (no P/N here)
     verdict(s, who) {
-      const V = total(s), mover = who === 0 ? "you" : "Amog";
-      if (V > 0) return `$V &gt; 0$: blue (you) wins with perfect play, whoever moves. It's ${mover === "you" ? "your" : "Amog's"} move.`;
-      if (V < 0) return `$V &lt; 0$: red (Amog) wins with perfect play, whoever moves. It's ${mover === "you" ? "your" : "Amog's"} move.`;
-      return `$V = 0$: whoever moves now (${mover}) loses with perfect play.`;
+      const V = total(s), turn = who === 0 ? "your" : "Amog's";
+      if (!V) return `$V = 0$: whoever moves now (${who === 0 ? "you" : "Amog"}) loses with perfect play.`;
+      const winner = V > 0 ? "B" : "R", whoWins = winner === s.side ? "you" : "Amog";
+      return `$V ${V > 0 ? "&gt;" : "&lt;"} 0$: ${NAME[winner]} (${whoWins}) wins with perfect play, whoever moves. It's ${turn} move.`;
     },
   });
 })();
