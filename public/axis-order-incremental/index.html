@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AXIS ORDER — Ascendancy</title>
+<style>
+:root{
+  --bg0:#05070f; --bg1:#080c18; --panel:#0d1424; --panel2:#111a2e;
+  --line:#1d2b46; --line2:#2b4064;
+  --ink:#e9f2ff; --muted:#8ea3c9; --dim:#5d6f92;
+  --cy:#2fd3e8; --cy2:#0f9fc0; --cyglow:rgba(47,211,232,.35);
+  --gold:#f6c96a; --gold2:#c9932e;
+  --red:#ff5566; --grn:#5ce6a0; --vio:#8f7de0;
+  --acc:var(--cy); --accglow:var(--cyglow);
+  --radius:14px;
+  --serif: "Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --sans: system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;
+  --mono: ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+}
+body.anti{
+  --bg0:#0b0406; --bg1:#12060a; --panel:#170a10; --panel2:#1d0d14;
+  --line:#431a26; --line2:#6b2537; --ink:#ffeaf0; --muted:#d1919f; --dim:#8c5f6c;
+  --acc:#ff4d63; --accglow:rgba(255,77,99,.4); --gold:#ff9d5c;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;font-family:var(--sans);font-size:15px;line-height:1.4;color:var(--ink);
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(47,211,232,.10), transparent 60%),
+    radial-gradient(900px 500px at 95% 0%, rgba(143,125,224,.10), transparent 60%),
+    linear-gradient(180deg,var(--bg1),var(--bg0) 55%);
+  background-attachment:fixed;
+  overflow-x:hidden;
+}
+body.anti{
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(255,77,99,.12), transparent 60%),
+    radial-gradient(900px 500px at 95% 0%, rgba(255,157,92,.08), transparent 60%),
+    linear-gradient(180deg,var(--bg1),var(--bg0) 55%);
+  background-attachment:fixed;
+}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--line2);background-clip:content-box}
+
+/* ---------- top bar ---------- */
+.top{
+  position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:14px;
+  padding:10px 16px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(8,12,24,.96),rgba(8,12,24,.82));
+  backdrop-filter:blur(10px);
+}
+body.anti .top{background:linear-gradient(180deg,rgba(18,6,10,.96),rgba(18,6,10,.82))}
+.brand{display:flex;align-items:baseline;gap:10px;flex:0 0 auto}
+.brand h1{
+  margin:0;font-family:var(--serif);font-size:19px;letter-spacing:.16em;text-transform:uppercase;
+  background:linear-gradient(180deg,#fff,var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent;
+  white-space:nowrap;
+}
+.brand .em{font-size:11px;color:var(--dim);letter-spacing:.2em;text-transform:uppercase;white-space:nowrap}
+.ticker{
+  flex:1 1 auto;min-width:0;overflow:hidden;border-left:1px solid var(--line);border-right:1px solid var(--line);
+  padding:0 14px;
+}
+.ticker span{
+  display:block;font-family:var(--serif);font-style:italic;color:var(--muted);font-size:13.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:tickIn .6s ease;
+}
+@keyframes tickIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.topright{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.rankchip{
+  display:flex;flex-direction:column;align-items:flex-end;padding:3px 12px;border:1px solid var(--line2);
+  border-radius:10px;background:var(--panel);line-height:1.15;
+}
+.rankchip b{font-family:var(--serif);font-size:14px;letter-spacing:.06em;color:var(--acc)}
+.rankchip i{font-style:normal;font-size:10px;color:var(--dim);letter-spacing:.12em;text-transform:uppercase}
+
+/* ---------- layout ---------- */
+.wrap{display:grid;grid-template-columns:340px minmax(0,1fr) 320px;gap:14px;padding:14px;max-width:1600px;margin:0 auto;align-items:start}
+@media (max-width:1240px){.wrap{grid-template-columns:320px minmax(0,1fr)}.col-r{grid-column:1/-1}}
+@media (max-width:860px){.wrap{grid-template-columns:1fr}.col-l,.col-r{grid-column:auto}}
+.card{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.03);
+}
+.card + .card{margin-top:14px}
+.sect{
+  font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.2em;
+  margin:0 0 10px;display:flex;align-items:center;gap:8px;
+}
+.sect:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.col-l{position:sticky;top:64px}
+@media (max-width:860px){.col-l{position:static}}
+
+/* ---------- shrine ---------- */
+.shrine{position:relative;display:flex;flex-direction:column;align-items:center;padding:6px 0 2px;user-select:none}
+.halo{
+  position:relative;width:212px;height:212px;display:grid;place-items:center;cursor:pointer;
+  filter:drop-shadow(0 0 22px var(--accglow));
+}
+.halo:before{
+  content:"";position:absolute;inset:6px;border-radius:50%;
+  background:conic-gradient(from 0deg,transparent,var(--acc),transparent 42%,var(--gold),transparent 72%,var(--acc));
+  opacity:.55;animation:spin 14s linear infinite;
+  -webkit-mask:radial-gradient(circle,transparent 60%,#000 62%,#000 72%,transparent 74%);
+  mask:radial-gradient(circle,transparent 60%,#000 62%,#000 72%,transparent 74%);
+}
+.halo:after{
+  content:"";position:absolute;inset:26px;border-radius:50%;
+  background:radial-gradient(circle at 50% 45%, var(--accglow), transparent 70%);
+  animation:pulse 3.4s ease-in-out infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:.9;transform:scale(1.06)}}
+#amogImg{
+  position:relative;z-index:2;height:172px;width:auto;image-rendering:auto;
+  animation:bob 4.2s ease-in-out infinite;transition:transform .09s ease;
+  filter:drop-shadow(0 8px 14px rgba(0,0,0,.6));
+}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+.halo.punch #amogImg{transform:scale(.93) translateY(3px);animation:none}
+body.anti #amogImg{filter:drop-shadow(0 10px 16px rgba(0,0,0,.8)) grayscale(1) brightness(.52) sepia(1) hue-rotate(-28deg) saturate(4.6) contrast(1.12)}
+.shrine .caption{font-family:var(--serif);font-size:12.5px;color:var(--muted);letter-spacing:.05em;margin-top:2px;text-align:center}
+.shrine .caption b{color:var(--acc);font-weight:600}
+
+.faithbig{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:-.5px;line-height:1;margin-top:6px;
+  text-shadow:0 0 18px var(--accglow)}
+.faithsub{font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
+.faithsub b{color:var(--ink)}
+.clickhint{font-size:10.5px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;margin-top:8px}
+
+.float{position:absolute;pointer-events:none;font-family:var(--mono);font-weight:700;font-size:15px;color:var(--acc);
+  text-shadow:0 0 10px var(--accglow);animation:floatUp 1.05s ease-out forwards;z-index:5}
+@keyframes floatUp{0%{opacity:1;transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-64px) scale(1.25)}}
+
+/* ---------- resources ---------- */
+.res{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.res .cell{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:11px;padding:8px 10px}
+.res .cell .k{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim)}
+.res .cell .v{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--ink);line-height:1.2}
+.res .cell .s{font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.res .cell.gold .v{color:var(--gold)} .res .cell.vio .v{color:var(--vio)} .res .cell.red .v{color:var(--red)}
+
+/* ---------- buttons ---------- */
+button{font-family:inherit;font-size:13px;color:var(--ink);background:var(--panel2);border:1px solid var(--line2);
+  border-radius:10px;padding:8px 11px;cursor:pointer;transition:transform .08s ease,box-shadow .12s,border-color .12s,background .12s}
+button:hover:not(:disabled){transform:translateY(-1px);border-color:var(--acc);box-shadow:0 6px 18px rgba(0,0,0,.4)}
+button:active:not(:disabled){transform:translateY(0) scale(.985)}
+button:disabled{opacity:.42;cursor:not-allowed}
+.btn-row{display:grid;gap:8px;margin-top:12px}
+.pbtn{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;text-align:left;
+  border-radius:12px;background:linear-gradient(180deg,rgba(47,211,232,.10),rgba(47,211,232,.03));border-color:rgba(47,211,232,.35)}
+.pbtn .t{font-family:var(--serif);font-size:14.5px;letter-spacing:.05em}
+.pbtn .d{font-size:10.5px;color:var(--muted);letter-spacing:.06em}
+.pbtn .g{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--cy);white-space:nowrap}
+.pbtn.gold{background:linear-gradient(180deg,rgba(246,201,106,.10),rgba(246,201,106,.03));border-color:rgba(246,201,106,.35)}
+.pbtn.gold .g{color:var(--gold)}
+.pbtn.red{background:linear-gradient(180deg,rgba(255,85,102,.12),rgba(255,85,102,.03));border-color:rgba(255,85,102,.4)}
+.pbtn.red .g{color:var(--red)}
+.pbtn:disabled{filter:grayscale(.7)}
+.mini{font-size:11.5px;padding:5px 8px;border-radius:8px}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tabs button{padding:7px 12px;border-radius:9px;background:transparent;border-color:var(--line);color:var(--muted);
+  font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.tabs button.on{background:linear-gradient(180deg,rgba(47,211,232,.16),rgba(47,211,232,.04));border-color:var(--acc);color:var(--ink)}
+.tabs button .badge{display:inline-block;margin-left:6px;background:var(--acc);color:#04121a;border-radius:20px;
+  font-size:10px;padding:0 6px;font-weight:700;vertical-align:1px}
+body.anti .tabs button .badge{color:#1a0207}
+.tab{display:none;animation:fadeIn .22s ease}
+.tab.on{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ---------- item rows ---------- */
+.list{display:flex;flex-direction:column;gap:8px}
+.item{
+  display:flex;align-items:center;gap:12px;padding:9px 11px;border-radius:12px;
+  background:rgba(0,0,0,.26);border:1px solid var(--line);position:relative;overflow:hidden;
+  transition:border-color .12s,background .12s,transform .08s;
+}
+.item.afford{border-color:rgba(47,211,232,.42);background:linear-gradient(90deg,rgba(47,211,232,.09),rgba(0,0,0,.26) 42%)}
+body.anti .item.afford{border-color:rgba(255,77,99,.42);background:linear-gradient(90deg,rgba(255,77,99,.09),rgba(0,0,0,.26) 42%)}
+.item.locked{opacity:.5;filter:grayscale(.55)}
+.item .ic{
+  flex:0 0 40px;height:40px;border-radius:10px;display:grid;place-items:center;font-size:20px;
+  background:radial-gradient(circle at 40% 30%,rgba(255,255,255,.09),rgba(0,0,0,.35));border:1px solid var(--line);
+}
+.item .body{flex:1 1 auto;min-width:0}
+.item .nm{font-family:var(--serif);font-size:14.5px;letter-spacing:.03em;display:flex;align-items:center;gap:8px}
+.item .nm .lv{font-family:var(--mono);font-size:11px;color:var(--acc);background:rgba(47,211,232,.12);
+  border:1px solid rgba(47,211,232,.28);border-radius:6px;padding:0 6px}
+body.anti .item .nm .lv{color:var(--acc);background:rgba(255,77,99,.12);border-color:rgba(255,77,99,.28)}
+.item .ds{font-size:11.5px;color:var(--muted);margin-top:1px}
+.item .st{font-size:11px;color:var(--dim);font-family:var(--mono);margin-top:2px}
+.item .buy{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;align-items:stretch}
+.item .cost{font-family:var(--mono);font-size:12.5px;font-weight:700;white-space:nowrap}
+.cost.ok{color:var(--grn)} .cost.no{color:var(--dim)}
+.owned{position:absolute;right:10px;top:8px;font-family:var(--mono);font-size:11px;color:var(--gold)}
+.item.bought{border-color:rgba(246,201,106,.35);background:linear-gradient(90deg,rgba(246,201,106,.07),rgba(0,0,0,.26) 40%)}
+
+.buybar{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.buybar .lbl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-right:2px}
+.buybar button{padding:5px 10px;font-size:12px;border-radius:8px}
+.buybar button.on{background:linear-gradient(180deg,rgba(47,211,232,.18),rgba(47,211,232,.04));border-color:var(--acc)}
+
+/* ---------- grids ---------- */
+.grid{display:grid;gap:8px}
+.g2{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.achgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:7px}
+.ach{aspect-ratio:1;border-radius:11px;display:grid;place-items:center;font-size:23px;cursor:help;
+  background:rgba(0,0,0,.3);border:1px solid var(--line);filter:grayscale(1);opacity:.32;transition:.18s}
+.ach.got{filter:none;opacity:1;border-color:var(--gold);background:radial-gradient(circle at 40% 30%,rgba(246,201,106,.22),rgba(0,0,0,.3));
+  box-shadow:0 0 14px rgba(246,201,106,.18)}
+.ach:hover{transform:translateY(-2px)}
+
+/* ---------- misc ---------- */
+.note{font-size:12px;color:var(--muted);line-height:1.5}
+.note b{color:var(--ink)}
+.hr{height:1px;background:var(--line);margin:12px 0}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0;border-bottom:1px dotted rgba(255,255,255,.06)}
+.kv span:first-child{color:var(--muted)}
+.kv span:last-child{font-family:var(--mono);color:var(--ink)}
+.ranklist{list-style:none;margin:0;padding:0;max-height:236px;overflow:auto;font-size:12px}
+.ranklist li{padding:3px 8px;border-radius:7px;color:var(--dim);display:flex;justify-content:space-between;gap:8px}
+.ranklist li.done{color:var(--muted)}
+.ranklist li.cur{background:linear-gradient(90deg,rgba(47,211,232,.18),transparent);color:var(--ink);
+  border-left:2px solid var(--acc);font-family:var(--serif);letter-spacing:.05em}
+.ranklist li span{font-family:var(--mono);font-size:10.5px;opacity:.7}
+.log{height:190px;overflow:auto;font-family:var(--mono);font-size:11.5px;color:var(--muted);
+  background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:10px;padding:8px;white-space:pre-wrap}
+.log b{color:var(--acc);font-weight:400}
+
+.buffs{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;min-height:0}
+.buff{display:flex;align-items:center;gap:6px;font-size:11.5px;padding:4px 9px;border-radius:20px;
+  background:linear-gradient(180deg,rgba(246,201,106,.2),rgba(246,201,106,.05));border:1px solid rgba(246,201,106,.45);
+  font-family:var(--mono);animation:fadeIn .3s ease}
+.buff.bad{background:linear-gradient(180deg,rgba(255,85,102,.2),rgba(255,85,102,.05));border-color:rgba(255,85,102,.45)}
+
+#halo{position:fixed;width:62px;height:62px;z-index:80;cursor:pointer;display:none;animation:haloFloat 2.6s ease-in-out infinite}
+#halo:before{content:"";position:absolute;inset:0;border-radius:50%;border:5px solid var(--gold);
+  box-shadow:0 0 26px 8px rgba(246,201,106,.6),inset 0 0 16px rgba(246,201,106,.5);transform:rotateX(62deg)}
+@keyframes haloFloat{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-16px) rotate(6deg)}}
+
+#toasts{position:fixed;right:14px;bottom:14px;z-index:90;display:flex;flex-direction:column;gap:7px;align-items:flex-end;pointer-events:none;max-width:min(320px,52vw)}
+.toast{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--acc);border-radius:12px;
+  padding:8px 13px;font-size:12.5px;box-shadow:0 12px 30px rgba(0,0,0,.6);animation:toastIn .3s ease}
+.toast .tt{font-family:var(--serif);letter-spacing:.06em;color:var(--acc);font-size:12px;text-transform:uppercase}
+.toast.gold{border-color:var(--gold)} .toast.gold .tt{color:var(--gold)}
+.toast.red{border-color:var(--red)} .toast.red .tt{color:var(--red)}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+
+.modal{position:fixed;inset:0;z-index:100;display:none;place-items:center;background:rgba(2,4,10,.78);backdrop-filter:blur(6px);padding:20px}
+.modal.on{display:grid}
+.modal .box{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:18px;
+  padding:22px;max-width:660px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.7)}
+.modal h2{font-family:var(--serif);margin:0 0 6px;font-size:22px;letter-spacing:.06em;color:var(--acc)}
+textarea{width:100%;height:130px;background:rgba(0,0,0,.4);color:var(--muted);border:1px solid var(--line);
+  border-radius:10px;padding:10px;font-family:var(--mono);font-size:11px;resize:vertical}
+.warn{color:var(--red)}
+.center{text-align:center}
+.sc{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.sc button{flex:1 1 auto}
+
+.pledge{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:640px){.pledge{grid-template-columns:1fr}}
+.pcard{border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(0,0,0,.28);cursor:pointer;transition:.15s}
+.pcard:hover{transform:translateY(-2px);border-color:var(--acc)}
+.pcard.on{border-color:var(--acc);background:linear-gradient(180deg,rgba(47,211,232,.13),rgba(0,0,0,.28))}
+.pcard.lin.on{border-color:var(--vio);background:linear-gradient(180deg,rgba(143,125,224,.15),rgba(0,0,0,.28))}
+.pcard img{height:74px;float:right;margin:-2px 0 0 8px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
+.pcard.lin img{filter:drop-shadow(0 4px 10px rgba(0,0,0,.6)) grayscale(1) brightness(.52) sepia(1) hue-rotate(-28deg) saturate(4.6) contrast(1.12)}
+.pcard h4{margin:0 0 2px;font-family:var(--serif);font-size:15px;letter-spacing:.05em}
+.pcard .who{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+.pcard ul{margin:6px 0 0;padding-left:16px;font-size:11.5px;color:var(--muted)}
+
+.codex{display:flex;flex-direction:column;gap:10px}
+.entry{border-left:2px solid var(--line2);padding:2px 0 2px 12px}
+.entry h4{margin:0;font-family:var(--serif);font-size:14.5px;color:var(--acc);letter-spacing:.05em}
+.entry p{margin:4px 0 0;font-size:12.5px;color:var(--muted);line-height:1.55}
+.entry.lock h4{color:var(--dim)} .entry.lock p{filter:blur(3.4px);user-select:none}
+
+.council{border:1px solid var(--line);border-radius:13px;padding:11px;background:rgba(0,0,0,.26)}
+.council.done{border-color:rgba(92,230,160,.4);background:linear-gradient(180deg,rgba(92,230,160,.07),rgba(0,0,0,.26))}
+.council.active{border-color:var(--gold);box-shadow:0 0 20px rgba(246,201,106,.15)}
+.council h4{margin:0 0 3px;font-family:var(--serif);font-size:14.5px;letter-spacing:.04em}
+.council .rq{font-size:11.5px;color:var(--red)} .council .rw{font-size:11.5px;color:var(--grn)}
+.bar{height:6px;border-radius:6px;background:rgba(0,0,0,.5);overflow:hidden;margin:7px 0}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--gold));transition:width .3s}
+.tiny{font-size:10.5px;color:var(--dim);letter-spacing:.05em}
+.pulse{animation:glowp 1.4s ease-in-out infinite}
+@keyframes glowp{0%,100%{box-shadow:0 0 0 0 rgba(246,201,106,0)}50%{box-shadow:0 0 0 5px rgba(246,201,106,.18)}}
+</style>
+</head>
+
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Axis Order</h1>
+    <div class="em">Ascendancy &middot; v3</div>
+  </div>
+  <div class="ticker"><span id="news">The Axis Order welcomes you. Please remove your shoes.</span></div>
+  <div class="topright">
+    <div class="rankchip"><b id="rankName">Grass Toucher</b><i>Renown <span id="renown">0.00</span></i></div>
+    <button class="mini" id="btnSave">Save</button>
+    <button class="mini" id="btnHelp">?</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- ===================== LEFT ===================== -->
+  <div class="col-l">
+    <section class="card">
+      <div class="shrine">
+        <div class="halo" id="halo3d" title="Click to pray">
+          <img id="amogImg" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIkAAADOCAMAAAA9p9EvAAAB4FBMVEWiKBqjj1VoKSF1XYWXY0trajuiQTGkvsKu2N0vDUM9TkQ9sLsusMFLLWBAeH5/h1NRt8KBX5aghT6gn6C+wL/Av8H///8DVVsPFhISe4YEWmIDS1EMZ28XhZFvBgMGCwkSc3samKUrJy0ZIRxTBAPS1teMFgwPNjTm5+gVJyaZlW0nGC0xNjHHyMiHh4e3uLclCzMrmaaXl5UvJhOUJReoqKiGCgYppLErh5FHN092FQn29/cpGRRLRk7U5OZoaGmkpI8XkZx2d3avyc2UNyaPZyswRjCSh1I5KUMmam4zNRcukp1aRWZpVXWSRzJSFQ4coq+Zklmy1NhNiI1kSnKQtLhvp6yHWC0MPUKTiWt0VoYsfISUxsu4tpVKprFxJxM0CQkqdHprnKGNeE4dDCccFyNLOBRyNRY8NEMqV0xWVVdGmqOLYhsYRDdMRi2IXBhUJxJvVjFztLqIqKx1RxiMWkaNaE2SdTenJRmjmG/P3uBolppwu8RWk5lTQxdtZkNUOmROVDJ3RymOvcKOe2meoY2hm4syVThFe4J4VRp4dUwyFUVBK0xKOyx1wsucgjihOCioo3q12+AcMR1vOyiBRxwvYVRdUmVUsblqW0prio6WLiKAY5CkmFIeUTxeZWLG6MnVAAAAoHRSTlP/////////////////////////////AP//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////IqiamQAAF/hJREFUeNrNnYlf29ayx+lyl7fvyJZkZCQbWUTGtY2D49gmYJYADaQmbIULIRQIJCEbIc3eNN33/Xa5ve9ffTPn6EhHsmTk1E7f9JMUy6719W/mzMxZTLu6f6Pdrzm28OjRo/krt+r16nO8UddxL0jWksT+dInZg0uPphyTRY/JsVisWHx0a7GWTLWVZEoUiIm+xp7hXiNHicVi0Whx5tHCQr1abRdJMxT2jGAbI7FwAChWbA/JqvXBhWALJqE4bSJZFJtBvEiS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" alt="Pope Amog I of the Axis Order"/>
+        </div>
+        <div class="faithbig" id="faith">0</div>
+        <div class="faithsub"><b id="fps">0</b> faith / sec &middot; <b id="cpc">1</b> / prayer</div>
+        <div class="caption" id="shrineCap">His Holiness <b>Pope Amog I</b>, Axis Ascendant</div>
+        <div class="clickhint">Click the Pope &middot; or press <b>Space</b></div>
+        <div class="buffs" id="buffs"></div>
+      </div>
+      <div class="res">
+        <div class="cell"><div class="k">Devotion</div><div class="v" id="devotion">0</div><div class="s">x<span id="devMult">1</span> output</div></div>
+        <div class="cell gold"><div class="k">Relics</div><div class="v" id="relics">0</div><div class="s">x<span id="relMult">1</span> output</div></div>
+        <div class="cell vio" id="cellDoubt" style="display:none"><div class="k">Doubt</div><div class="v" id="doubt">0</div><div class="s">feeds Devotion</div></div>
+        <div class="cell red" id="cellHeresy" style="display:none"><div class="k">Heresy</div><div class="v" id="heresy">0</div><div class="s">x<span id="herMult">1</span> output</div></div>
+      </div>
+      <div class="btn-row">
+        <button class="pbtn" id="btnConvert">
+          <span><span class="t">Convert</span><br/><span class="d">Prestige I &rarr; Devotion</span></span>
+          <span class="g" id="convGain">+0</span>
+        </button>
+        <button class="pbtn gold" id="btnCanonize">
+          <span><span class="t">Canonize</span><br/><span class="d">Prestige II &rarr; Relics</span></span>
+          <span class="g" id="canonGain">+0</span>
+        </button>
+        <button class="pbtn red" id="btnApostatize" style="display:none">
+          <span><span class="t">Apostatize</span><br/><span class="d">Prestige III &rarr; Heresy</span></span>
+          <span class="g" id="aposGain">+0</span>
+        </button>
+      </div>
+      <div class="hr"></div>
+      <div class="sect">Allegiance</div>
+      <div id="allegianceBox" class="note">Locked until your first <b>Canonization</b>. The Order is, for now, united.</div>
+    </section>
+  </div>
+
+  <!-- ===================== CENTER ===================== -->
+  <div class="col-c">
+    <section class="card">
+      <div class="tabs" id="tabs">
+        <button data-t="build" class="on">Basilica</button>
+        <button data-t="upg">Upgrades<span class="badge" id="bUpg" style="display:none">0</span></button>
+        <button data-t="dev">Devotion<span class="badge" id="bDev" style="display:none">0</span></button>
+        <button data-t="rel">Reliquary<span class="badge" id="bRel" style="display:none">0</span></button>
+        <button data-t="anti" id="tabAnti" style="display:none">Anti-Realm</button>
+        <button data-t="council">Councils</button>
+        <button data-t="ach">Deeds</button>
+        <button data-t="codex">Codex</button>
+      </div>
+
+      <!-- BUILDINGS -->
+      <div class="tab on" id="tab-build">
+        <div class="buybar">
+          <span class="lbl">Buy</span>
+          <button data-b="1" class="on">x1</button><button data-b="10">x10</button>
+          <button data-b="25">x25</button><button data-b="100">x100</button>
+          <button data-b="max">MAX</button>
+          <span style="flex:1"></span>
+          <span class="tiny" id="bldSummary"></span>
+        </div>
+        <div class="list" id="buildings"></div>
+      </div>
+
+      <!-- UPGRADES -->
+      <div class="tab" id="tab-upg">
+        <p class="note" style="margin-top:0">Doctrinal refinements. Permanent within a run; wiped by <b>Convert</b>. Everything here is bought once.</p>
+        <div class="list" id="upgrades"></div>
+        <div class="hr"></div>
+        <div class="sect">Ratified <span class="tiny" id="upgOwnedCount"></span></div>
+        <div class="list" id="upgradesOwned"></div>
+      </div>
+
+      <!-- DEVOTION -->
+      <div class="tab" id="tab-dev">
+        <p class="note" style="margin-top:0">Devotion survives <b>Convert</b> and is spent on the Order's standing doctrine. Levels are never lost — not even by Canonization.</p>
+        <div class="list" id="devShop"></div>
+      </div>
+
+      <!-- RELICS -->
+      <div class="tab" id="tab-rel">
+        <p class="note" style="margin-top:0">Relics are forged by <b>Canonization</b>, which empties the treasury of Devotion but leaves its doctrine intact. Reliquary effects are permanent and survive everything short of a Hard Reset.</p>
+        <div class="list" id="relShop"></div>
+      </div>
+
+      <!-- ANTI -->
+      <div class="tab" id="tab-anti">
+        <div class="item" style="align-items:flex-start">
+          <div class="ic">☠</div>
+          <div class="body">
+            <div class="nm">Broadcast from the Anti-Realm</div>
+            <div class="ds" id="linQuote">"They gave me a Latin farewell and a pension. I gave them a schism." &mdash; Ex-Pope Emeritus Lintahlol</div>
+          </div>
+        </div>
+        <div class="hr"></div>
+        <div class="buybar">
+          <span class="lbl">Realm view</span>
+          <button id="realmToggle">Enter Anti-Realm</button>
+          <span class="tiny" id="realmNote"></span>
+        </div>
+        <div class="list" id="antiShop"></div>
+      </div>
+
+      <!-- COUNCILS -->
+      <div class="tab" id="tab-council">
+        <p class="note" style="margin-top:0">A Council is a run held under vow. Entering one performs a <b>Convert</b>-style reset and grants <i>no</i> Devotion. Meeting the quota ratifies a permanent decree. You may abandon a Council at any time, shamefully.</p>
+        <div id="councilActive"></div>
+        <div class="grid g2" id="councils" style="margin-top:10px"></div>
+      </div>
+
+      <!-- ACHIEVEMENTS -->
+      <div class="tab" id="tab-ach">
+        <p class="note" style="margin-top:0">Each Relic of Deed adds <b>+1.6%</b> to all production, multiplicatively. Current bonus: <b id="achBonus">x1.00</b> from <b id="achCount">0</b> deeds.</p>
+        <div class="achgrid" id="achGrid"></div>
+      </div>
+
+      <!-- CODEX -->
+      <div class="tab" id="tab-codex">
+        <div class="codex" id="codex"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== RIGHT ===================== -->
+  <div class="col-r">
+    <section class="card">
+      <div class="sect">Ledger</div>
+      <div class="kv"><span>Faith this run</span><span id="stRun">0</span></div>
+      <div class="kv"><span>Faith, all time</span><span id="stAll">0</span></div>
+      <div class="kv"><span>Prayers offered</span><span id="stClicks">0</span></div>
+      <div class="kv"><span>Conversions</span><span id="stConv">0</span></div>
+      <div class="kv"><span>Canonizations</span><span id="stCanon">0</span></div>
+      <div class="kv" id="stAposRow" style="display:none"><span>Apostasies</span><span id="stApos">0</span></div>
+      <div class="kv"><span>Councils ratified</span><span id="stCouncil">0</span></div>
+      <div class="kv"><span>Production exponent</span><span id="stExp">1.000</span></div>
+      <div class="kv"><span>Global multiplier</span><span id="stGlob">x1</span></div>
+      <div class="kv"><span>Time in orders</span><span id="stTime">0s</span></div>
+    </section>
+    <section class="card">
+      <div class="sect">The Ladder</div>
+      <ol class="ranklist" id="rankList"></ol>
+    </section>
+    <section class="card">
+      <div class="sect">Chronicle</div>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+</main>
+
+<div id="halo" title="A Golden Halo!"></div>
+<div id="toasts"></div>
+
+<!-- SAVE MODAL -->
+<div class="modal" id="mSave"><div class="box">
+  <h2>Reliquary of State</h2>
+  <p class="note">This game keeps <b>no browser storage</b> — nothing is written to your machine unless you do it. Your save is the text below. Copy it somewhere, or download it. Paste one back in to resume; you will be credited for time away (up to 8 hours at 50% efficiency).</p>
+  <textarea id="saveBox" spellcheck="false"></textarea>
+  <div class="sc">
+    <button id="btnCopy">Copy save</button>
+    <button id="btnDownload">Download .txt</button>
+    <button id="btnLoad">Load pasted save</button>
+    <button id="btnReset" class="warn">Hard reset</button>
+    <button id="btnCloseSave">Close</button>
+  </div>
+  <p class="tiny" id="saveStamp" style="margin-top:10px"></p>
+</div></div>
+
+<!-- HELP MODAL -->
+<div class="modal" id="mHelp"><div class="box">
+  <h2>The Rule of the Order</h2>
+  <div class="note" id="helpBody"></div>
+  <div class="sc"><button id="btnCloseHelp">Understood</button></div>
+</div></div>
+
+<!-- ASCENSION -->
+<div class="modal" id="mAscend"><div class="box center">
+  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIkAAADOCAMAAAA9p9EvAAAB4FBMVEWiKBqjj1VoKSF1XYWXY0trajuiQTGkvsKu2N0vDUM9TkQ9sLsusMFLLWBAeH5/h1NRt8KBX5aghT6gn6C+wL/Av8H///8DVVsPFhISe4YEWmIDS1EMZ28XhZFvBgMGCwkSc3samKUrJy0ZIRxTBAPS1teMFgwPNjTm5+gVJyaZlW0nGC0xNjHHyMiHh4e3uLclCzMrmaaXl5UvJhOUJReoqKiGCgYppLErh5FHN092FQn29/cpGRRLRk7U5OZoaGmkpI8XkZx2d3avyc2UNyaPZyswRjCSh1I5KUMmam4zNRcukp1aRWZpVXWSRzJSFQ4coq+Zklmy1NhNiI1kSnKQtLhvp6yHWC0MPUKTiWt0VoYsfISUxsu4tpVKprFxJxM0CQkqdHprnKGNeE4dDCccFyNLOBRyNRY8NEMqV0xWVVdGmqOLYhsYRDdMRi2IXBhUJxJvVjFztLqIqKx1RxiMWkaNaE2SdTenJRmjmG/P3uBolppwu8RWk5lTQxdtZkNUOmROVDJ3RymOvcKOe2meoY2hm4syVThFe4J4VRp4dUwyFUVBK0xKOyx1wsucgjihOCioo3q12+AcMR1vOyiBRxwvYVRdUmVUsblqW0prio6WLiKAY5CkmFIeUTxeZWLG6MnVAAAAoHRSTlP/////////////////////////////AP//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////IqiamQAAF/hJREFUeNrNnYlf29ayx+lyl7fvyJZkZCQbWUTGtY2D49gmYJYADaQmbIULIRQIJCEbIc3eNN33/Xa5ve9ffTPn6EhHsmTk1E7f9JMUy6719W/mzMxZTLu6f6Pdrzm28OjRo/krt+r16nO8UddxL0jWksT+dInZg0uPphyTRY/JsVisWHx0a7GWTLWVZEoUiIm+xp7hXiNHicVi0Whx5tHCQr1abRdJMxT2jGAbI7FwAChWbA/JqvXBhWALJqE4bSJZFJtBvEiS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" style="height:160px;filter:drop-shadow(0 0 40px var(--accglow))"/>
+  <h2 style="font-size:30px;letter-spacing:.22em">AXIS INCARNATE</h2>
+  <p class="note" style="text-align:left">You have reached the <b>Infinity Wall</b> at 1e300 faith &mdash; the largest number this universe is able to hold. Beyond it there is no notation, and the Curia has ruled that what cannot be written down cannot be audited.</p>
+  <p class="note" style="text-align:left">Pope Amog I confirms the Order's holdings are now <i>a fact rather than a figure</i>. Ex-Pope Emeritus Lintahlol has issued a statement noting that he reached this point first, in a dream, and that the paperwork was lost.</p>
+  <p class="note" style="text-align:left">Nothing further accumulates. You have finished the game. You may keep clicking; He is used to it.</p>
+  <div class="sc"><button id="btnAscendClose">Touch grass</button></div>
+</div></div>
+
+<!-- PRESTIGE CONFIRM -->
+<div class="modal" id="mConfirm"><div class="box">
+  <h2 id="cfTitle">Are you certain?</h2>
+  <div class="note" id="cfBody"></div>
+  <div class="sc"><button id="cfYes">Proceed</button><button id="cfNo">Reconsider</button></div>
+</div></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   AXIS ORDER: ASCENDANCY
+   An incremental liturgy. No browser storage is used anywhere.
+   ===================================================================== */
+
+/* ---------------------------- numbers ------------------------------ */
+const TIERS=['','K','M','B','T','Qa','Qi','Sx','Sp','Oc','No','Dc','UDc','DDc','TDc','QaDc','QiDc','SxDc','SpDc','OcDc','NoDc','Vg'];
+const MAXN=1e300;
+function safe(n){ return (typeof n==='number' && isFinite(n)) ? Math.min(n,MAXN) : (n>0?MAXN:0); }
+function fmt(n,dp){
+  n=safe(n);
+  if(n<0) return '-'+fmt(-n,dp);
+  if(n<1000) return (n<10 && n%1!==0)? n.toFixed(dp===undefined?1:dp) : Math.floor(n).toString();
+  const e=Math.floor(Math.log10(n)); const t=Math.floor(e/3);
+  if(t<TIERS.length){ const m=n/Math.pow(10,t*3); return (m<10?m.toFixed(2):m<100?m.toFixed(1):m.toFixed(0))+' '+TIERS[t]; }
+  const m=n/Math.pow(10,e); return m.toFixed(3)+'e'+e;
+}
+function fmtInt(n){ n=safe(n); return n<1e6? Math.floor(n).toLocaleString('en-US') : fmt(n); }
+function fmtTime(s){
+  s=Math.max(0,Math.floor(s));
+  const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60), x=s%60;
+  if(d) return d+'d '+h+'h'; if(h) return h+'h '+m+'m'; if(m) return m+'m '+x+'s'; return x+'s';
+}
+
+/* ---------------------------- buildings ---------------------------- */
+const BUILDINGS=[
+ {k:'pamph',n:'Pamphleteer',ic:'📄',cost:15,prod:0.375,
+  d:'Distributes the Axis tract door to door. Mostly gets doors closed on him.',
+  tn:['Better Paper Stock','Laminated Tracts','The Foot-in-Door Rite','Doorbell Theology','Pamphlet Singularity']},
+ {k:'chant',n:'Chant Circle',ic:'🎵',cost:200,prod:3.9062,
+  d:'Nine acolytes humming a single vowel until something happens.',
+  tn:['Second Vowel Permitted','Harmonic Schism','The Drone Perpetual','Lung Reinforcement','Chant Without Chanters']},
+ {k:'shrine',n:'Roadside Shrine',ic:'🕯',cost:2600,prod:40,
+  d:'A cyan box on a stick. Pilgrims leave coins. Nobody knows why.',
+  tn:['Weatherproof Box','Coin Slot Widened','Sanctioned Signage','Shrine Franchising','Every Stick Is A Shrine']},
+ {k:'church',n:'Parish Church',ic:'⛪',cost:34000,prod:405,
+  d:'A proper roof over a proper doctrine. Pews included, comfort not.',
+  tn:['Actual Pews','Stained Glass Amog','Bell of Modest Volume','Two Sermons Daily','Parish Uncountable']},
+ {k:'caravan',n:'Pilgrim Caravan',ic:'🐫',cost:450000,prod:4191,
+  d:'Faith exported by the wagonload. Camels are non-negotiable.',
+  tn:['Spare Camels','The Salted Route','Caravan Insurance','Wheels of Certainty','The Route Walks Itself']},
+ {k:'cathedral',n:'Cathedral',ic:'🏛',cost:6e+06,prod:43656,
+  d:'Numbers ascend through stained glass and come back larger.',
+  tn:['Flying Buttress','The Great Organ','Vault of Echoes','Spire Overreach','Cathedral of Cathedrals']},
+ {k:'script',n:'Scriptorium',ic:'📜',cost:8e+07,prod:454747,
+  d:'Monks copying the same sentence until it becomes true.',
+  tn:['Fresh Ink','Marginalia Legalized','The Copying Copies','Recursive Vellum','Text Writes Reader']},
+ {k:'city',n:'Holy City',ic:'🌆',cost:1.1e+09,prod:4.88498e+06,
+  d:'A metropolis where the zoning code is a creed.',
+  tn:['Municipal Piety','Districts of Awe','The Sacred Sewer','City Charter Divine','Population: Faith']},
+ {k:'basilica',n:'Orbital Basilica',ic:'🛰',cost:1.5e+10,prod:5.20417e+07,
+  d:'Consecrated at 400km. The incense never settles.',
+  tn:['Zero-G Kneeling','Solar Censers','Geostationary Vespers','Ring of Naves','Basilica Constellation']},
+ {k:'sing',n:'Axis Singularity',ic:'🌀',cost:2e+11,prod:5.42101e+08,
+  d:'A doctrine so dense that light attends services.',
+  tn:['Event Horizon Choir','Tidal Catechism','Spaghettified Sermon','Information Paradox Rite','Faith Escapes Anyway']},
+ {k:'choir',n:'Choir of Dead Stars',ic:'✨',cost:2.8e+12,prod:5.92923e+09,
+  d:'Every extinguished sun still hums the Axis note. We simply listen.',
+  tn:['Perfect Pitch, Posthumous','Supernova Descant','The Cold Antiphon','Nebular Reverb','Silence Also Sings']},
+ {k:'engine',n:'The Grassman Engine',ic:'⚙',cost:4e+13,prod:6.61744e+10,
+  d:'Amog built it in a weekend. It converts touched grass into scripture.',
+  tn:['Blade Tolerance +1','Photosynthetic Liturgy','Lawn of Babel','The Engine Dreams','Grass Touches You']}
+];
+const TIER_AT=[1,10,25,50,90];
+const TIER_COST=[10,80,900,1e4,1.5e5];
+
+/* ---------------------------- upgrades ----------------------------- */
+/* type: click | clickfps | glob | cost | halo | synergy | ach | special */
+const UPGRADES=[
+ {k:'u_c1',n:'Cupped Hands',ic:'🤲',cost:300,t:'click',v:2,d:'Prayer power x2.',req:s=>s.clicks>=15},
+ {k:'u_c2',n:'Kneeling Posture',ic:'🧎',cost:4000,t:'click',v:2,d:'Prayer power x2.',req:s=>s.clicks>=60},
+ {k:'u_c3',n:'Ergonomic Pew',ic:'🪑',cost:60000,t:'click',v:3,d:'Prayer power x3.',req:s=>s.clicks>=200},
+ {k:'u_c4',n:'Prayer Beads of Amog',ic:'📿',cost:2e+06,t:'click',v:3,d:'Prayer power x3.',req:s=>s.clicks>=600},
+ {k:'u_c5',n:'The Sacred Wrist',ic:'💪',cost:3e+08,t:'click',v:5,d:'Prayer power x5.',req:s=>s.clicks>=1500},
+ {k:'u_c6',n:'Carpal Indulgence',ic:'🩹',cost:5e+10,t:'click',v:5,d:'Prayer power x5. Sin forgiven in advance.',req:s=>s.clicks>=4000},
+ {k:'u_f1',n:'Congregational Echo',ic:'📣',cost:80000,t:'clickfps',v:0.01,d:'Prayers also grant 1% of your faith/sec.'},
+ {k:'u_f2',n:'Amplified Litany',ic:'🔊',cost:2e+07,t:'clickfps',v:0.04,d:'+4% (prayers now grant 5% of faith/sec).',req:s=>s.upg.u_f1},
+ {k:'u_f3',n:'Total Resonance',ic:'🌐',cost:4e+10,t:'clickfps',v:0.10,d:'+10% (prayers now grant 15% of faith/sec).',req:s=>s.upg.u_f2},
+ {k:'u_g1',n:'Axis Festival',ic:'🎪',cost:20000,t:'glob',v:1.25,d:'All production +25%.'},
+ {k:'u_g2',n:'Tithe Reform',ic:'💰',cost:1.5e+06,t:'glob',v:1.30,d:'All production +30%.'},
+ {k:'u_g3',n:'Papal Bull No. 7',ic:'🐂',cost:3e+08,t:'glob',v:1.40,d:'All production +40%. Bulls 1-6 were withdrawn.'},
+ {k:'u_g4',n:'The Cyan Encyclical',ic:'💠',cost:8e+11,t:'glob',v:1.60,d:'All production +60%.'},
+ {k:'u_g5',n:'Ordination of Everything',ic:'♾',cost:2e+15,t:'glob',v:2.00,d:'All production x2.',req:s=>s.canon>=1},
+ {k:'u_o1',n:'Bulk Indulgences',ic:'🧾',cost:5e+06,t:'cost',v:0.04,d:'Building costs grow 4% slower.'},
+ {k:'u_o2',n:'Simony, Regrettably',ic:'🪙',cost:2e+10,t:'cost',v:0.05,d:'Building costs grow another 5% slower. We do not discuss this.'},
+ {k:'u_h1',n:'Halo Polish',ic:'🪞',cost:1e+07,t:'halo',v:{freq:0.3},d:'Golden Halos appear 30% more often.'},
+ {k:'u_h2',n:'Gilded Nimbus',ic:'👑',cost:8e+10,t:'halo',v:{pot:0.5},d:'Halo blessings are 50% stronger and last 50% longer.',req:s=>s.halosClicked>=5},
+ {k:'u_a1',n:'Hagiography',ic:'📖',cost:1e+09,t:'ach',v:0.010,d:'Each Relic of Deed is worth +1.0% more.'},
+ {k:'u_s1',n:'Grassroots Doctrine',ic:'🌱',cost:400000,t:'synergy',v:{m:5,keys:['pamph','chant']},d:'Pamphleteer and Chant Circle x5.'},
+ {k:'u_s2',n:'Stone and Song',ic:'🪨',cost:1e+08,t:'synergy',v:{m:4,keys:['shrine','church']},d:'Roadside Shrine and Parish Church x4.'},
+ {k:'u_s3',n:'The Long Walk',ic:'👣',cost:1e+11,t:'synergy',v:{m:4,keys:['caravan','cathedral']},d:'Pilgrim Caravan and Cathedral x4.'},
+ {k:'u_s4',n:'Astral Liturgy',ic:'🌌',cost:2e+14,t:'synergy',v:{m:3,keys:['basilica','sing','choir']},d:'Basilica, Singularity and Choir x3.'},
+ {k:'u_s5',n:'The Whole Corpus',ic:'📚',cost:8e+16,t:'synergy',v:{m:2,keys:BUILDINGS.map(b=>b.k)},d:'Every building x2.',req:s=>s.canon>=2},
+ {k:'u_p1',n:'Sacred Scripture',ic:'✍',cost:1e+06,t:'special',v:'converts',d:'All production x(1 + 0.08 per lifetime Conversion).',req:s=>s.converts>=1},
+ {k:'u_p2',n:'Apocrypha of Lintahlol',ic:'🕯',cost:5e+12,t:'special',v:'canon',d:'All production x(1 + 0.25 per Canonization). Circulated without permission.',req:s=>s.canon>=1},
+ {k:'u_p3',n:'Grass Theory',ic:'🌾',cost:2e+14,t:'special',v:'lifetime',d:'All production x(1 + log10(lifetime faith) / 22).'},
+ {k:'u_p4',n:'The Emeritus Footnote',ic:'📝',cost:1e+16,t:'special',v:'councils',d:'All production x(1 + 0.5 per ratified Council).',req:s=>s.councilsDone.length>=1}
+];
+
+/* ------------------------- devotion shop ---------------------------- */
+const DEVSHOP=[
+ {k:'d_click',n:'Zealous Hands',ic:'👏',base:4,inc:1.45,max:60,d:'Prayer power x(1 + 1.0/level).',eff:L=>1+1.0*L,unit:'x'},
+ {k:'d_build',n:'Pious Architecture',ic:'🏗',base:5,inc:1.42,max:80,d:'All buildings x(1 + 0.50/level).',eff:L=>1+0.50*L,unit:'x'},
+ {k:'d_glob',n:"Aqua's Favor",ic:'💧',base:9,inc:1.50,max:80,d:'All production x(1 + 0.40/level).',eff:L=>1+0.40*L,unit:'x'},
+ {k:'d_cost',n:'Rite of Bulk Purchase',ic:'📦',base:18,inc:1.8,max:15,d:'Building cost growth -0.004/level (1.120 → 1.060).',eff:L=>0.004*L,unit:'-'},
+ {k:'d_gain',n:'Evangelical Math',ic:'🧮',base:30,inc:1.8,max:40,d:'Devotion gained per Convert x(1 + 0.25/level).',eff:L=>1+0.25*L,unit:'x'},
+ {k:'d_auto',n:'Autoprayer Bellows',ic:'🎐',base:30,inc:2.1,max:20,d:'3 automatic prayers per second, per level.',eff:L=>3*L,unit:'/s'},
+ {k:'d_halo',n:'The Wider Gate',ic:'🚪',base:80,inc:2.2,max:12,d:'Halos +9% more frequent and +5% stronger, per level.',eff:L=>L,unit:'lv'}
+];
+
+/* -------------------------- relic shop ------------------------------ */
+const RELSHOP=[
+ {k:'r_glob',n:'Vault of Wonders',ic:'🏺',base:4,inc:2.2,max:60,d:'All production x(1 + 1.5/level).',eff:L=>1+1.5*L,unit:'x'},
+ {k:'r_pow',n:'Miracle Engine',ic:'🔆',base:3,inc:3.2,max:14,d:'Production EXPONENT +0.010/level. Compounds violently.',eff:L=>0.010*L,unit:'+'},
+ {k:'r_keep',n:'Holy Memory',ic:'🧠',base:5,inc:3.0,max:10,d:'Keep 4% of every building through Convert, per level.',eff:L=>0.04*L,unit:'%'},
+ {k:'r_start',n:'Seeded Faith',ic:'🌰',base:6,inc:2.8,max:30,d:'Begin each run with 10^(3+level) faith.',eff:L=>L>0?Math.pow(10,3+L):0,unit:'f'},
+ {k:'r_gain',n:'Ossuary Expansion',ic:'💀',base:9,inc:3.4,max:25,d:'Relics gained per Canonization x(1 + 0.25/level).',eff:L=>1+0.25*L,unit:'x'},
+ {k:'r_auto',n:'Curia Automatic',ic:'🤖',base:12,inc:5,max:3,d:'L1: auto-Convert at 10x current Devotion. L2: every 60s instead of 180s. L3: also auto-buys the best building each second.',eff:L=>L,unit:'lv'}
+];
+
+/* -------------------------- anti shop ------------------------------- */
+const ANTISHOP=[
+ {k:'a_pow',n:'Anathema Exponent',ic:'🩸',base:1,inc:2.6,max:25,d:'Production EXPONENT +0.015/level.',eff:L=>0.015*L,unit:'+'},
+ {k:'a_click',n:'Blasphemous Palm',ic:'🖐',base:2,inc:2.5,max:30,d:'Prayer power x(1 + 2/level). Prayer, but rude.',eff:L=>1+2*L,unit:'x'},
+ {k:'a_doubt',n:'Contrarian Doctrine',ic:'🌗',base:3,inc:2.4,max:20,d:'Doubt multiplies Devotion gain: x sqrt(1 + Doubt/1e4), +25% per extra level.',eff:L=>L,unit:'lv'},
+ {k:'a_tick',n:'Temporal Heresy',ic:'⏩',base:5,inc:2.8,max:12,d:'The whole world runs +12% faster, per level.',eff:L=>1+0.12*L,unit:'x'},
+ {k:'a_glob',n:'Inverted Tithe',ic:'🔻',base:7,inc:3.0,max:30,d:'All production x(1 + 1.0/level).',eff:L=>1+1.0*L,unit:'x'},
+ {k:'a_her',n:'Schismatic Recruitment',ic:'📡',base:14,inc:3.5,max:20,d:'Heresy gained per Apostasy x(1 + 0.4/level).',eff:L=>1+0.4*L,unit:'x'}
+];
+
+/* --------------------------- councils ------------------------------- */
+const COUNCILS=[
+ {k:'silence',n:'Council of Silence',ic:'🤫',goal:2e10,
+  vow:'Prayer produces nothing. Not one drop.',
+  rw:'Prayer power x3, permanently.'},
+ {k:'poverty',n:'Council of Poverty',ic:'🪣',goal:4e9,
+  vow:'Every building costs 20x its usual price.',
+  rw:'Building cost growth permanently -0.01 (1.120 → 1.110).'},
+ {k:'haste',n:'Council of Haste',ic:'⏱',goal:2e8,limit:300,
+  vow:'Five minutes. That is the entire Council.',
+  rw:'All production +45%, permanently.'},
+ {k:'doubt',n:'Council of Doubt',ic:'❓',goal:5e12,
+  vow:'Production exponent multiplied by 0.88. Everything feels heavier.',
+  rw:'Production exponent permanently +0.03.'},
+ {k:'grassman',n:'Council of the Grassman',ic:'🌿',goal:2e11,
+  vow:'Only the first three buildings function. The rest sit idle and judge you.',
+  rw:'The first four buildings x12, permanently.'},
+ {k:'wager',n:"Lintahlol's Wager",ic:'🎲',goal:2e13,req:s=>s.canon>=1,
+  vow:'No upgrade may be purchased. None. He insists this is fair.',
+  rw:'Devotion gained per Convert x1.5, permanently.'}
+];
+
+/* --------------------------- ranks ---------------------------------- */
+/* thresholds are Renown values directly (Renown is already a log-space score) */
+const RANKS=[
+ ['Grass Toucher',0],['Novice Grassman',3],['Grassman',5],['Senior Grassman',7],
+ ['Postulant',9],['Acolyte',11],['Deacon',13],['Apostle',15],['Zealot',17],
+ ['Inquisitor',19],['Member',21],['Senior Member',23],['Elder Member',26],
+ ['Master',29],['Archmaster',32],['Grandmaster',35],['Bishop',38],['Archbishop',42],
+ ['Metropolitan',46],['Cardinal',50],['Patriarch',55],['Pope',60],
+ ['Anti-Grassman',80],['Anti-Acolyte',110],['Anti-Member',150],['Anti-Master',210],
+ ['Anti-Grandmaster',300],['Anti-Cardinal',430],['Anti-Pope',600],['Heresiarch',850],
+ ['Omni-Pope',1200],['AXIS INCARNATE',1600]
+];
+const POPE_IDX=21;
+
+/* ------------------------ achievements ------------------------------ */
+const ACH=[
+ {k:'f1',n:'A Reasonable Start',ic:'🌱',d:'Hold 1,000 faith.',c:s=>s.faith>=1e3},
+ {k:'f2',n:'Congregation',ic:'👥',d:'Hold 1 million faith.',c:s=>s.faith>=1e6},
+ {k:'f3',n:'Diocese',ic:'🏘',d:'Hold 1 billion faith.',c:s=>s.faith>=1e9},
+ {k:'f4',n:'Continental',ic:'🗺',d:'Hold 1 trillion faith.',c:s=>s.faith>=1e12},
+ {k:'f5',n:'Planetary Creed',ic:'🌍',d:'Hold 1 Qa faith.',c:s=>s.faith>=1e15},
+ {k:'f6',n:'Absurd',ic:'🤯',d:'Hold 1e20 faith.',c:s=>s.faith>=1e20},
+ {k:'f7',n:'Ridiculous',ic:'🎠',d:'Hold 1e30 faith.',c:s=>s.faith>=1e30},
+ {k:'f8',n:'Numerically Blasphemous',ic:'🧨',d:'Hold 1e50 faith.',c:s=>s.faith>=1e50},
+ {k:'f9',n:'The Long Number',ic:'🪐',d:'Hold 1e80 faith.',c:s=>s.faith>=1e80},
+ {k:'b1',n:'First Hire',ic:'📄',d:'Own a Pamphleteer.',c:s=>s.bld.pamph>=1},
+ {k:'b2',n:'Middle Management',ic:'📋',d:'Own 50 of anything.',c:s=>BUILDINGS.some(b=>s.bld[b.k]>=50)},
+ {k:'b3',n:'Centurion',ic:'💯',d:'Own 100 of anything.',c:s=>BUILDINGS.some(b=>s.bld[b.k]>=100)},
+ {k:'b4',n:'Two Hundred Strong',ic:'🏋',d:'Own 200 of anything.',c:s=>BUILDINGS.some(b=>s.bld[b.k]>=200)},
+ {k:'b5',n:'Full Basilica',ic:'⛪',d:'Own at least 1 of every building.',c:s=>BUILDINGS.every(b=>s.bld[b.k]>=1)},
+ {k:'b6',n:'Real Estate',ic:'🏗',d:'Own 500 buildings total.',c:s=>totalBuildings(s)>=500},
+ {k:'b7',n:'Urban Sprawl',ic:'🌆',d:'Own 1,500 buildings total.',c:s=>totalBuildings(s)>=1500},
+ {k:'b8',n:'Touch Grass',ic:'⚙',d:'Build the Grassman Engine.',c:s=>s.bld.engine>=1},
+ {k:'c1',n:'Devout Index Finger',ic:'👆',d:'Pray 100 times.',c:s=>s.clicksTotal>=100},
+ {k:'c2',n:'Repetitive Strain',ic:'🩹',d:'Pray 1,000 times.',c:s=>s.clicksTotal>=1000},
+ {k:'c3',n:'The Wrist Knows',ic:'🦴',d:'Pray 10,000 times.',c:s=>s.clicksTotal>=1e4},
+ {k:'c4',n:'Seek Help',ic:'🚑',d:'Pray 50,000 times.',c:s=>s.clicksTotal>=5e4},
+ {k:'p1',n:'Born Again',ic:'🔄',d:'Convert once.',c:s=>s.converts>=1},
+ {k:'p2',n:'Serial Convert',ic:'♻',d:'Convert 10 times.',c:s=>s.converts>=10},
+ {k:'p3',n:'Revolving Door',ic:'🚪',d:'Convert 50 times.',c:s=>s.converts>=50},
+ {k:'p4',n:'Professional Reset',ic:'🌀',d:'Convert 200 times.',c:s=>s.converts>=200},
+ {k:'q1',n:'Sainted',ic:'😇',d:'Canonize once.',c:s=>s.canon>=1},
+ {k:'q2',n:'Hagiographer',ic:'📖',d:'Canonize 10 times.',c:s=>s.canon>=10},
+ {k:'q3',n:'The Whole Calendar',ic:'📅',d:'Canonize 40 times.',c:s=>s.canon>=40},
+ {k:'r1',n:'Bone Collector',ic:'🦷',d:'Hold 25 Relics.',c:s=>s.relics>=25},
+ {k:'r2',n:'Ossuary',ic:'💀',d:'Hold 250 Relics.',c:s=>s.relics>=250},
+ {k:'d1',n:'Faithful Servant',ic:'🙏',d:'Hold 500 Devotion.',c:s=>s.devotion>=500},
+ {k:'d2',n:'True Believer',ic:'🕊',d:'Hold 100,000 Devotion.',c:s=>s.devotion>=1e5},
+ {k:'d3',n:'Devotion Incarnate',ic:'💫',d:'Hold 1e9 Devotion.',c:s=>s.devotion>=1e9},
+ {k:'h1',n:'Caught One',ic:'🟡',d:'Click a Golden Halo.',c:s=>s.halosClicked>=1},
+ {k:'h2',n:'Halo Hunter',ic:'🎯',d:'Click 15 Golden Halos.',c:s=>s.halosClicked>=15},
+ {k:'h3',n:'Nimbus Addict',ic:'👑',d:'Click 60 Golden Halos.',c:s=>s.halosClicked>=60},
+ {k:'u1',n:'Reading the Rules',ic:'📜',d:'Own 10 upgrades at once.',c:s=>Object.keys(s.upg).length>=10},
+ {k:'u2',n:'Doctrine Complete',ic:'🗂',d:'Own 22 upgrades at once.',c:s=>Object.keys(s.upg).length>=22},
+ {k:'k1',n:'Vows Taken',ic:'🤐',d:'Ratify a Council.',c:s=>s.councilsDone.length>=1},
+ {k:'k2',n:'Conciliar',ic:'⚖',d:'Ratify 3 Councils.',c:s=>s.councilsDone.length>=3},
+ {k:'k3',n:'Ecumenical',ic:'🏆',d:'Ratify every Council.',c:s=>s.councilsDone.length>=COUNCILS.length},
+ {k:'x1',n:'Habemus Papam',ic:'🎩',d:'Reach the rank of Pope.',c:s=>rankIdx(s)>=POPE_IDX},
+ {k:'x2',n:'The Third Schism',ic:'☠',d:'Apostatize.',c:s=>s.apostasies>=1},
+ {k:'x3',n:'Anti-Pope',ic:'🕳',d:'Reach the rank of Anti-Pope.',c:s=>rankIdx(s)>=28},
+ {k:'x4',n:'Pledged to the Emeritus',ic:'🌗',d:'Swear allegiance to Lintahlol.',c:s=>s.everPledged.lintahlol},
+ {k:'x5',n:'Loyal to the Cyan',ic:'💠',d:'Swear allegiance to Amog I.',c:s=>s.everPledged.amog},
+ {k:'x6',n:'One Hour of Orders',ic:'⏳',d:'Play for one hour.',c:s=>s.playTime>=3600},
+ {k:'x7',n:'The Long Vigil',ic:'🌙',d:'Play for six hours.',c:s=>s.playTime>=21600},
+ {k:'x8',n:'Exponential Person',ic:'📈',d:'Reach a production exponent of 1.15.',c:s=>exponent(s)>=1.15},
+ {k:'x9',n:'AXIS INCARNATE',ic:'🔱',d:'Reach the Infinity Wall. Finish the game.',c:s=>!!s.ascended}
+];
+
+/* --------------------------- news ----------------------------------- */
+const NEWS=[
+ 'Pope Amog I has declared the colour cyan "doctrinally load-bearing."',
+ 'Ex-Pope Emeritus Lintahlol continues to sign correspondence "still technically infallible."',
+ 'Local Pamphleteer reports being thanked once. Investigation ongoing.',
+ 'The Axis Order was founded on a Tuesday. This remains its most controversial fact.',
+ 'Amog I refuses to remove his sunglasses indoors, citing "the glare of revelation."',
+ 'Chant Circle achieves second vowel. Theologians describe the moment as "loud."',
+ 'Grass, when touched, has been found to be doctrinally neutral. Study retracted.',
+ 'Lintahlol denies the schism, the abdication, and to a lesser extent the pension.',
+ 'Cathedral acoustics found to amplify not only sound but also opinion.',
+ 'The Order clarifies: pilgrims may bring camels, but only the good ones.',
+ 'Scriptorium monks have copied the same sentence 40,000 times. It is now true.',
+ 'A Holy City has voted to rename itself after a typo. Amog I approves.',
+ 'Orbital Basilica reports incense drifting into a commercial flight path.',
+ 'Axis Singularity swallows a bishop. Bishop reports the experience as "clarifying."',
+ 'Dead stars confirmed to hum in the key of the Axis. Astronomers "unbothered."',
+ 'The Grassman Engine is running. Nobody has asked it to stop.',
+ 'Amog I on Lintahlol: "He was a fine Pope, for a while, briefly, arguably."',
+ 'Lintahlol on Amog I: "The sunglasses are compensating for something."',
+ 'Devotion may now be exchanged for doctrine at any authorised Reliquary.',
+ 'A Golden Halo was sighted over the treasury. The treasurer is missing.',
+ 'The Council of Silence has concluded. Nobody is willing to say how.',
+ 'The Council of Poverty ran 20% over budget.',
+ 'Reminder: Simony remains regrettable but structurally essential.',
+ 'The Order has purchased a second Papal Bull. The first is unaccounted for.',
+ 'Apostasy paperwork now available at the front desk, in triplicate.',
+ 'The Anti-Realm has a gift shop. Reviews are mixed.',
+ 'Doubt is now considered a renewable resource by three of four dioceses.',
+ 'A relic of Amog I sold at auction. It was a sock. It was very expensive.',
+ 'The Axis Order denies that the exponent is "getting out of hand."',
+ 'Cyan paint shortage enters its ninth liturgical year.',
+ 'Amog I has blessed a spreadsheet. Productivity in the diocese is up 400%.',
+ 'Lintahlol has started a podcast. Two listeners, both apostates.',
+ 'The faithful are reminded that clicking is a sacrament, not a sport.',
+ 'Efficiency experts recommend Converting more often. They have been excommunicated.',
+ 'A pilgrim walked the Long Walk twice by accident and was canonised for it.',
+ 'Somebody has taught the Chant Circle a second song. Amog I is furious.',
+ 'The Ossuary is at capacity. Again.',
+ 'Rumours of a Fourth Schism are, per the Curia, "premature but attractive."',
+ 'Study finds Faith per Second correlates with Faith per Second.',
+ 'Amog I was seen touching grass. The Order calls it "field research."',
+ 'Lintahlol claims the Anti-Realm was his idea. The Anti-Realm declines to comment.',
+ 'The Wider Gate has been widened. It is now simply an absence of wall.',
+ 'Autoprayer Bellows recalled after praying for things nobody asked for.',
+ 'A cardinal has been replaced by a slightly larger cardinal.',
+ 'Attendance at Vespers is up. Attendance at everything else is also up.',
+ 'The Order has no comment on the numbers. The Order has never had a comment on the numbers.'
+];
+
+/* --------------------------- codex ---------------------------------- */
+const CODEX=[
+ {n:'I. On the Founding',c:s=>true,
+  t:'The Axis Order began as a group chat. Amog, then merely Amog, proposed that faith could be measured, and — more importantly — that it could be increased. Eleven people agreed. Four of them meant it.'},
+ {n:'II. On Amog I',c:s=>s.clicksTotal>=25,
+  t:'His Holiness wears cyan because cyan is between things: not blue enough to be sad, not green enough to be grass. He wears sunglasses because, he says, "revelation has a glare." He has never explained the shirt.'},
+ {n:'III. On the Prayer',c:s=>s.clicksTotal>=200,
+  t:'Prayer in the Axis Order is not petition. It is accumulation. You are not asking for anything; you are noting that you exist, repeatedly, until the universe agrees.'},
+ {n:'IV. On Conversion',c:s=>s.converts>=1,
+  t:'To Convert is to burn the whole diocese down and keep the lesson. The buildings go, the doctrine goes, the pamphlets go. What remains is Devotion: the residue of having done it before.'},
+ {n:'V. On Lintahlol',c:s=>s.converts>=3,
+  t:'Ex-Pope Emeritus Lintahlol held the Cyan Mitre for six weeks. He resigned in a letter of four words — "fine, you do it" — and has spent every day since explaining that the resignation was conditional.'},
+ {n:'VI. On Canonization',c:s=>s.canon>=1,
+  t:'A saint is a mistake that worked. Canonization empties the treasury and returns Relics: hard, portable, indifferent to reform. The doctrine bought with Devotion is never repealed. The Order does not repeal.'},
+ {n:'VII. On the Schism',c:s=>s.canon>=1,
+  t:'Two allegiances are permitted, one at a time. Amog I offers structure: buildings, obedience, compounding returns. Lintahlol offers leverage: cheaper everything, harder prayer, and the persistent implication that he was right.'},
+ {n:'VIII. On Councils',c:s=>s.councilsDone.length>=1,
+  t:'A Council is a vow with a quota. The Order has found that the fastest way to grow is to first agree, formally and in writing, to make things worse.'},
+ {n:'IX. On the Exponent',c:s=>exponent(s)>1.0,
+  t:'Multipliers are polite. They ask permission. The exponent does not: it takes what you already have and asks it to be that shape again. The Curia has classified this as a miracle, chiefly to avoid classifying it as mathematics.'},
+ {n:'X. On Doubt',c:s=>s.apostasies>=1,
+  t:'Doubt was assumed to be corrosive. It is in fact structural. In the Anti-Realm the two are the same claim, viewed from opposite sides of the same very thin wall.'},
+ {n:'XI. On the Anti-Realm',c:s=>s.apostasies>=1,
+  t:'It is not below or beyond. It is the Axis Order with every sign flipped and the lights left on. Lintahlol broadcasts from somewhere inside it, and the broadcast is, annoyingly, correct.'},
+ {n:'XII. On the Infinity Wall',c:s=>!!s.ascended,
+  t:'At 1e300 the faith of the Axis Order stops being a quantity and becomes a fact. Nothing beyond the Wall can be written down, which the Curia has ruled is the same as nothing beyond the Wall existing. Amog I, characteristically, went and had a look anyway.'},
+ {n:'XIII. On the Grassman',c:s=>s.bld.engine>=1,
+  t:'The lowest rank of the Order is Grass Toucher; the highest is AXIS INCARNATE. Amog I insists these are the same rank observed at different scales, and that the Engine proves it. Nobody has been able to disprove the Engine.'}
+];
+
+
+/* ================= derived upgrade list (building tiers) ============= */
+const TUPG=[];
+BUILDINGS.forEach(b=>{
+  TIER_AT.forEach((need,i)=>{
+    TUPG.push({k:'t_'+b.k+'_'+i, n:b.tn[i], ic:b.ic, cost:b.cost*TIER_COST[i], t:'tier', bk:b.k,
+      d:b.n+' x2.', need:need, req:s=>(s.bld[b.k]||0)>=need});
+  });
+});
+const ALLUPG=UPGRADES.concat(TUPG);
+const UPGBY={}; ALLUPG.forEach(u=>UPGBY[u.k]=u);
+const DEVBY={}; DEVSHOP.forEach(d=>DEVBY[d.k]=d);
+const RELBY={}; RELSHOP.forEach(d=>RELBY[d.k]=d);
+const ANTBY={}; ANTISHOP.forEach(d=>ANTBY[d.k]=d);
+const COUNBY={}; COUNCILS.forEach(c=>COUNBY[c.k]=c);
+
+/* =========================== state ================================== */
+function nowS(){ return Date.now()/1000; }
+function newState(){
+  const s={
+    faith:0, faithRun:0, faithTotal:0,
+    clicks:0, clicksTotal:0,
+    bld:{}, upg:{}, devUp:{}, relUp:{}, antiUp:{},
+    devotion:0, devotionTotal:0, relics:0, relicsTotal:0,
+    heresy:0, heresyTotal:0, doubt:0, relicsRun:0,
+    converts:0, canon:0, apostasies:0,
+    anti:false, antiView:false,
+    allegiance:null, everPledged:{amog:false,lintahlol:false},
+    ach:{}, halosClicked:0, buffs:[],
+    councilsDone:[], council:null, councilStart:0,
+    playTime:0, buyAmt:1, autoT:0, autoBuyT:0, ascended:false,
+    v:3
+  };
+  BUILDINGS.forEach(b=>s.bld[b.k]=0);
+  return s;
+}
+let S=newState();
+
+/* ======================== calculations ============================== */
+function totalBuildings(s){ let t=0; for(const b of BUILDINGS) t+=(s.bld[b.k]||0); return t; }
+function has(s,k){ return !!s.upg[k]; }
+function lvl(o,k){ return o[k]||0; }
+
+function councilMod(s){
+  const c=s.council;
+  return {noClick:c==='silence', costX:c==='poverty'?20:1, expX:c==='doubt'?0.88:1,
+          only3:c==='grassman', noUpg:c==='wager'};
+}
+function growth(s){
+  let g=0.12;
+  if(has(s,'u_o1')) g*=0.96;
+  if(has(s,'u_o2')) g*=0.95;
+  if(s.allegiance==='lintahlol') g*=0.85;
+  g-=0.004*lvl(s.devUp,'d_cost');
+  if(s.councilsDone.indexOf('poverty')>=0) g-=0.01;
+  return 1+Math.max(0.045,g);
+}
+function bCost(s,b,n){
+  const g=growth(s), owned=s.bld[b.k]||0, cm=councilMod(s).costX;
+  const first=b.cost*Math.pow(g,owned)*cm;
+  if(!isFinite(first)) return MAXN;
+  return safe(first*(Math.pow(g,n)-1)/(g-1));
+}
+function maxAfford(s,b){
+  const g=growth(s), owned=s.bld[b.k]||0, cm=councilMod(s).costX;
+  const first=b.cost*Math.pow(g,owned)*cm;
+  if(!isFinite(first)||s.faith<first) return 0;
+  const n=Math.floor(Math.log(1+s.faith*(g-1)/first)/Math.log(g));
+  return Math.max(0,Math.min(n,2000));
+}
+function buyCount(s,b){
+  if(s.buyAmt==='max') return maxAfford(s,b);
+  return s.buyAmt;
+}
+function bMult(s,b){
+  let m=1;
+  for(let i=0;i<TIER_AT.length;i++) if(has(s,'t_'+b.k+'_'+i)) m*=2;
+  for(const u of UPGRADES){
+    if(u.t==='synergy' && has(s,u.k) && u.v.keys.indexOf(b.k)>=0) m*=u.v.m;
+  }
+  if(s.councilsDone.indexOf('grassman')>=0 && ['pamph','chant','shrine','church'].indexOf(b.k)>=0) m*=12;
+  m*=DEVBY.d_build.eff(lvl(s.devUp,'d_build'));
+  if(s.allegiance==='amog') m*=1.45;
+  return m;
+}
+/* Prestige passives are deliberately sub-linear so that each layer can be
+   overtaken by the next one instead of permanently outclassing it. */
+function devPassive(s){ return 1+1.20*Math.pow(Math.max(0,s.devotion),0.80); }
+function relPassive(s){ return 1+3.00*Math.pow(Math.max(0,s.relics),0.85); }
+function herPassive(s){ return 1+8.00*Math.pow(Math.max(0,s.heresy),0.80); }
+function achCount(s){ let n=0; for(const k in s.ach) if(s.ach[k]) n++; return n; }
+function achMult(s){ return Math.pow(1+0.016+(has(s,'u_a1')?0.010:0), achCount(s)); }
+function buffProd(s){
+  let m=1, t=nowS();
+  for(const b of s.buffs) if(b.until>t && b.prod) m*=b.prod;
+  return m;
+}
+function buffClick(s){
+  let m=1, t=nowS();
+  for(const b of s.buffs) if(b.until>t && b.click) m*=b.click;
+  return m;
+}
+function globalMult(s){
+  let m=1;
+  for(const u of UPGRADES){
+    if(!has(s,u.k)) continue;
+    if(u.t==='glob') m*=u.v;
+    else if(u.t==='special'){
+      if(u.v==='converts') m*=(1+0.08*s.converts);
+      else if(u.v==='canon') m*=(1+0.25*s.canon);
+      else if(u.v==='lifetime') m*=(1+Math.log10(1+s.faithTotal)/22);
+      else if(u.v==='councils') m*=(1+0.5*s.councilsDone.length);
+    }
+  }
+  m*=DEVBY.d_glob.eff(lvl(s.devUp,'d_glob'));
+  m*=RELBY.r_glob.eff(lvl(s.relUp,'r_glob'));
+  m*=devPassive(s);
+  m*=relPassive(s);
+  if(s.anti){ m*=ANTBY.a_glob.eff(lvl(s.antiUp,'a_glob')); m*=herPassive(s); }
+  if(s.councilsDone.indexOf('haste')>=0) m*=1.45;
+  if(s.anti && !s.antiView) m*=1.10;
+  m*=achMult(s);
+  m*=buffProd(s);
+  return safe(m);
+}
+function exponent(s){
+  let e=1;
+  e+=RELBY.r_pow.eff(lvl(s.relUp,'r_pow'));
+  if(s.anti) e+=ANTBY.a_pow.eff(lvl(s.antiUp,'a_pow'));
+  if(s.councilsDone.indexOf('doubt')>=0) e+=0.03;
+  return e*councilMod(s).expX;
+}
+function rawProd(s){
+  let sum=0; const only3=councilMod(s).only3;
+  for(let i=0;i<BUILDINGS.length;i++){
+    if(only3 && i>=3) continue;
+    const b=BUILDINGS[i], n=s.bld[b.k]||0;
+    if(n>0) sum+=n*b.prod*bMult(s,b);
+  }
+  return safe(sum*globalMult(s));
+}
+function fps(s){
+  const base=rawProd(s);
+  if(base<=1) return base;
+  return safe(Math.pow(base,exponent(s)));
+}
+function clickPower(s){
+  if(councilMod(s).noClick) return 0;
+  let c=1;
+  for(const u of UPGRADES) if(u.t==='click' && has(s,u.k)) c*=u.v;
+  c*=DEVBY.d_click.eff(lvl(s.devUp,'d_click'));
+  if(s.anti) c*=ANTBY.a_click.eff(lvl(s.antiUp,'a_click'));
+  if(s.councilsDone.indexOf('silence')>=0) c*=3;
+  if(s.allegiance==='lintahlol') c*=2.5;
+  c*=Math.pow(Math.max(1,globalMult(s)),0.5);
+  let share=0;
+  for(const u of UPGRADES) if(u.t==='clickfps' && has(s,u.k)) share+=u.v;
+  const total=(c+(share>0?fps(s)*share:0))*buffClick(s);
+  return safe(total);
+}
+function haloFreqMult(s){
+  let m=1;
+  if(has(s,'u_h1')) m*=1.3;
+  m*=1+0.09*lvl(s.devUp,'d_halo');
+  return m;
+}
+function haloPotency(s){
+  let m=1;
+  if(has(s,'u_h2')) m*=1.5;
+  m*=1+0.05*lvl(s.devUp,'d_halo');
+  return m;
+}
+function devGain(s){
+  let base=Math.pow(Math.max(0,s.faithRun)/1e6,0.55);
+  base*=DEVBY.d_gain.eff(lvl(s.devUp,'d_gain'));
+  base*=(1+0.6*Math.pow(Math.max(0,s.relics),0.5));  // Relics accelerate the layer below them (sub-linear, or it runs away)
+  if(s.councilsDone.indexOf('wager')>=0) base*=1.5;
+  if(s.allegiance==='amog') base*=1.3;
+  const dl=lvl(s.antiUp,'a_doubt');
+  if(s.anti && dl>0) base*=Math.sqrt(1+s.doubt/1e4)*(1+0.25*(dl-1));
+  return Math.floor(safe(base));
+}
+function relGain(s){
+  let base=Math.pow(Math.max(0,s.devotion)/50,0.55);
+  base*=RELBY.r_gain.eff(lvl(s.relUp,'r_gain'));
+  if(s.allegiance==='lintahlol') base*=1.2;
+  return Math.floor(safe(base));
+}
+function herGain(s){
+  /* The relic price of Heresy scales with how much Heresy you already hold,
+     so repeated Apostasy costs progressively more of the layer below it. */
+  const need=20*Math.pow(1+Math.max(0,s.heresyTotal),0.8);
+  let base=2*Math.pow(Math.max(0,s.relicsRun)/need,0.60);
+  base*=ANTBY.a_her.eff(lvl(s.antiUp,'a_her'));
+  return Math.floor(safe(base));
+}
+function renown(s){
+  return Math.log10(1+Math.max(0,s.faithTotal))
+       + 1.6*Math.log10(1+Math.max(0,s.devotionTotal))
+       + 3.0*Math.log10(1+Math.max(0,s.relicsTotal))
+       + 5.0*Math.log10(1+Math.max(0,s.heresyTotal));
+}
+function rankIdx(s){
+  const r=renown(s); let i=0;
+  for(let j=0;j<RANKS.length;j++){ if(r>=RANKS[j][1]) i=j; }
+  return i;
+}
+function canApostatize(s){ return rankIdx(s)>=POPE_IDX && herGain(s)>=1; }
+
+/* ============================ actions =============================== */
+let floatId=0;
+function addFaith(n){ n=safe(n); S.faith+=n; S.faithRun+=n; S.faithTotal+=n; }
+
+function pray(ev){
+  const g=clickPower(S);
+  S.clicks++; S.clicksTotal++;
+  addFaith(g);
+  const h=document.getElementById('halo3d');
+  h.classList.add('punch'); setTimeout(()=>h.classList.remove('punch'),95);
+  const f=document.createElement('div'); f.className='float'; f.textContent='+'+fmt(g);
+  const r=h.getBoundingClientRect();
+  let x=r.width/2, y=r.height*0.45;
+  if(ev && ev.clientX!==undefined && ev.clientX!==0){ x=ev.clientX-r.left; y=ev.clientY-r.top; }
+  f.style.left=x+'px'; f.style.top=y+'px';
+  h.appendChild(f); const id=++floatId;
+  setTimeout(()=>{ if(f.parentNode) f.parentNode.removeChild(f); },1080);
+  if(S.clicks===1) log('You pray. Something, somewhere, increments.');
+}
+
+function buyBuilding(k){
+  const b=BUILDINGS.find(x=>x.k===k); if(!b) return;
+  let n=buyCount(S,b); if(n<1) return;
+  const c=bCost(S,b,n);
+  if(S.faith<c) { n=maxAfford(S,b); if(n<1) return; }
+  const cost=bCost(S,b,n);
+  if(S.faith<cost) return;
+  S.faith-=cost; S.bld[k]=(S.bld[k]||0)+n;
+  dirty.build=dirty.upg=true;
+}
+function buyUpgrade(k){
+  const u=UPGBY[k]; if(!u||has(S,k)) return;
+  if(councilMod(S).noUpg) { toast('Vow of the Wager','No upgrade may be purchased.','red'); return; }
+  if(u.req && !u.req(S)) return;
+  if(S.faith<u.cost) return;
+  S.faith-=u.cost; S.upg[k]=1;
+  log('Ratified: <b>'+u.n+'</b>');
+  dirty.upg=dirty.build=true;
+}
+function shopCost(entry,level){ return Math.ceil(entry.base*Math.pow(entry.inc,level)); }
+function buyDev(k){
+  const e=DEVBY[k]; const L=lvl(S.devUp,k);
+  if(L>=e.max) return;
+  const c=shopCost(e,L); if(S.devotion<c) return;
+  S.devotion-=c; S.devUp[k]=L+1; dirty.dev=true;
+  log('Doctrine advanced: <b>'+e.n+'</b> Lv'+(L+1));
+}
+function buyRel(k){
+  const e=RELBY[k]; const L=lvl(S.relUp,k);
+  if(L>=e.max) return;
+  const c=shopCost(e,L); if(S.relics<c) return;
+  S.relics-=c; S.relUp[k]=L+1; dirty.rel=true;
+  log('Reliquary: <b>'+e.n+'</b> Lv'+(L+1));
+}
+function buyAnti(k){
+  const e=ANTBY[k]; const L=lvl(S.antiUp,k);
+  if(L>=e.max) return;
+  const c=shopCost(e,L); if(S.heresy<c) return;
+  S.heresy-=c; S.antiUp[k]=L+1; dirty.anti=true;
+  log('Anathema: <b>'+e.n+'</b> Lv'+(L+1));
+}
+
+function resetRun(seed){
+  const keep=RELBY.r_keep.eff(lvl(S.relUp,'r_keep'));
+  for(const b of BUILDINGS) S.bld[b.k]=Math.floor((S.bld[b.k]||0)*keep);
+  S.upg={};
+  S.faith=seed?RELBY.r_start.eff(lvl(S.relUp,'r_start')):0;
+  S.faithRun=S.faith; S.clicks=0; S.buffs=[];
+  dirty.build=dirty.upg=true;
+}
+function doConvert(auto){
+  const g=devGain(S); if(g<1) return false;
+  S.devotion+=g; S.devotionTotal+=g; S.converts++;
+  resetRun(true);
+  log((auto?'[Curia] ':'')+'Converted. <b>+'+fmt(g)+'</b> Devotion.');
+  if(!auto) toast('Conversion','+'+fmt(g)+' Devotion. The diocese begins again.');
+  return true;
+}
+function doCanonize(){
+  const g=relGain(S); if(g<1) return false;
+  S.relics+=g; S.relicsTotal+=g; S.relicsRun+=g; S.canon++;
+  S.devotion=0;
+  resetRun(true);
+  log('Canonized. <b>+'+fmt(g)+'</b> Relics. Devotion treasury emptied.');
+  toast('Canonization','+'+fmt(g)+' Relics. Your doctrine survives; your savings do not.','gold');
+  dirty.dev=dirty.rel=true;
+  return true;
+}
+function doApostatize(){
+  if(!canApostatize(S)) return false;
+  const g=herGain(S);
+  S.heresy+=g; S.heresyTotal+=g; S.apostasies++;
+  const first=!S.anti;
+  S.anti=true; if(first) S.antiView=true;
+  S.devotion=0; S.relics=0; S.relicsRun=0;
+  resetRun(true);
+  log('<b>APOSTASY.</b> +'+fmt(g)+' Heresy. Lintahlol is pleased, or claims to be.');
+  toast('The Third Schism','+'+fmt(g)+' Heresy. Devotion and Relics forfeit. The exponent is yours.','red');
+  applyTheme(); dirty.dev=dirty.rel=dirty.anti=true;
+  return true;
+}
+
+/* ---------------------------- councils ------------------------------ */
+function enterCouncil(k){
+  const c=COUNBY[k]; if(!c) return;
+  if(S.councilsDone.indexOf(k)>=0) return;
+  if(c.req && !c.req(S)) return;
+  S.council=k; S.councilStart=nowS();
+  resetRun(true);
+  log('Council convened: <b>'+c.n+'</b>');
+  toast('Council of Vows',c.n+' — '+c.vow,'gold');
+  dirty.council=true;
+}
+function abandonCouncil(){
+  if(!S.council) return;
+  const n=COUNBY[S.council].n;
+  S.council=null; resetRun(true);
+  log('Abandoned: '+n+'. The minutes record nothing.');
+  dirty.council=true;
+}
+function completeCouncil(){
+  const c=COUNBY[S.council];
+  S.councilsDone.push(S.council); S.council=null;
+  resetRun(true);
+  log('<b>RATIFIED:</b> '+c.n+' — '+c.rw);
+  toast('Decree Ratified',c.n+': '+c.rw,'gold');
+  dirty.council=dirty.build=true;
+}
+function checkCouncil(){
+  if(!S.council) return;
+  const c=COUNBY[S.council];
+  if(S.faith>=c.goal){ completeCouncil(); return; }
+  if(c.limit && nowS()-S.councilStart>c.limit){
+    const n=c.n; S.council=null; resetRun(true);
+    log('Council lapsed: '+n+'. Time, as ever, was the vow.');
+    toast('Council Lapsed',n+' ran out of minutes.','red');
+    dirty.council=true;
+  }
+}
+
+/* --------------------------- allegiance ----------------------------- */
+function pledge(who){
+  if(S.canon<1) return;
+  if(S.allegiance===who) return;
+  const go=()=>{
+    S.allegiance=who; S.everPledged[who]=true;
+    resetRun(true);
+    const n=who==='amog'?'Pope Amog I':'Ex-Pope Emeritus Lintahlol';
+    log('Allegiance sworn to <b>'+n+'</b>.');
+    toast('Allegiance','You now serve '+n+'.',who==='amog'?'':'red');
+    dirty.build=dirty.upg=true; renderAllegiance();
+  };
+  if(S.allegiance===null){ go(); return; }
+  confirmBox('Change Allegiance?','Switching allegiance is a public act of reorganisation. Your current run resets — buildings (minus Holy Memory), upgrades and faith. Devotion, Relics and doctrine are untouched.',go);
+}
+
+/* ----------------------------- halos -------------------------------- */
+const HALO_TYPES=[
+ {k:'frenzy',w:40,n:'Frenzy',ic:'🔥',apply:p=>({n:'Frenzy',ic:'🔥',prod:7*p,dur:77*p,msg:'Production x'+fmt(7*p)+' for '+Math.round(77*p)+'s.'})},
+ {k:'lucky',w:30,n:'Lucky',ic:'🍀',apply:null},
+ {k:'clickf',w:15,n:'Click Frenzy',ic:'⚡',apply:p=>({n:'Click Frenzy',ic:'⚡',click:777*p,dur:13*p,msg:'Prayer x'+fmt(777*p)+' for '+Math.round(13*p)+'s.'})},
+ {k:'bless',w:8,n:'Blessing of Amog',ic:'💠',apply:p=>({n:'Blessing of Amog',ic:'💠',prod:3*p,dur:300*p,msg:'Production x'+fmt(3*p)+' for '+Math.round(300*p)+'s.'})},
+ {k:'inter',w:7,n:"Lintahlol's Interference",ic:'🌗',apply:null}
+];
+let haloTimer=0, haloVisible=false, haloHideAt=0;
+function scheduleHalo(){
+  const base=110/Math.max(0.2,haloFreqMult(S));
+  haloTimer=base*(0.65+Math.random()*0.8);
+}
+function showHalo(){
+  const el=document.getElementById('halo');
+  el.style.left=(8+Math.random()*82)+'vw';
+  el.style.top=(14+Math.random()*70)+'vh';
+  el.style.display='block';
+  haloVisible=true; haloHideAt=nowS()+14;
+}
+function hideHalo(){ document.getElementById('halo').style.display='none'; haloVisible=false; }
+function clickHalo(){
+  if(!haloVisible) return;
+  hideHalo(); S.halosClicked++;
+  const p=haloPotency(S);
+  let tot=0; for(const h of HALO_TYPES) tot+=h.w;
+  let r=Math.random()*tot, pick=HALO_TYPES[0];
+  for(const h of HALO_TYPES){ r-=h.w; if(r<=0){ pick=h; break; } }
+  if(pick.k==='lucky'){
+    const g=safe(Math.max(13, Math.min(fps(S)*900*p, S.faith*0.15+13)));
+    addFaith(g);
+    toast('Lucky!','+'+fmt(g)+' faith, from nowhere in particular.','gold');
+    log('Golden Halo: <b>Lucky</b> +'+fmt(g)+' faith.');
+  } else if(pick.k==='inter'){
+    if(S.anti){
+      const b={n:"Emeritus Broadcast",ic:'🌗',prod:9*p,until:nowS()+90*p};
+      S.buffs.push(b);
+      S.doubt+=Math.pow(fps(S)+1,0.3)*400;
+      toast('Emeritus Broadcast','He is transmitting. Production x'+fmt(9*p)+' for '+Math.round(90*p)+'s.','red');
+      log('Golden Halo: <b>Emeritus Broadcast</b>.');
+    } else {
+      S.buffs.push({n:"Lintahlol's Interference",ic:'🌗',prod:1/3,until:nowS()+55,bad:1});
+      toast("Lintahlol's Interference",'Production /3 for 55s. He says it is a formatting issue.','red');
+      log('Golden Halo: <b>Interference</b>. Production /3.');
+    }
+  } else {
+    const e=pick.apply(p);
+    S.buffs.push({n:e.n,ic:e.ic,prod:e.prod,click:e.click,until:nowS()+e.dur});
+    toast(e.n,e.msg,'gold');
+    log('Golden Halo: <b>'+e.n+'</b>.');
+  }
+  scheduleHalo();
+}
+
+/* -------------------------- achievements ---------------------------- */
+function checkAch(){
+  for(const a of ACH){
+    if(S.ach[a.k]) continue;
+    let ok=false; try{ ok=a.c(S); }catch(e){ ok=false; }
+    if(ok){
+      S.ach[a.k]=1; dirty.ach=true;
+      toast('Relic of Deed',a.ic+'  '+a.n,'gold');
+      log('Deed recorded: <b>'+a.n+'</b>');
+    }
+  }
+}
+
+/* ------------------------------ save -------------------------------- */
+function encodeSave(){
+  const o=JSON.parse(JSON.stringify(S));
+  o.t=Date.now(); o.fpsSnapshot=fps(S);
+  const json=JSON.stringify(o);
+  return 'AXIS3|'+btoa(unescape(encodeURIComponent(json)));
+}
+function decodeSave(str){
+  str=(str||'').trim();
+  if(str.indexOf('AXIS3|')===0) str=str.slice(6);
+  const json=decodeURIComponent(escape(atob(str)));
+  return JSON.parse(json);
+}
+function loadSave(str){
+  let o;
+  try{ o=decodeSave(str); }catch(e){ toast('Rejected','That is not a save of this Order.','red'); return false; }
+  if(!o || typeof o!=='object' || o.faith===undefined){ toast('Rejected','Malformed save.','red'); return false; }
+  const base=newState();
+  for(const k in base) if(o[k]!==undefined) base[k]=o[k];
+  BUILDINGS.forEach(b=>{ if(typeof base.bld[b.k]!=='number') base.bld[b.k]=0; });
+  base.buffs=[]; base.council=null;
+  if(!Array.isArray(base.councilsDone)) base.councilsDone=[];
+  if(!base.everPledged) base.everPledged={amog:false,lintahlol:false};
+  S=base;
+  let away=0;
+  if(o.t){
+    away=Math.max(0,Math.min(28800,(Date.now()-o.t)/1000));
+    const rate=Math.min(fps(S), o.fpsSnapshot||fps(S));
+    const gain=safe(rate*away*0.5);
+    if(gain>0){ addFaith(gain); }
+  }
+  applyTheme(); markAllDirty(); renderAllegiance(); buildStatic();
+  log('Save restored. '+(away>60?('Credited '+fmtTime(away)+' away at half rate.'):'Welcome back.'));
+  toast('Restored', away>60? ('Away for '+fmtTime(away)+'. Half credit granted.') : 'Save loaded.','gold');
+  return true;
+}
+
+
+/* ============================== UI ================================== */
+const $=id=>document.getElementById(id);
+const dirty={build:true,upg:true,dev:true,rel:true,anti:true,ach:true,council:true,codex:true};
+function markAllDirty(){ for(const k in dirty) dirty[k]=true; }
+const AMOG_IMG=$('amogImg').getAttribute('src');
+
+function log(html){
+  const el=$('log');
+  const d=new Date();
+  const hm=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  const line=document.createElement('div');
+  line.innerHTML='<span style="opacity:.4">'+hm+'</span> '+html;
+  el.appendChild(line);
+  while(el.children.length>90) el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+}
+function toast(title,body,cls){
+  const t=document.createElement('div');
+  t.className='toast'+(cls?' '+cls:'');
+  t.innerHTML='<div class="tt">'+title+'</div>'+body;
+  $('toasts').appendChild(t);
+  setTimeout(()=>{ t.style.transition='opacity .4s,transform .4s'; t.style.opacity=0; t.style.transform='translateX(30px)'; },3000);
+  setTimeout(()=>{ if(t.parentNode) t.parentNode.removeChild(t); },3500);
+  while($('toasts').children.length>3) $('toasts').removeChild($('toasts').firstChild);
+}
+let confirmCb=null;
+function confirmBox(title,body,cb){
+  $('cfTitle').textContent=title; $('cfBody').innerHTML=body; confirmCb=cb; $('mConfirm').classList.add('on');
+}
+function applyTheme(){
+  document.body.classList.toggle('anti', !!(S.anti&&S.antiView));
+  $('shrineCap').innerHTML = (S.anti&&S.antiView)
+    ? 'The reconstructed likeness of <b>Ex-Pope Emeritus Lintahlol</b>'
+    : 'His Holiness <b>Pope Amog I</b>, Axis Ascendant';
+  $('halo3d').title=(S.anti&&S.antiView)?'Click to pray. He is listening, allegedly.':'Click to pray';
+}
+
+/* ------------------------- static builders -------------------------- */
+const rowRefs={build:{},dev:{},rel:{},anti:{}};
+function shopRow(cont,e,kind){
+  const it=document.createElement('div'); it.className='item';
+  it.innerHTML=
+   '<div class="ic">'+e.ic+'</div>'+
+   '<div class="body"><div class="nm">'+e.n+' <span class="lv">Lv 0</span></div>'+
+   '<div class="ds">'+e.d+'</div><div class="st"></div></div>'+
+   '<div class="buy"><div class="cost no">0</div><button class="mini">Ordain</button></div>';
+  cont.appendChild(it);
+  const r={el:it,lv:it.querySelector('.lv'),st:it.querySelector('.st'),cost:it.querySelector('.cost'),btn:it.querySelector('button')};
+  rowRefs[kind][e.k]=r;
+  r.btn.onclick=()=>{ kind==='dev'?buyDev(e.k):kind==='rel'?buyRel(e.k):buyAnti(e.k); };
+  return r;
+}
+function buildStatic(){
+  // buildings
+  const bc=$('buildings'); bc.innerHTML=''; rowRefs.build={};
+  BUILDINGS.forEach((b,i)=>{
+    const it=document.createElement('div'); it.className='item';
+    it.innerHTML=
+     '<div class="ic">'+b.ic+'</div>'+
+     '<div class="body"><div class="nm"><span class="bn">'+b.n+'</span> <span class="lv">0</span></div>'+
+     '<div class="ds">'+b.d+'</div><div class="st"></div></div>'+
+     '<div class="buy"><div class="cost no">0</div><button class="mini">Build</button></div>';
+    bc.appendChild(it);
+    const r={el:it,nm:it.querySelector('.bn'),lv:it.querySelector('.lv'),ds:it.querySelector('.ds'),
+             st:it.querySelector('.st'),cost:it.querySelector('.cost'),btn:it.querySelector('button'),i:i,b:b};
+    rowRefs.build[b.k]=r;
+    r.btn.onclick=()=>buyBuilding(b.k);
+    it.oncontextmenu=e=>{e.preventDefault();};
+  });
+  // shops
+  const dc=$('devShop'); dc.innerHTML=''; rowRefs.dev={}; DEVSHOP.forEach(e=>shopRow(dc,e,'dev'));
+  const rc=$('relShop'); rc.innerHTML=''; rowRefs.rel={}; RELSHOP.forEach(e=>shopRow(rc,e,'rel'));
+  const ac=$('antiShop'); ac.innerHTML=''; rowRefs.anti={}; ANTISHOP.forEach(e=>shopRow(ac,e,'anti'));
+  // achievements
+  const ag=$('achGrid'); ag.innerHTML='';
+  ACH.forEach(a=>{
+    const d=document.createElement('div'); d.className='ach'; d.id='ach_'+a.k;
+    d.textContent=a.ic; d.title=a.n+' — '+a.d; ag.appendChild(d);
+  });
+  // ranks
+  const rl=$('rankList'); rl.innerHTML='';
+  RANKS.forEach((r,i)=>{
+    const li=document.createElement('li'); li.id='rk_'+i;
+    li.innerHTML='<span style="font-family:inherit;opacity:1">'+r[0]+'</span><span>R '+r[1]+'</span>';
+    rl.appendChild(li);
+  });
+  markAllDirty();
+}
+
+/* ---------------------------- renderers ----------------------------- */
+let upgSig='';
+function renderUpgrades(){
+  const avail=[];
+  for(const u of ALLUPG){
+    if(has(S,u.k)) continue;
+    if(u.req && !u.req(S)) continue;
+    avail.push(u);
+  }
+  avail.sort((a,b)=>a.cost-b.cost);
+  const sig=avail.map(u=>u.k).join(',');
+  if(sig!==upgSig){
+    upgSig=sig;
+    const c=$('upgrades'); c.innerHTML='';
+    if(!avail.length) c.innerHTML='<p class="note">No doctrine is currently available for ratification. Build more, pray more, or reconsider your life.</p>';
+    avail.forEach(u=>{
+      const it=document.createElement('div'); it.className='item'; it.dataset.k=u.k;
+      it.innerHTML='<div class="ic">'+u.ic+'</div>'+
+        '<div class="body"><div class="nm">'+u.n+'</div><div class="ds">'+u.d+'</div></div>'+
+        '<div class="buy"><div class="cost no">'+fmt(u.cost)+'</div><button class="mini">Ratify</button></div>';
+      it.querySelector('button').onclick=()=>buyUpgrade(u.k);
+      c.appendChild(it);
+    });
+    const oc=$('upgradesOwned'); oc.innerHTML='';
+    const own=ALLUPG.filter(u=>has(S,u.k));
+    $('upgOwnedCount').textContent=own.length+' ratified';
+    own.forEach(u=>{
+      const it=document.createElement('div'); it.className='item bought';
+      it.innerHTML='<div class="ic">'+u.ic+'</div><div class="body"><div class="nm">'+u.n+'</div><div class="ds">'+u.d+'</div></div>';
+      oc.appendChild(it);
+    });
+  }
+  const badge=$('bUpg');
+  let can=0; for(const u of avail) if(S.faith>=u.cost) can++;
+  badge.style.display=can?'inline-block':'none'; badge.textContent=can;
+  const c=$('upgrades');
+  for(const el of c.children){
+    if(!el.dataset||!el.dataset.k) continue;
+    const u=UPGBY[el.dataset.k]; const ok=S.faith>=u.cost;
+    el.classList.toggle('afford',ok);
+    const cs=el.querySelector('.cost'); cs.className='cost '+(ok?'ok':'no');
+    el.querySelector('button').disabled=!ok;
+  }
+}
+function renderBuildings(){
+  const F=fps(S), g=globalMult(S), e=exponent(S), only3=councilMod(S).only3;
+  let shown=0;
+  BUILDINGS.forEach((b,i)=>{
+    const r=rowRefs.build[b.k]; if(!r) return;
+    const owned=S.bld[b.k]||0;
+    const revealed=(i===0)||owned>0||(S.bld[BUILDINGS[i-1].k]||0)>=1||S.faithTotal>=b.cost*0.3;
+    r.el.style.display=revealed?'':'none';
+    if(!revealed) return;
+    shown++;
+    const n=Math.max(1,buyCount(S,b));
+    const cost=bCost(S,b,n);
+    const ok=S.faith>=cost && n>=1;
+    r.lv.textContent=fmtInt(owned);
+    r.cost.textContent=fmt(cost);
+    r.cost.className='cost '+(ok?'ok':'no');
+    r.btn.textContent=(S.buyAmt==='max'?('Build x'+fmtInt(maxAfford(S,b))):('Build x'+S.buyAmt));
+    r.btn.disabled=!ok;
+    r.el.classList.toggle('afford',ok);
+    r.el.classList.toggle('locked', only3 && i>=3);
+    const each=b.prod*bMult(S,b)*g;
+    const tot=owned*each;
+    const shareBase=rawProd(S);
+    const pct=shareBase>0?(tot/shareBase*100):0;
+    r.st.textContent=(only3&&i>=3)?'Idle under vow.':
+      (fmt(each)+'/s each  ·  '+fmt(tot)+'/s  ·  '+pct.toFixed(1)+'% of output');
+  });
+  $('bldSummary').textContent=fmtInt(totalBuildings(S))+' buildings · exponent '+e.toFixed(3);
+}
+function renderShop(kind,list,cur){
+  let can=0;
+  list.forEach(en=>{
+    const r=rowRefs[kind][en.k]; if(!r) return;
+    const L=lvl(kind==='dev'?S.devUp:kind==='rel'?S.relUp:S.antiUp,en.k);
+    const maxed=L>=en.max;
+    const c=shopCost(en,L);
+    const ok=!maxed && cur>=c; if(ok) can++;
+    r.lv.textContent='Lv '+L+(maxed?' · MAX':'');
+    r.cost.textContent=maxed?'—':fmt(c);
+    r.cost.className='cost '+(ok?'ok':'no');
+    r.btn.disabled=!ok; r.btn.textContent=maxed?'Complete':'Ordain';
+    r.el.classList.toggle('afford',ok);
+    let cur2='';
+    if(en.unit==='x') cur2='Current: x'+fmt(en.eff(L),2);
+    else if(en.unit==='+') cur2='Current: +'+en.eff(L).toFixed(3)+' exponent';
+    else if(en.unit==='-') cur2='Current: growth '+(1+0.15-en.eff(L)).toFixed(3)+' base';
+    else if(en.unit==='%') cur2='Current: keep '+(en.eff(L)*100).toFixed(0)+'% of buildings';
+    else if(en.unit==='f') cur2='Current: start with '+fmt(en.eff(L))+' faith';
+    else if(en.unit==='/s') cur2='Current: '+fmt(en.eff(L))+' prayers/sec';
+    else cur2='Level '+L;
+    r.st.textContent=cur2;
+  });
+  return can;
+}
+function renderAch(){
+  ACH.forEach(a=>{ const el=$('ach_'+a.k); if(el) el.classList.toggle('got',!!S.ach[a.k]); });
+  $('achCount').textContent=achCount(S)+' / '+ACH.length;
+  $('achBonus').textContent='x'+fmt(achMult(S),2);
+}
+function renderCouncils(){
+  const act=$('councilActive');
+  if(S.council){
+    const c=COUNBY[S.council];
+    const p=Math.min(100,Math.log10(Math.max(1,S.faith))/Math.log10(c.goal)*100);
+    const left=c.limit?Math.max(0,c.limit-(nowS()-S.councilStart)):null;
+    act.innerHTML='<div class="council active"><h4>'+c.ic+' '+c.n+' — in session</h4>'+
+      '<div class="rq">Vow: '+c.vow+'</div>'+
+      '<div class="bar"><i style="width:'+p.toFixed(1)+'%"></i></div>'+
+      '<div class="tiny">Quota: '+fmt(S.faith)+' / '+fmt(c.goal)+' faith'+(left!==null?('  ·  '+fmtTime(left)+' remaining'):'')+'</div>'+
+      '<div class="rw" style="margin-top:6px">Ratifies: '+c.rw+'</div>'+
+      '<div style="margin-top:8px"><button class="mini" id="btnAbandon">Abandon the Council</button></div></div>';
+    $('btnAbandon').onclick=abandonCouncil;
+  } else act.innerHTML='';
+  const g=$('councils'); g.innerHTML='';
+  COUNCILS.forEach(c=>{
+    const done=S.councilsDone.indexOf(c.k)>=0;
+    const locked=c.req&&!c.req(S);
+    const d=document.createElement('div');
+    d.className='council'+(done?' done':'');
+    d.innerHTML='<h4>'+c.ic+' '+c.n+(done?' ✓':'')+'</h4>'+
+      '<div class="rq">Vow: '+c.vow+'</div>'+
+      '<div class="tiny" style="margin:4px 0">Quota: '+fmt(c.goal)+' faith'+(c.limit?(' within '+fmtTime(c.limit)):'')+'</div>'+
+      '<div class="rw">Decree: '+c.rw+'</div>';
+    if(!done){
+      const b=document.createElement('button'); b.className='mini'; b.style.marginTop='8px';
+      b.textContent=locked?'Requires a Canonization':(S.council?'Another Council is in session':'Convene');
+      b.disabled=!!locked||!!S.council;
+      b.onclick=()=>confirmBox('Convene '+c.n+'?','<b>Vow:</b> '+c.vow+'<br/><br/>This performs a Convert-style reset and grants <b>no Devotion</b>. Buildings kept by Holy Memory are retained.<br/><br/><b>Decree on success:</b> '+c.rw,()=>enterCouncil(c.k));
+      d.appendChild(b);
+    }
+    g.appendChild(d);
+  });
+  $('stCouncil').textContent=S.councilsDone.length+' / '+COUNCILS.length;
+}
+function renderCodex(){
+  const c=$('codex'); c.innerHTML='';
+  CODEX.forEach(e=>{
+    let ok=false; try{ ok=e.c(S); }catch(x){ ok=false; }
+    const d=document.createElement('div'); d.className='entry'+(ok?'':' lock');
+    d.innerHTML='<h4>'+(ok?e.n:e.n.split('.')[0]+'. ————')+'</h4><p>'+e.t+'</p>';
+    c.appendChild(d);
+  });
+}
+function renderAllegiance(){
+  const box=$('allegianceBox');
+  if(S.canon<1){ box.className='note'; box.innerHTML='Locked until your first <b>Canonization</b>. The Order is, for now, united.'; return; }
+  box.className='pledge';
+  box.innerHTML=
+   '<div class="pcard'+(S.allegiance==='amog'?' on':'')+'" id="pl_amog">'+
+     '<img src="'+AMOG_IMG+'"/><div class="who">Orthodoxy</div><h4>Pope Amog I</h4>'+
+     '<ul><li>All buildings <b>x1.45</b></li><li>Devotion gain <b>x1.3</b></li></ul></div>'+
+   '<div class="pcard lin'+(S.allegiance==='lintahlol'?' on':'')+'" id="pl_lin">'+
+     '<img src="'+AMOG_IMG+'"/><div class="who">The Schism</div><h4>Emeritus Lintahlol</h4>'+
+     '<ul><li>Prayer power <b>x2.5</b></li><li>Cost growth <b>-15%</b></li><li>Relic gain <b>x1.2</b></li></ul></div>';
+  $('pl_amog').onclick=()=>pledge('amog');
+  $('pl_lin').onclick=()=>pledge('lintahlol');
+}
+function renderBuffs(){
+  const c=$('buffs'); const t=nowS();
+  const live=S.buffs.filter(b=>b.until>t);
+  c.innerHTML='';
+  live.forEach(b=>{
+    const d=document.createElement('div'); d.className='buff'+(b.bad?' bad':'');
+    d.innerHTML=b.ic+' '+b.n+' <b>'+Math.ceil(b.until-t)+'s</b>';
+    c.appendChild(d);
+  });
+}
+function renderRanks(){
+  const idx=rankIdx(S);
+  for(let i=0;i<RANKS.length;i++){
+    const li=$('rk_'+i); if(!li) continue;
+    li.className=i===idx?'cur':(i<idx?'done':'');
+  }
+  if(renderRanks._last!==idx){
+    renderRanks._last=idx;
+    const li=$('rk_'+idx);
+    if(li) li.scrollIntoView({block:'nearest'});
+  }
+}
+
+/* ============================ main render =========================== */
+let lastSlow=0;
+function render(){
+  const F=fps(S), CP=clickPower(S);
+  $('faith').textContent=fmt(S.faith);
+  $('fps').textContent=fmt(F);
+  $('cpc').textContent=fmt(CP);
+  $('devotion').textContent=fmt(S.devotion);
+  $('relics').textContent=fmt(S.relics);
+  $('devMult').textContent=fmt(devPassive(S),2);
+  $('relMult').textContent=fmt(relPassive(S),2);
+  $('convGain').textContent='+'+fmt(devGain(S));
+  $('canonGain').textContent='+'+fmt(relGain(S));
+  const dg=devGain(S), rg=relGain(S);
+  $('btnConvert').disabled=dg<1;
+  $('btnCanonize').disabled=rg<1;
+  $('btnConvert').title=dg<1?('Needs 1.00 M faith earned this run. So far: '+fmt(S.faithRun)):('Reset the run for '+fmt(dg)+' Devotion.');
+  $('btnCanonize').title=rg<1?('Needs 50 Devotion held. So far: '+fmt(S.devotion)):('Spend the treasury for '+fmt(rg)+' Relics.');
+  const ri=rankIdx(S);
+  $('rankName').textContent=RANKS[ri][0];
+  const nx=ri+1<RANKS.length?RANKS[ri+1]:null;
+  $('renown').textContent=renown(S).toFixed(2)+(nx?(' → '+nx[0]+' at '+nx[1]):' · nothing above');
+  if(S.anti){
+    $('cellDoubt').style.display=''; $('cellHeresy').style.display='';
+    $('doubt').textContent=fmt(S.doubt); $('heresy').textContent=fmt(S.heresy);
+    $('herMult').textContent=fmt(herPassive(S),2);
+    $('tabAnti').style.display='inline-block';
+    $('stAposRow').style.display='';
+    $('stApos').textContent=S.apostasies;
+  } else {
+    $('cellDoubt').style.display='none'; $('cellHeresy').style.display='none';
+    $('tabAnti').style.display='none'; $('stAposRow').style.display='none';
+    if($('tab-anti').classList.contains('on')){
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+      [...$('tabs').children].forEach(x=>x.classList.remove('on'));
+      $('tab-build').classList.add('on'); $('tabs').children[0].classList.add('on');
+    }
+  }
+  const showApos=ri>=POPE_IDX||S.apostasies>0;
+  $('btnApostatize').style.display=showApos?'flex':'none';
+  if(showApos){ $('aposGain').textContent='+'+fmt(herGain(S)); $('btnApostatize').disabled=!canApostatize(S); }
+  renderBuffs();
+  const t=nowS();
+  if(t-lastSlow>0.2){
+    lastSlow=t;
+    renderBuildings(); renderUpgrades(); renderRanks();
+    const cd=renderShop('dev',DEVSHOP,S.devotion);
+    const cr=renderShop('rel',RELSHOP,S.relics);
+    renderShop('anti',ANTISHOP,S.heresy);
+    $('bDev').style.display=cd?'inline-block':'none'; $('bDev').textContent=cd;
+    $('bRel').style.display=cr?'inline-block':'none'; $('bRel').textContent=cr;
+    if(dirty.ach){ dirty.ach=false; renderAch(); }
+    if(dirty.council||S.council){ dirty.council=false; renderCouncils(); }
+    if(dirty.codex){ dirty.codex=false; renderCodex(); }
+    $('stRun').textContent=fmt(S.faithRun);
+    $('stAll').textContent=fmt(S.faithTotal);
+    $('stClicks').textContent=fmtInt(S.clicksTotal);
+    $('stConv').textContent=fmtInt(S.converts);
+    $('stCanon').textContent=fmtInt(S.canon);
+    $('stExp').textContent=exponent(S).toFixed(3);
+    $('stGlob').textContent='x'+fmt(globalMult(S));
+    $('stTime').textContent=fmtTime(S.playTime);
+    $('realmNote').textContent=S.antiView?'Anti-Realm: Doubt accrues 3x.':'Orthodox view: +10% production.';
+    $('realmToggle').textContent=S.antiView?'Return to Orthodoxy':'Enter the Anti-Realm';
+  }
+}
+
+/* ============================= loop ================================= */
+let last=nowS(), newsT=0, clickAcc=0;
+function tick(){
+  const t=nowS();
+  let dt=Math.min(1.5,t-last); last=t;
+  if(S.anti) dt*=ANTBY.a_tick.eff(lvl(S.antiUp,'a_tick'));
+  S.playTime+=dt;
+
+  addFaith(fps(S)*dt);
+
+  const ap=DEVBY.d_auto.eff(lvl(S.devUp,'d_auto'));
+  if(ap>0 && !councilMod(S).noClick){
+    addFaith(clickPower(S)*ap*dt);
+    clickAcc+=ap*dt;
+    if(clickAcc>=1){ const w=Math.floor(clickAcc); clickAcc-=w; S.clicksTotal+=w; }
+  }
+  if(S.anti) S.doubt+=Math.pow(fps(S)+1,0.16)*dt*(S.antiView?3:1);
+
+  // halos
+  haloTimer-=dt;
+  if(!haloVisible && haloTimer<=0) showHalo();
+  if(haloVisible && t>haloHideAt){ hideHalo(); scheduleHalo(); }
+
+  // buffs
+  if(S.buffs.length) S.buffs=S.buffs.filter(b=>b.until>t);
+
+  // automation
+  const al=lvl(S.relUp,'r_auto');
+  if(al>0 && !S.council){
+    S.autoT+=dt;
+    const period=al>=2?60:180;
+    if(S.autoT>=period){ S.autoT=0; if(devGain(S)>=Math.max(1,S.devotion*0.5)) doConvert(true); }
+  }
+  if(al>=3){
+    S.autoBuyT+=dt;
+    if(S.autoBuyT>=1){ S.autoBuyT=0; autoBuyBest(); }
+  }
+
+  checkCouncil();
+  checkAch();
+  if(!S.ascended && S.faith>=9e299){
+    S.ascended=true; dirty.codex=true;
+    $('mAscend').classList.add('on');
+    log('<b>THE INFINITY WALL.</b> The Order has run out of universe.');
+    toast('AXIS INCARNATE','1e300 faith. There is no more number.','gold');
+  }
+
+  newsT-=dt;
+  if(newsT<=0){ newsT=11; $('news').innerHTML='<span>'+NEWS[Math.floor(Math.random()*NEWS.length)]+'</span>'; }
+
+  render();
+  requestAnimationFrame(tick);
+}
+function autoBuyBest(){
+  let best=null, bestV=0;
+  BUILDINGS.forEach((b,i)=>{
+    if(councilMod(S).only3&&i>=3) return;
+    const c=bCost(S,b,1); if(c>S.faith) return;
+    const v=(b.prod*bMult(S,b))/c;
+    if(v>bestV){ bestV=v; best=b; }
+  });
+  if(best){ const old=S.buyAmt; S.buyAmt=1; buyBuilding(best.k); S.buyAmt=old; }
+}
+
+/* ============================ wiring ================================ */
+$('halo3d').addEventListener('click',pray);
+$('halo').addEventListener('click',clickHalo);
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){ e.preventDefault(); pray(); }
+});
+$('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...$('tabs').children].forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  $('tab-'+b.dataset.t).classList.add('on');
+  if(b.dataset.t==='codex') renderCodex();
+  if(b.dataset.t==='council') renderCouncils();
+});
+document.querySelector('.buybar').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-b]'); if(!b) return;
+  document.querySelectorAll('.buybar button[data-b]').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  S.buyAmt=b.dataset.b==='max'?'max':parseInt(b.dataset.b,10);
+});
+$('btnConvert').onclick=()=>{
+  if(devGain(S)<1) return;
+  if(S.converts===0){
+    confirmBox('Convert?','You will lose all faith, all buildings and all ratified upgrades. You will gain <b>'+fmt(devGain(S))+' Devotion</b>, which is permanent, spendable, and multiplies all production simply by being held.<br/><br/>This is the engine of the whole religion. Do it often.',()=>doConvert(false));
+  } else doConvert(false);
+};
+$('btnCanonize').onclick=()=>{
+  if(relGain(S)<1) return;
+  confirmBox('Canonize?','Devotion currency will be reduced to <b>zero</b>. Your purchased doctrine (Devotion shop levels) is <b>kept forever</b>.<br/><br/>You gain <b>'+fmt(relGain(S))+' Relics</b>. Relics are permanent, they multiply production, they are the only currency the Reliquary accepts, and — critically — each one raises <b>Devotion per Convert</b>, so the layer you just emptied refills far faster than before.',()=>doCanonize());
+};
+$('btnApostatize').onclick=()=>{
+  if(!canApostatize(S)) return;
+  confirmBox('Apostatize?','<b class="warn">This forfeits every Relic and all Devotion.</b> Reliquary levels are kept.<br/><br/>You gain <b>'+fmt(herGain(S))+' Heresy</b> and permanent access to the Anti-Realm, where upgrades raise the production <b>exponent</b> rather than multiplying it. Exponents beat multipliers eventually, and then permanently.<br/><br/>Heresy is priced from the Relics you have earned <b>since your last Apostasy</b> — after this, you rebuild the Reliquary from nothing before the Anti-Realm will pay you again.<br/><br/>Ex-Pope Emeritus Lintahlol has been expecting you.',()=>doApostatize());
+};
+$('realmToggle').onclick=()=>{ if(!S.anti) return; S.antiView=!S.antiView; applyTheme(); };
+$('cfYes').onclick=()=>{ $('mConfirm').classList.remove('on'); if(confirmCb) confirmCb(); confirmCb=null; };
+$('cfNo').onclick=()=>{ $('mConfirm').classList.remove('on'); confirmCb=null; };
+
+$('btnSave').onclick=()=>{ $('saveBox').value=encodeSave(); $('saveStamp').textContent='Snapshot taken '+new Date().toLocaleString()+'  ·  '+encodeSave().length+' characters.'; $('mSave').classList.add('on'); };
+$('btnCloseSave').onclick=()=>$('mSave').classList.remove('on');
+$('btnCopy').onclick=()=>{
+  const ta=$('saveBox'); ta.select();
+  try{ document.execCommand('copy'); toast('Copied','Your save is on the clipboard. Guard it.','gold'); }
+  catch(e){ toast('Select it manually','Clipboard access was refused.','red'); }
+};
+$('btnDownload').onclick=()=>{
+  try{
+    const blob=new Blob([$('saveBox').value],{type:'text/plain'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='axis-order-save.txt'; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },400);
+  }catch(e){ toast('Download blocked','Copy the text instead.','red'); }
+};
+$('btnLoad').onclick=()=>{ if(loadSave($('saveBox').value)) $('mSave').classList.remove('on'); };
+$('btnReset').onclick=()=>{
+  confirmBox('Hard reset?','<b class="warn">Everything goes.</b> Devotion, Relics, Heresy, doctrine, deeds, councils, the lot. There is no undo and no appeal to the Curia.',()=>{
+    S=newState(); upgSig=''; buildStatic(); applyTheme(); renderAllegiance();
+    $('mSave').classList.remove('on'); $('log').innerHTML='';
+    log('The Order begins again. Nobody speaks of the previous Order.');
+  });
+};
+$('btnAscendClose').onclick=()=>$('mAscend').classList.remove('on');
+$('btnHelp').onclick=()=>$('mHelp').classList.add('on');
+$('btnCloseHelp').onclick=()=>$('mHelp').classList.remove('on');
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('on'); }));
+
+$('helpBody').innerHTML=
+ '<p><b>The loop.</b> Pray for faith. Faith buys buildings. Buildings make faith. Upgrades multiply buildings. When growth stalls, reset — and every reset makes the next one faster.</p>'+
+ '<p><b>Convert (Prestige I).</b> Wipes faith, buildings and upgrades. Grants <b>Devotion</b>: permanent, spendable on doctrine, and a production multiplier just by being held. Convert far more often than feels comfortable.</p>'+
+ '<p><b>Canonize (Prestige II).</b> Empties the Devotion treasury, keeps every Devotion <i>level</i> you bought, and grants <b>Relics</b>. Relics multiply production, unlock the Reliquary (automation and the production <b>exponent</b>), and raise <b>Devotion per Convert</b> — which is the actual point. You lose the treasury and gain a faster printing press.</p>'+
+ '<p><b>Apostatize (Prestige III).</b> Available at the rank of Pope with 20 lifetime Relics. Forfeits Devotion and Relics, opens the <b>Anti-Realm</b>, and grants <b>Heresy</b>. Anti-upgrades raise the exponent. A multiplier makes your number bigger; an exponent makes your number a different shape.</p>'+
+ '<p><b>Councils.</b> Optional restricted runs. Take a vow, hit a quota, keep a permanent decree. They are the fastest permanent power in the game and cost you nothing but dignity.</p>'+
+ '<p><b>Allegiance.</b> After your first Canonization you must serve either Pope Amog I (buildings, obedience, compounding) or Ex-Pope Emeritus Lintahlol (prayer, cheap costs, leverage). Switching resets the run.</p>'+
+ '<p><b>Golden Halos</b> drift across the screen every couple of minutes. Click them.</p>'+
+ '<p><b>Saving.</b> This game writes <i>nothing</i> to your browser. Hit <b>Save</b>, copy the text, keep it somewhere. Paste it back to resume — you are credited for up to 8 hours away at half rate.</p>';
+
+/* ============================ boot ================================== */
+buildStatic();
+renderAllegiance();
+applyTheme();
+scheduleHalo();
+$('news').innerHTML='<span>'+NEWS[0]+'</span>';
+log('<b>Axis Order</b> — Ascendancy. Pope Amog I presiding.');
+log('Click the Pope to pray. Everything else follows from that.');
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

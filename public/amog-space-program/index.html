@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amog Space Program</title>
+<meta name="description" content="An incremental game about rockets: the real rocket equation, air resistance, orbits, ion drives, solar sails, and a slow climb to another galaxy.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topbar">
+  <div id="brand">
+    <span class="rocket">🚀</span>
+    <div>
+      <h1>AMOG SPACE PROGRAM</h1>
+      <div id="phase-label">Phase 1 — GO UP</div>
+    </div>
+  </div>
+  <div id="currencies">
+    <div class="cur" id="cur-funds" title="Funds — from launches, milestones and missions">$<span id="funds">0</span><i id="funds-rate" class="rate hidden"></i></div>
+    <div class="cur hidden" id="cur-sci" title="Science — spend in R&amp;D">⚗ <span id="sci">0</span><i id="sci-rate" class="rate hidden"></i></div>
+    <div class="cur hidden" id="cur-sats" title="Satellites deployed (passive income)">🛰 <span id="sats">0</span></div>
+    <button id="feedback-top" class="ghost tiny" title="Help balance the game — opens a GitHub issue with your game state attached">🛠 feedback</button>
+  </div>
+</header>
+
+<main>
+  <aside id="left">
+    <div id="left-cur">
+      <span class="cur">$<span id="funds-l">0</span><i id="funds-rate-l" class="rate hidden"></i></span>
+      <span class="cur hidden" id="cur-sci-l">⚗ <span id="sci-l">0</span><i id="sci-rate-l" class="rate hidden"></i></span>
+      <span class="cur hidden" id="cur-sats-l">🛰 <span id="sats-l">0</span></span>
+    </div>
+    <nav id="tabs">
+      <button data-tab="rocket" class="tab active">Rocket</button>
+      <button data-tab="rnd" class="tab hidden" id="tab-rnd">R&amp;D</button>
+      <button data-tab="missions" class="tab hidden" id="tab-missions">Missions</button>
+      <button data-tab="stars" class="tab hidden" id="tab-stars">Stars</button>
+      <button data-tab="log" class="tab">Log</button>
+    </nav>
+
+    <section id="panel-rocket" class="panel active">
+      <div id="stages"></div>
+      <button id="add-stage" class="ghost hidden">+ add stage</button>
+      <div id="guidance" class="hidden">
+        <h3>Guidance program</h3>
+        <label class="toggle"><input type="checkbox" id="guidance-on"> fly the gravity turn
+          <span class="hint">(off = straight up — better until your rocket is orbit-class)</span></label>
+        <label>Pitch-over start <span id="ts-val"></span>
+          <input type="range" id="turn-start" min="200" max="5000" step="100"></label>
+        <label>Fully sideways by <span id="te-val"></span>
+          <input type="range" id="turn-end" min="8000" max="80000" step="1000"></label>
+        <p class="hint">Orbit is mostly <em>sideways</em> speed. Turn too early and drag eats you; too late and gravity does.</p>
+      </div>
+      <div id="design-stats"></div>
+      <div class="formula" title="The Tsiolkovsky rocket equation">Δv = v<sub>e</sub> · ln(m₀ / m₁)</div>
+      <button id="launch-btn">LAUNCH 🚀</button>
+      <label id="auto-wrap" class="hidden"><input type="checkbox" id="auto-launch"> Auto-launch (repeats your last flight)</label>
+      <div id="last-flight" class="hidden"></div>
+      <div id="shop">
+        <h3>Hardware</h3>
+        <div id="structure-shop"></div>
+        <h3>Engines</h3>
+        <div id="engine-shop"></div>
+      </div>
+    </section>
+
+    <section id="panel-rnd" class="panel">
+      <h3>Research</h3>
+      <div id="research-list"></div>
+    </section>
+
+    <section id="panel-missions" class="panel">
+      <div id="budget-box"></div>
+      <div id="active-mission"></div>
+      <div id="mission-list"></div>
+    </section>
+
+    <section id="panel-stars" class="panel">
+      <div id="warp-box"></div>
+      <h3>Build a starship</h3>
+      <div id="ship-builder"></div>
+      <h3>In flight</h3>
+      <div id="ship-list"></div>
+      <h3>Colonies</h3>
+      <div id="colony-list"></div>
+    </section>
+
+    <section id="panel-log" class="panel">
+      <h3>Flight log</h3>
+      <div id="log-list"></div>
+      <h3>Feedback</h3>
+      <p class="hint">Too grindy? Too easy? Broken? Help balance the game — this opens a
+        GitHub issue with your game state pre-attached (you can edit everything before posting).</p>
+      <button id="feedback-log" class="ghost">🛠 Help balance the game</button>
+      <h3>Save</h3>
+      <div id="save-controls">
+        <button id="save-export" class="ghost">Export</button>
+        <button id="save-import" class="ghost">Import</button>
+        <button id="save-reset" class="ghost danger">Reset everything</button>
+      </div>
+      <p class="hint" id="stats-line"></p>
+    </section>
+  </aside>
+
+  <section id="center">
+    <div id="viewwrap">
+      <canvas id="view"></canvas>
+      <div id="hud" class="hidden">
+        <div class="hudrow">
+          <span>ALT <b id="hud-alt">0</b></span>
+          <span>SPD <b id="hud-spd">0</b></span>
+          <span>Δv left <b id="hud-dv">0</b></span>
+          <span>MASS <b id="hud-mass">0</b></span>
+          <span>TWR <b id="hud-twr">0</b></span>
+          <span>DRAG <b id="hud-drag">0</b></span>
+        </div>
+        <div class="hudrow small">
+          <span id="hud-orbit"></span>
+          <span id="hud-mode"></span>
+        </div>
+      </div>
+      <div id="warpbar" class="hidden">
+        <span>warp</span>
+        <button data-warp="1">1×</button><button data-warp="4">4×</button>
+        <button data-warp="16">16×</button><button data-warp="64">64×</button>
+        <button data-warp="256">256×</button>
+        <button id="end-flight" class="danger" title="Score only what you've flown so far">abort ✕</button>
+      </div>
+      <div id="idle-hint">Assemble a rocket and hit LAUNCH.<br><span class="small">Like Learn to Fly, but with the actual rocket equation.<br>Space = launch · E = end flight</span></div>
+    </div>
+    <div id="toasts"></div>
+  </section>
+</main>
+
+<div id="modal-back" class="hidden">
+  <div id="modal"></div>
+</div>
+
+<footer>
+  <span>AMOG SPACE PROGRAM — an incremental game about rockets, as envisioned by Amog.</span> <a href="/" style="color:inherit">amog.fun</a>
+  <span>Real physics inside: Δv = vₑ·ln(m₀/m₁), F_drag = ½ρv²C<sub>d</sub>A, ρ = ρ₀e^(−h/8500m), μ/r² gravity.</span>
+</footer>
+
+<script src="js/physics.js"></script>
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

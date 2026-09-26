@@ -29,5 +29,26 @@
       "game",
       "arcade"
     ]
+  },
+  {
+    "slug": "amog-space-program",
+    "title": "Amog Space Program",
+    "signature": "asp : Treeline → Andromeda",
+    "blurb": "An incremental game about rockets with real physics: the Tsiolkovsky equation, drag, staging. Start with a soda-bottle rocket, end with a colony ship to Andromeda.",
+    "tags": [
+      "game",
+      "incremental",
+      "physics"
+    ]
+  },
+  {
+    "slug": "axis-order-incremental",
+    "title": "Axis Order",
+    "signature": "axis : Faith → Ascendancy",
+    "blurb": "The Axis Order incremental. Gather faith, spread pamphlets, and ascend until Amog I is satisfied.",
+    "tags": [
+      "game",
+      "incremental"
+    ]
   }
 ]
