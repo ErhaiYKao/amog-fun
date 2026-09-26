@@ -11,6 +11,7 @@
  *   math(s, who, opts)      -> HTML (LaTeX ok) for the "show the math" panel
  *   misere(opts)            -> true if the last player to move loses (optional)
  *   prefer(move, s, who)    -> true for moves to favour when several are equally good (optional)
+ *   verdict(s, who, opts)   -> HTML replacing the P/N-position line in the math panel (optional; partizan games)
  *   custom: { placeholder, help, parse(text, opts) -> state or error string }  (optional: "custom start" box)
  * })
  */
@@ -183,8 +184,10 @@
       const mathEl = $("nk-math");
       if (hint && !over) {
         const p = cfg.isP(s, turn, opts);
-        mathEl.innerHTML = cfg.math(s, turn, opts) +
-          `<div class="verdict ${p ? "p" : "n"}">${p ? "P-position: whoever moves now loses with perfect play." : "N-position: whoever moves now can win."}${turn === 0 && !p ? " Moves that win are outlined in green." : ""}</div>`;
+        const tail = turn === 0 && !p ? " Moves that win are outlined in green." : "";
+        mathEl.innerHTML = cfg.math(s, turn, opts) + (cfg.verdict
+          ? `<div class="verdict ${p ? "p" : "n"}">${cfg.verdict(s, turn, opts)}${tail}</div>`
+          : `<div class="verdict ${p ? "p" : "n"}">${p ? "P-position: whoever moves now loses with perfect play." : "N-position: whoever moves now can win."}${tail}</div>`);
         if (window.amogMath) window.amogMath(mathEl);
       } else mathEl.innerHTML = "";
       $("nk-log").innerHTML = log.slice(0, 30).map(l => `<li class="${l.who ? "amog" : "you"}">${l.who ? "Amog" : "You"}: ${esc(l.text)}</li>`).join("");

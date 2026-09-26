@@ -108,8 +108,14 @@
     },
     math(s) {
       const vs = s.stacks.filter(st => st.length).map(value), V = total(s);
-      const who = V > 0 ? "blue (you) wins whoever moves" : V < 0 ? "red (Amog) wins whoever moves" : "whoever moves loses";
-      return `<p>$V = ${vs.map(frac).join(" + ").replace(/\+ -/g, "- ") || "0"} = ${frac(V)}$</p><p>So ${who}.</p>`;
+      return `<p>$V = ${vs.map(frac).join(" + ").replace(/\+ -/g, "- ") || "0"} = ${frac(V)}$</p>`;
+    },
+    // partizan: the outcome depends on the sign of V, not on who is to move (no P/N here)
+    verdict(s, who) {
+      const V = total(s), mover = who === 0 ? "you" : "Amog";
+      if (V > 0) return `$V &gt; 0$: blue (you) wins with perfect play, whoever moves. It's ${mover === "you" ? "your" : "Amog's"} move.`;
+      if (V < 0) return `$V &lt; 0$: red (Amog) wins with perfect play, whoever moves. It's ${mover === "you" ? "your" : "Amog's"} move.`;
+      return `$V = 0$: whoever moves now (${mover}) loses with perfect play.`;
     },
   });
 })();

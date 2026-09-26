@@ -16,6 +16,10 @@
   .coin { width: 38px; height: 12px; border-radius: 50%; border: 0; padding: 0; background: radial-gradient(ellipse at 40% 35%, #fff6c9, #f5cc3b 50%, #b8901f); cursor: default; }
   .stairs.on .coin.live { cursor: pointer; }
   .stairs.on .coin.live:hover, .stairs.on .coin.live:hover ~ .coin { opacity: .3; transform: translateX(-10px); }
+  /* winning move (with "show the math"): the coin to click glows lime, the coins riding along are tinted */
+  .coin.good { background: radial-gradient(ellipse at 40% 35%, #f4ffd0, var(--g3) 50%, #6f8f1c); box-shadow: 0 0 0 2px var(--g3), 0 0 14px 3px var(--g3) !important; }
+  .coin.rides { background: radial-gradient(ellipse at 40% 35%, #f4ffd0, #b8d85a 50%, #6f8f1c); }
+  .push { font-family: var(--mono); font-size: 11px; color: var(--bg); background: var(--g3); border-radius: 6px; padding: 1px 6px; margin-bottom: 6px; white-space: nowrap; }
   .block { width: 100%; background: linear-gradient(180deg, #2a2a36, #1b1b24); border-top: 2px solid #3a3a48; display: grid; place-items: start center; padding-top: 6px; }
   .block.odd { border-top-color: var(--g1); }
   .block span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
@@ -80,11 +84,12 @@
       let h = `<div class="stairs ${ctx.locked ? "" : "on"}">`;
       s.c.forEach((x, i) => {
         if (i === 0) { h += `<div class="step"><div class="ground">ground<br>${x} coin${x === 1 ? "" : "s"}</div><div class="block" style="height:10px"></div></div>`; return; }
-        const coins = Array.from({ length: x }, (_, b) => {
-          const m = { i, k: x - b };
-          return `<button class="coin live ${ctx.isGood(m) ? "good" : ""}" data-i="${i}" data-k="${x - b}" aria-label="push ${x - b} from step ${i}"></button>`;
-        }).join("");
-        h += `<div class="step ${s.to === i ? "arrive" : ""}"><div class="stack">${coins}</div><div class="block ${i % 2 && ctx.hint ? "odd" : ""}" style="height:${16 + (i * 200) / n}px"><span>${i}</span></div></div>`;
+        const good = Array.from({ length: x }, (_, b) => ctx.isGood({ i, k: x - b }));
+        const lowest = good.indexOf(true); // the biggest winning push on this step; everything above it rides along
+        const coins = Array.from({ length: x }, (_, b) =>
+          `<button class="coin live ${good[b] ? "good" : lowest >= 0 && b > lowest ? "rides" : ""}" data-i="${i}" data-k="${x - b}" aria-label="push ${x - b} from step ${i}"></button>`).join("");
+        const tag = good.map((g, b) => (g ? x - b : 0)).filter(Boolean).map(k => `push ${k}`).join(" or ");
+        h += `<div class="step ${s.to === i ? "arrive" : ""}">${tag ? `<div class="push">${tag} ↓</div>` : ""}<div class="stack">${coins}</div><div class="block ${i % 2 && ctx.hint ? "odd" : ""}" style="height:${16 + (i * 200) / n}px"><span>${i}</span></div></div>`;
       });
       el.innerHTML = h + "</div>";
       el.onclick = e => { const b = e.target.closest(".coin.live"); if (b && !ctx.locked) ctx.play({ i: +b.dataset.i, k: +b.dataset.k }); };
