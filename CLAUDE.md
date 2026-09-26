@@ -5,6 +5,8 @@ Custom domains amog.fun and www.amog.fun are configured in `wrangler.jsonc`.
 
 Conventions:
 - Each project is a self-contained folder `public/<slug>/` served at `amog.fun/<slug>`. Keep projects quick & dirty and dependency-free (plain HTML/JS, CDN imports are fine).
+- Games stay as paths (`amog.fun/<slug>`), not subdomains: shared assets cache once, one domain for SEO, zero per-game setup. All games share one origin, so localStorage keys MUST be prefixed `amog.<slug>.` (e.g. `amog.alchemy.v1`, `amog.nim.<variant>.score`); keep saves small (~5MB quota is shared by every game), use IndexedDB if a game needs more. Legacy exception: amog-space-program uses `asp-*` (don't rename, it would wipe saves).
+- Caching lives in `public/_headers` (/assets/* = 1h + stale-while-revalidate; pages revalidate every load). Assets aren't fingerprinted, so don't set long `immutable` caching on them.
 - Register every project in `public/projects.json` (slug, title, signature, blurb, tags). The landing page renders cards from it.
 - `signature` is a joke morphism, e.g. `"dotsandboxes : Bored → Amused"`.
 - Shared style: `/assets/amog.css` (dark starfield, Instrument Serif / STIX Two Text / JetBrains Mono, generator colors `--g1` cyan, `--g2` red, `--g3` lime). Put a `.topbar` with the `amog.fun∘` brand linking home on every page.

@@ -1,0 +1,9 @@
+# Cloudflare static-asset headers. Default for everything is
+# "max-age=0, must-revalidate" (ETag check on every load), which is right for pages.
+# Shared assets aren't fingerprinted and do change, so: cache 1h, then serve stale
+# instantly while revalidating in the background (up to a week).
+/assets/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=604800
+
+/founder.webp
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
