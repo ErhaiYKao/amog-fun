@@ -1,5 +1,15 @@
 [
   {
+    "slug": "blog",
+    "title": "The Blog",
+    "signature": "blog : Coffee → Theorems",
+    "blurb": "Math notes from the Institute: Dirichlet's theorem via Euler products, inclusion-exclusion on the way to Möbius, and an unintuitive guide to linear algebra where dimension is the length of the longest flag.",
+    "tags": [
+      "math",
+      "notes"
+    ]
+  },
+  {
     "slug": "dotsandboxes",
     "title": "Dots & Boxes",
     "signature": "dotsandboxes : Bored → Amused",

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Möbius · amog.fun/blog</title>
+<meta name="description" content="Inclusion-exclusion as counting the elements that are new to each set, and its structural cousin: coproducts and pushouts. Notes by Amog Magnussen.">
+<meta property="og:title" content="Möbius">
+<meta property="og:description" content="Inclusion-exclusion as counting the elements that are new to each set, and its structural cousin: coproducts and pushouts.">
+<meta property="og:image" content="https://amog.fun/founder.webp">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='32' cy='32' r='13' fill='none' stroke='%234fd6e8' stroke-width='6'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/blog/blog.css">
+<script src="/assets/math.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+    <nav><a href="/blog/">← blog</a></nav>
+  </header>
+
+  <article class="post">
+    <header class="post-head">
+      <div class="eyebrow"><a href="/blog/">blog</a> · September 2026 · combinatorics</div>
+      <h1>Möbius</h1>
+      <p class="byline">by <b>Amog Magnussen</b> &nbsp;<span class="badge">work in progress</span></p>
+    </header>
+
+    <section data-section="1" id="s1">
+      <h2><span class="n">§1</span>Inclusion-Exclusion</h2>
+      <p>Often in math, we find ourselves in the following situation:</p>
+      <p>Let $\mathcal A=\{A_1, A_2, \ldots, A_n\}$ be a collection of sets in a universe $U$. We can easily calculate the size of the intersection of any sub-collection of $\mathcal A$, and our task is to calculate $\left|\bigcup A_i\right|$.</p>
+      <p>This problem often appears in a certain form. There is a universal set $U$, for which each $A_i \subset U$. Each $A_i$ represents some condition, and we want to find the size of the complement of $\bigcup A_i$. Some examples are as follows.</p>
+      <ol>
+        <li>Computing the number of permutations on a set without fixed points</li>
+        <li>Computing the number of proper colorings of a graph</li>
+        <li>Computing the number of surjective maps from one set to another (this one is particularly important)</li>
+      </ol>
+      <p>The base case of 1 set is trivial: $|U-A_1|=|U|-|A_1|$. We can start with two sets.</p>
+
+<script type="text/tikzcd" data-row-sep="2.4" data-col-sep="3">
+    & U \arrow[dl, no head] \arrow[dr, no head] & \\
+A_1 \arrow[dr, no head] & & A_2 \arrow[dl, no head] \\
+    & A_1 \cap A_2 &
+</script>
+
+      <p>Then, $|U-(A_1\cup A_2)| = |U| - |A_1-A_1\cap A_2|-|A_2-A_1\cap A_2| - |A_1 \cap A_2|$. By induction, we know how to calculate $|A_1-A_1\cap A_2|$ and $|A_2-A_1\cap A_2|$ here.</p>
+      <p>We can also do 3 sets.</p>
+
+<script type="text/tikzcd" data-row-sep="2.4" data-col-sep="3">
+    & U \arrow[dl, no head] \arrow[d, no head] \arrow[dr, no head] & \\
+A_1 \arrow[d, no head] \arrow[dr, no head] & A_2 \arrow[dl, no head] \arrow[dr, no head] & A_3 \arrow[dl, no head] \arrow[d, no head] \\
+A_1 \cap A_2 \arrow[dr, no head] & A_1 \cap A_3 \arrow[d, no head] & A_2 \cap A_3 \arrow[dl, no head] \\
+    & A_1 \cap A_2 \cap A_3 &
+</script>
+
+      <p>We again want to find the elements which are "new" to $U$, that is, not in any lower set. This is the total size of $U$, minus the number of elements which are new to each set below $U$. This relies on each element having a lowest set containing it. We can again calculate these by induction.</p>
+      <p>Let's actually calculate how many elements are new to $U$ using only the size of each set. Letting $n=|U|$, $n_i=|A_i|$, $n_{ij}=|A_i\cap A_j|$, and $n_{123}=|A_1\cap A_2\cap A_3|$, and counting new elements from the bottom up, we have</p>
+
+<script type="text/tikzcd" data-col-sep="1.6">
+    & {|U|}-\sum n_i+\sum n_{ij} - \sum n_{ijk} \arrow[dl, no head] \arrow[d, no head] \arrow[dr, no head] & \\
+n_1-n_{12}-n_{13}+n_{123} \arrow[d, no head] \arrow[dr, no head] & n_2-n_{12}-n_{23}+n_{123} \arrow[dl, no head] \arrow[dr, no head] & n_3-n_{13}-n_{23}+n_{123} \arrow[dl, no head] \arrow[d, no head] \\
+n_{12}-n_{123} \arrow[dr, no head] & n_{13}-n_{123} \arrow[d, no head] & n_{23}-n_{123} \arrow[dl, no head] \\
+    & n_{123} &
+</script>
+
+      <p>We could recover the union form of inclusion-exclusion by setting the top number to zero and solving for $|U|$.</p>
+    </section>
+
+    <section data-section="2" id="s2">
+      <h2><span class="n">§2</span>Inclusion-Exclusion for structures</h2>
+      <p>In a more general sense, knowing the structure of $A$, $B$, and $A \cap B$ can often tell us the structure of $A \cup B$ (Or, depending on the kind of structure, $A+B$).</p>
+      <p>In the case where $A\cap B$ is empty, this becomes the categorical notion of the coproduct. Some examples of coproducts are:</p>
+      <ol>
+        <li>The disjoint union of two sets</li>
+        <li>The direct sum of two abelian groups (or rings, vector spaces, modules, etc)</li>
+        <li>The disjoint union of topological spaces (or manifolds)</li>
+      </ol>
+      <p>When $A\cap B$ is non-empty, this generalizes from a coproduct to a specific type of pushout. For sets, this is just the union, but for other categories, it is simplest to define it as a quotient of the coproduct, where all the elements of $A$ and $B$ that intersect are identified. (Note that by default, a coproduct treats $A$ and $B$ as completely disjoint, even if they are not).</p>
+      $$\begin{CD}
+          Z @>>> Y \\
+          @VVV @VVV \\
+          X @>>> X \sqcup_Z Y
+      \end{CD}$$
+      <p>Notable is the absence of groups from this list, the coproduct object for groups is quite ugly (free product), though the same principles should apply.</p>
+      <p>Inductively, we can understand a union/sum of three structures if we understand every intersection between them. (We can understand $A \cup B$ and $C$, and then $(A\cup B)\cap C=(A\cap C)\cup(B\cap C)$, which we can understand by understanding $(A\cap C)\cap(B\cap C)=A\cap B\cap C$).</p>
+    </section>
+
+    <p class="wip"><b>To be continued.</b> These notes are a work in progress; next up is where Möbius comes in.</p>
+
+    <nav class="post-nav">
+      <a class="btn" href="/blog/">← all posts</a>
+      <a class="btn" href="/blog/dirichlet/">Dirichlet's Theorem →</a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    <span>amog.fun/blog/mobius</span>
+    <span>$\mu \ast 1 = \varepsilon$</span>
+  </footer>
+</div>
+</body>
+</html>

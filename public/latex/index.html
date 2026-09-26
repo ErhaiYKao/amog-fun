@@ -45,8 +45,28 @@ C @&gt;&gt;k&gt; D
 \end{CD}$$</pre>
     $$\begin{CD} A @>f>> B \\ @VgVV @VVhV \\ C @>>k> D \end{CD}$$
 
+    <h2>tikz-cd</h2>
+    <p>KaTeX's <code>CD</code> only does square grids. For diagonals, bends and dashes, put tikz-cd source in a <code>text/tikzcd</code> script. Arrow options: direction (<code>u d l r</code>), <code>"label"</code> (add <code>'</code> for the other side, <code>description</code> to sit on the arrow), <code>no head</code>, <code>dashed</code>, <code>dotted</code>, <code>two heads</code>, <code>maps to</code>, <code>bend left</code>/<code>bend right</code>[<code>=deg</code>]. Spacing: <code>data-row-sep</code>, <code>data-col-sep</code> (em).</p>
+    <pre>&lt;script type="text/tikzcd"&gt;
+C \arrow[dr, dashed, "\exists!\Phi" description] \arrow[ddr, bend right, "\varphi_A"'] \arrow[drr, bend left, "\varphi_B"] &amp; &amp; \\
+&amp; A \oplus B \arrow[d, "p_A"] \arrow[r, "p_B"'] &amp; B \\
+&amp; A &amp;
+&lt;/script&gt;</pre>
+<script type="text/tikzcd">
+C \arrow[dr, dashed, "\exists!\Phi" description] \arrow[ddr, bend right, "\varphi_A"'] \arrow[drr, bend left, "\varphi_B"] & & \\
+& A \oplus B \arrow[d, "p_A"] \arrow[r, "p_B"'] & B \\
+& A &
+</script>
+
+    <h2>Preamble</h2>
+    <p>Page-specific macros go in a <code>text/tex-preamble</code> script (anywhere in the page). Use <code>\def</code> or <code>\newcommand</code>; <code>\N \Z \Q \R \C</code> are already defined everywhere.</p>
+    <pre>&lt;script type="text/tex-preamble"&gt;
+\def\im{\operatorname{im}}
+\def\set#1{\{#1\}}
+&lt;/script&gt;</pre>
+
     <h2>Environments</h2>
-    <p>Available: <code>theorem</code> <code>lemma</code> <code>proposition</code> <code>corollary</code> <code>conjecture</code> <code>definition</code> <code>example</code> <code>remark</code> <code>exercise</code> <code>proof</code>. Add <code>*</code> for no number, <code>[...]</code> for a title, and <code>\label{key}</code> with <code>\ref{key}</code> for cross-references.</p>
+    <p>Available: <code>theorem</code> <code>lemma</code> <code>proposition</code> <code>corollary</code> <code>conjecture</code> <code>definition</code> <code>notation</code> <code>example</code> <code>remark</code> <code>exercise</code> <code>proof</code>. Add <code>*</code> for no number, <code>[...]</code> for a title, and <code>\label{key}</code> with <code>\ref{key}</code> for cross-references.</p>
 
     <div class="pair">
       <pre>\begin{definition}[Obby]\label{def:obby}

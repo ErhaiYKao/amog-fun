@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dirichlet's Theorem · amog.fun/blog</title>
+<meta name="description" content="Infinitely many primes in arithmetic progressions, approached through Euler products. Notes by Amog Magnussen.">
+<meta property="og:title" content="Dirichlet's Theorem">
+<meta property="og:description" content="Infinitely many primes in arithmetic progressions, approached through Euler products.">
+<meta property="og:image" content="https://amog.fun/founder.webp">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='32' cy='32' r='13' fill='none' stroke='%234fd6e8' stroke-width='6'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/blog/blog.css">
+<script src="/assets/math.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+    <nav><a href="/blog/">← blog</a></nav>
+  </header>
+
+  <article class="post">
+    <header class="post-head">
+      <div class="eyebrow"><a href="/blog/">blog</a> · August 2026 · number theory</div>
+      <h1>Dirichlet's Theorem</h1>
+      <p class="byline">by <b>Amog Magnussen</b> &nbsp;<span class="badge">work in progress</span></p>
+    </header>
+
+    <section data-section="1" id="s1">
+      <h2><span class="n">§1</span>The Theorem</h2>
+      <p>The statement:</p>
+      <div data-env="theorem" data-title="Dirichlet" id="thm:dirichlet" data-star>
+        <p>For any coprime positive integers $a,b$, there are infinitely many primes of the form $an+b$.</p>
+      </div>
+      <p>More specifically, we can say the sum of reciprocals of such primes diverges.</p>
+      <p>Even more specifically, the following statement holds, where $S$ is the set of primes of the form $an+b$:
+      \[\lim_{s\to1^+}\frac{\sum_{p\in S}p^{-s}}{-\log(s-1)}=\frac{1}{\phi(a)},\]
+      where $\phi$ is the Euler Totient Function.</p>
+      <p>The expression on the left is called the <b class="vocab">Dirichlet density</b> of $S$.</p>
+    </section>
+
+    <section data-section="2" id="s2">
+      <h2><span class="n">§2</span>Euler Products</h2>
+      <p>The harmonic series can be "factored" as follows:
+      \[\sum_{n=1}^{\infty}\frac1n=\left(1+\frac12+\frac14+\frac18+\cdots\right)\left(1+\frac13+\frac19+\cdots\right)\left(1+\frac15+\cdots\right)\left(1+\frac17+\cdots\right)\cdots\]</p>
+      <p>The left side is well-known to be infinite, and applying the geometric series formula to each factor in the right side yields
+      \[\infty=\prod_{p\text{ prime}}\frac1{1-\frac1p}=\prod_{p\text{ prime}}\frac p{p-1}.\]</p>
+      <p>This is sufficient to prove that there are infinitely many primes. Taking the logarithm of the product, we can see:
+      \[\infty = \sum_{p\text{ prime}}\log\left(\frac{p}{p-1}\right).\]</p>
+      <p>Then, using the fact that $\log(1+x)\leq x$, we see that
+      \[\log\left(\frac{p}{p-1}\right) = \log\left(1+\frac{1}{p-1}\right)&lt;\frac{1}{p-1}\leq\frac2p,\]
+      showing that the sum of reciprocals of primes diverges.</p>
+      <p>There are many other sums which are useful to factor similarly.</p>
+      <div data-env="definition" data-title="Multiplicative function" id="def:mult">
+        <p>Call a function $f:\N\to\C$ <b class="vocab">multiplicative</b> if $f(1)=1$ and for every coprime $a,b$, $f(a)f(b)=f(ab)$.</p>
+      </div>
+      <p>Then, for every multiplicative function $f$, the following is a formal factorization for the infinite series of $f(n)$:
+      \[\sum_{n\in\N}f(n)=\prod_{p\text{ prime}}(1+f(p)+f(p^2)+\cdots).\]</p>
+      <p>However, we must be very careful not to say the two sides are equal, as the infinite product rearranges the order in which terms are being added. When $f$ is always positive or when $\sum_{n\in\N}f(n)$ converges absolutely, we have equality.</p>
+    </section>
+
+    <section data-section="3" id="s3">
+      <h2><span class="n">§3</span>A try for $3n+1$ and $3n+2$</h2>
+      <p>Let $A$ be the set of primes of the form $3n+1$, and $B$ the set of primes of the form $3n+2$. Consider
+      \[\sum_{n=0}^{\infty}\frac1{3n+1}-\frac1{3n+2}=\frac11-\frac12+\frac14-\frac15+\frac17-\frac18+\cdots\]</p>
+      <p>Note that unlike before, this sum is finite! This one factors as
+      \[\left(\prod_{p\in A}\frac p{p-1}\right)\left(\prod_{p\in B}\frac p{p+1}\right),\]
+      and taking logarithms would seem to leave us with $\sum_{n\in A}\frac1n-\sum_{n\in B}\frac1n$. From there, using the fact that the sum is infinite but the difference is finite, we could conclude…</p>
+    </section>
+
+    <p class="wip"><b>To be continued.</b> These notes are a work in progress; the rest of the argument is still being written.</p>
+
+    <nav class="post-nav">
+      <a class="btn" href="/blog/mobius/">← Möbius</a>
+      <a class="btn" href="/blog/linear-algebra/">Linear Algebra →</a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    <span>amog.fun/blog/dirichlet</span>
+    <span>$\sum 1/p = \infty$, and so on</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blog · amog.fun</title>
+<meta name="description" content="Math notes from the Magnussen Institute for Applied Fun: number theory, combinatorics and an unintuitive guide to linear algebra.">
+<meta property="og:title" content="amog.fun/blog">
+<meta property="og:description" content="Math notes from the Magnussen Institute for Applied Fun.">
+<meta property="og:image" content="https://amog.fun/founder.webp">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='32' cy='32' r='13' fill='none' stroke='%234fd6e8' stroke-width='6'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/blog/blog.css">
+<script src="/assets/math.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+    <nav><a href="/">← home</a></nav>
+  </header>
+
+  <main class="post">
+    <header class="post-head">
+      <div class="eyebrow">Magnussen Institute for Applied Fun · notes</div>
+      <h1>The Blog</h1>
+      <p class="byline">A mathematician is a machine for turning coffee into theorems. These are the theorems; the coffee is not pictured.</p>
+    </header>
+
+    <!-- newest first. Add a post: public/blog/<slug>/index.html (copy an existing one), then a <li> here. -->
+    <ul class="posts">
+      <li><a href="/blog/mobius/">
+        <div class="meta"><span class="sig">mobius : Overcount → Count</span><span>September 2026</span><span class="badge">work in progress</span></div>
+        <h2>Möbius</h2>
+        <p>Inclusion-exclusion as counting the elements that are "new" to each set, drawn as a lattice, and its structural cousin: coproducts and pushouts.</p>
+      </a></li>
+      <li><a href="/blog/dirichlet/">
+        <div class="meta"><span class="sig">dirichlet : Progressions → Primes</span><span>August 2026</span><span class="badge">work in progress</span></div>
+        <h2>Dirichlet's Theorem</h2>
+        <p>Infinitely many primes of the form $an+b$. Factoring the harmonic series into an Euler product, and a first try at $3n+1$ versus $3n+2$.</p>
+      </a></li>
+      <li><a href="/blog/linear-algebra/">
+        <div class="meta"><span class="sig">linear-algebra : Flags → Bases</span><span>June 2026</span><span>Snow Hessian &amp; Amog Magnussen</span></div>
+        <h2>An Unintuitive Guide to Linear Algebra</h2>
+        <p>From relational structures up: dimension as the longest flag, exact sequences, tensor products as homsets, and primary and Jordan decomposition. With exercises and some solutions.</p>
+      </a></li>
+    </ul>
+  </main>
+
+  <footer class="footer">
+    <span>amog.fun/blog</span>
+    <span>proofs left as an exercise for the reader</span>
+  </footer>
+</div>
+</body>
+</html>

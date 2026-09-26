@@ -5,12 +5,16 @@
  * Math
  *   inline   $\Hom(A, B)$  or  \( ... \)
  *   display  $$\int_0^1 f$$  or  \[ ... \]
- *   commutative diagrams via $$\begin{CD} ... \end{CD}$$
- *   macros: \Hom \Cat \Grp \Set \Fun \id \op
+ *   commutative diagrams via $$\begin{CD} ... \end{CD}$$ (square grids only), or tikz-cd:
+ *     <script type="text/tikzcd">A \arrow[r, "f"] \arrow[dr, "h"'] & B \arrow[d, dashed, "g"] \\ & C</script>
+ *     arrow options: udlr direction, "label" ('  = other side, description = on the line),
+ *     no head, dashed, dotted, two heads, maps to, bend left/right[=deg].  data-row-sep / data-col-sep (em).
+ *   macros: \Hom \Cat \Grp \Set \Fun \id \op \N \Z \Q \R \C
+ *   page preamble: <script type="text/tex-preamble">\newcommand{\im}{\operatorname{im}}</script>
  *
  * Environments (write them straight into the HTML, may span several <p>s)
  *   \begin{lemma}[Optional title]\label{lem:key} ... \end{lemma}
- *   theorem lemma proposition corollary conjecture question definition example remark exercise proof
+ *   theorem lemma proposition corollary conjecture question definition notation example remark exercise proof
  *   starred (\begin{lemma*}) = unnumbered.  \ref{lem:key} -> link "Lemma 1".
  *   HTML form also works: <div data-env="lemma" data-title="Yoneda" id="lem:key">...</div>
  *   Numbering: shared counter (Lemma 1, Theorem 2, ...). Inside <section data-section="2"> it goes
@@ -30,6 +34,7 @@
     "\\Fun": "\\mathbf{Fun}",
     "\\id": "\\mathrm{id}",
     "\\op": "^{\\mathrm{op}}",
+    "\\N": "\\mathbb{N}", "\\Z": "\\mathbb{Z}", "\\Q": "\\mathbb{Q}", "\\R": "\\mathbb{R}", "\\C": "\\mathbb{C}",
   };
   const options = {
     delimiters: [
@@ -47,7 +52,7 @@
   const ENVS = {
     theorem: ["Theorem", "thm"], lemma: ["Lemma", "thm"], proposition: ["Proposition", "thm"],
     corollary: ["Corollary", "thm"], conjecture: ["Conjecture", "conj"], question: ["Question", "conj"],
-    definition: ["Definition", "def"],
+    definition: ["Definition", "def"], notation: ["Notation", "def"],
     example: ["Example", "note"], remark: ["Remark", "note"], exercise: ["Exercise", "note"], proof: ["Proof", "proof"],
   };
   const BEGIN = new RegExp(String.raw`\\begin\{(${Object.keys(ENVS).join("|")})(\*?)\}`);
@@ -203,16 +208,184 @@
     });
   }
   let fitTimer;
-  addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitDisplays(document), 150); });
+  addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => { fitDisplays(document); layoutAll(document); }, 150); });
+
+  // ---------- page preamble: \newcommand etc. land in the shared macros ----------
+  function runPreambles(root) {
+    root.querySelectorAll('script[type="text/tex-preamble"]').forEach(s => {
+      window.katex.renderToString(s.textContent, { macros, globalGroup: true, throwOnError: false });
+      s.remove();
+    });
+  }
+
+  // ---------- tikz-cd ----------
+  // split at top-level (brace depth 0) occurrences of any token in `seps`
+  function splitTop(src, seps) {
+    const out = [[]];
+    let depth = 0, cur = "", quote = false;
+    for (let i = 0; i < src.length; i++) {
+      const ch = src[i];
+      if (ch === "\\" && src[i + 1] !== "\\") { cur += ch + (src[i + 1] || ""); i++; continue; }
+      if (ch === '"' && depth === 0) quote = !quote;
+      if (ch === "{") depth++;
+      if (ch === "}") depth--;
+      const sep = depth === 0 && !quote && seps.find(t => src.startsWith(t, i));
+      if (sep) { out[out.length - 1].push(cur); cur = ""; if (sep === "\\\\") out.push([]); i += sep.length - 1; continue; }
+      cur += ch;
+    }
+    out[out.length - 1].push(cur);
+    return out;
+  }
+
+  function parseArrowOpts(str) {
+    const a = { dr: 0, dc: 0, label: null, swap: false, desc: false, head: true, dash: null, bend: 0, twoHeads: false, mapsTo: false };
+    for (let opt of splitTop(str, [","])[0]) {
+      opt = opt.trim();
+      if (!opt) continue;
+      if (/^[udlr]+$/.test(opt)) {
+        for (const c of opt) { if (c === "u") a.dr--; if (c === "d") a.dr++; if (c === "l") a.dc--; if (c === "r") a.dc++; }
+      } else if (opt[0] === '"') {
+        const end = opt.lastIndexOf('"');
+        a.label = opt.slice(1, end);
+        const rest = opt.slice(end + 1);
+        a.swap = /'|swap/.test(rest);
+        a.desc = /description/.test(rest);
+      } else if (opt === "no head" || opt === "dash" || opt === "-") a.head = false;
+      else if (opt === "dashed") a.dash = "5 4";
+      else if (opt === "dotted") a.dash = "1 3";
+      else if (opt === "two heads") a.twoHeads = true;
+      else if (opt === "maps to" || opt === "mapsto") a.mapsTo = true;
+      else if (/^bend (left|right)/.test(opt)) {
+        const deg = +(opt.split("=")[1] || 30);
+        a.bend = (opt.includes("left") ? 1 : -1) * deg * Math.PI / 180;
+      }
+    }
+    return a;
+  }
+
+  function parseTikzcd(src) {
+    const cells = [], arrows = [];
+    splitTop(src.trim(), ["\\\\", "&"]).forEach((row, r) => row.forEach((cell, c) => {
+      const tex = cell.replace(/\\ar(?:row)?\s*\[((?:[^\[\]{}]|\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*)\]/g, (_, opts) => {
+        const a = parseArrowOpts(opts);
+        arrows.push({ ...a, r, c });
+        return "";
+      }).trim();
+      cells.push({ r, c, tex });
+    }));
+    return { cells, arrows };
+  }
+
+  function renderTikzcd(script) {
+    const { cells, arrows } = parseTikzcd(script.textContent);
+    const wrap = document.createElement("div");
+    wrap.className = "tikzcd-wrap";
+    const grid = document.createElement("div");
+    grid.className = "tikzcd";
+    grid.style.rowGap = (script.dataset.rowSep || 3.2) + "em";
+    grid.style.columnGap = (script.dataset.colSep || 3.6) + "em";
+    const nodes = new Map();
+    for (const cell of cells) {
+      const d = document.createElement("div");
+      d.className = "tikzcd-cell";
+      d.style.gridRow = cell.r + 1;
+      d.style.gridColumn = cell.c + 1;
+      if (cell.tex) {
+        const span = document.createElement("span");
+        window.katex.render(cell.tex, span, { macros, throwOnError: false });
+        d.append(span);
+        nodes.set(`${cell.r},${cell.c}`, span);
+      }
+      grid.append(d);
+    }
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.classList.add("tikzcd-arrows");
+    grid.append(svg);
+    for (const a of arrows) {
+      a.from = nodes.get(`${a.r},${a.c}`);
+      a.to = nodes.get(`${a.r + a.dr},${a.c + a.dc}`);
+      if (a.label != null) {
+        a.labelEl = document.createElement("span");
+        a.labelEl.className = "tikzcd-label" + (a.desc ? " desc" : "");
+        window.katex.render(a.label, a.labelEl, { macros, throwOnError: false });
+        grid.append(a.labelEl);
+      }
+    }
+    grid._arrows = arrows;
+    wrap.append(grid);
+    script.replaceWith(wrap);
+  }
+
+  // where the ray from the centre of `box` in direction (dx, dy) leaves it (plus a small gap)
+  function exitPoint(box, dx, dy, gap = 4) {
+    const hw = box.w / 2 + gap, hh = box.h / 2 + gap;
+    const t = Math.min(dx ? hw / Math.abs(dx) : Infinity, dy ? hh / Math.abs(dy) : Infinity);
+    return [box.x + dx * t, box.y + dy * t];
+  }
+
+  function layoutTikzcd(grid) {
+    const wrap = grid.parentElement;
+    grid.style.fontSize = "";
+    if (grid.scrollWidth > wrap.clientWidth && wrap.clientWidth > 0) {
+      const pad = 24; // .tikzcd horizontal padding, which does not scale with the font
+      grid.style.fontSize = Math.max(0.5, (wrap.clientWidth - pad) / (grid.scrollWidth - pad) * 0.98).toFixed(3) + "em";
+    }
+    const g = grid.getBoundingClientRect();
+    const boxOf = el => { const r = el.getBoundingClientRect(); return { x: r.left - g.left + r.width / 2, y: r.top - g.top + r.height / 2, w: r.width, h: r.height }; };
+    const svg = grid.querySelector(".tikzcd-arrows");
+    svg.setAttribute("viewBox", `0 0 ${g.width} ${g.height}`);
+    svg.setAttribute("width", g.width);
+    svg.setAttribute("height", g.height);
+    let paths = "";
+    const P = ([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`;
+    for (const a of grid._arrows) {
+      if (!a.from || !a.to) continue;
+      const A = boxOf(a.from), B = boxOf(a.to);
+      let dx = B.x - A.x, dy = B.y - A.y;
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len; dy /= len;
+      const nx = dy, ny = -dx; // left of the direction of travel (screen coords)
+      const cs = Math.cos(a.bend), sn = Math.sin(a.bend);
+      const out = [dx * cs + nx * sn, dy * cs + ny * sn];   // departure direction
+      const inn = [dx * cs - nx * sn, dy * cs - ny * sn];   // arrival direction
+      const S = exitPoint(A, out[0], out[1]);
+      const E = exitPoint(B, -inn[0], -inn[1]);
+      const k = Math.hypot(E[0] - S[0], E[1] - S[1]) * 0.39;
+      const C1 = [S[0] + out[0] * k, S[1] + out[1] * k], C2 = [E[0] - inn[0] * k, E[1] - inn[1] * k];
+      const dash = a.dash ? ` stroke-dasharray="${a.dash}"` : "";
+      paths += a.bend ? `<path d="M${P(S)} C${P(C1)} ${P(C2)} ${P(E)}"${dash}/>` : `<path d="M${P(S)} L${P(E)}"${dash}/>`;
+      const head = (tip, [ux, uy]) => {
+        const px = uy, py = -ux, at = (b, s) => [tip[0] - ux * b + px * s, tip[1] - uy * b + py * s];
+        return `<path d="M${P(at(6.5, 4))} Q${P(at(2.5, 0.9))} ${P(tip)} Q${P(at(2.5, -0.9))} ${P(at(6.5, -4))}"/>`;
+      };
+      if (a.head) paths += head(E, inn);
+      if (a.head && a.twoHeads) paths += head([E[0] - inn[0] * 4, E[1] - inn[1] * 4], inn);
+      if (a.mapsTo) paths += `<path d="M${P([S[0] + nx * 4, S[1] + ny * 4])} L${P([S[0] - nx * 4, S[1] - ny * 4])}"/>`;
+
+      if (a.labelEl) {
+        const M = a.bend ? [(S[0] + 3 * C1[0] + 3 * C2[0] + E[0]) / 8, (S[1] + 3 * C1[1] + 3 * C2[1] + E[1]) / 8] : [(S[0] + E[0]) / 2, (S[1] + E[1]) / 2];
+        const lw = a.labelEl.offsetWidth, lh = a.labelEl.offsetHeight;
+        const side = a.swap ? -1 : 1;
+        const off = a.desc ? 0 : Math.abs(nx) * lw / 2 + Math.abs(ny) * lh / 2 + 3;
+        a.labelEl.style.left = (M[0] + side * nx * off - lw / 2) + "px";
+        a.labelEl.style.top = (M[1] + side * ny * off - lh / 2) + "px";
+      }
+    }
+    svg.innerHTML = paths;
+  }
+  const layoutAll = root => root.querySelectorAll(".tikzcd").forEach(layoutTikzcd);
 
   window.amogMath = async (el = document.body) => {
     convertLatexEnvs(el);
     decorate(el);
     resolveRefs(el);
     await ready;
+    runPreambles(el);
     window.renderMathInElement(el, options);
+    el.querySelectorAll('script[type="text/tikzcd"]').forEach(renderTikzcd);
     fitDisplays(el);
-    if (document.fonts) document.fonts.ready.then(() => fitDisplays(el));
+    layoutAll(el);
+    if (document.fonts) document.fonts.ready.then(() => { fitDisplays(el); layoutAll(el); });
   };
 
   const style = document.createElement("style");
@@ -247,6 +420,14 @@
     .env-body::after { content: ""; display: block; clear: both; }
     a.env-ref { color: var(--g1, #4fd6e8); text-decoration: none; border-bottom: 1px dotted currentColor; font-style: normal; }
     .env:target { box-shadow: 0 0 0 2px var(--acc); }
+    .tikzcd-wrap { margin: 1.2em 0; padding: 8px 0; display: flex; justify-content: safe center; overflow-x: auto; overflow-y: hidden; }
+    .tikzcd { position: relative; display: inline-grid; justify-items: center; align-items: center; padding: 6px 12px; }
+    .tikzcd-cell { white-space: nowrap; }
+    .tikzcd-arrows { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none;
+      fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
+    .tikzcd-label { position: absolute; white-space: nowrap; font-size: .8em; line-height: 1; }
+    .tikzcd-label.desc { background: var(--cd-bg, var(--bg, #0a0a0f)); padding: 1px 3px; }
+    .env .tikzcd-label.desc { --cd-bg: var(--bg-2, #111118); }
   `;
   document.head.appendChild(style);
 

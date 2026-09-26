@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>An Unintuitive Guide to Linear Algebra · amog.fun/blog</title>
+<meta name="description" content="Linear algebra from relational structures up: flags before bases, exact sequences, primary and Jordan decomposition. By Snow Hessian and Amog Magnussen.">
+<meta property="og:title" content="An Unintuitive Guide to Linear Algebra">
+<meta property="og:description" content="Linear algebra from relational structures up: flags before bases, exact sequences, primary and Jordan decomposition.">
+<meta property="og:image" content="https://amog.fun/founder.webp">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='32' cy='32' r='13' fill='none' stroke='%234fd6e8' stroke-width='6'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/blog/blog.css">
+<script src="/assets/math.js" defer></script>
+</head>
+<body>
+<script type="text/tex-preamble">
+\def\End{\operatorname{End}}
+\def\im{\operatorname{im}}
+\def\coker{\operatorname{coker}}
+\def\tr{\operatorname{tr}}
+\def\spn{\operatorname{span}}
+\def\gr{\operatorname{gr}}
+\def\ev{\operatorname{ev}}
+\def\irr{\operatorname{irr}}
+\def\lcm{\operatorname{lcm}}
+\def\set#1{\{#1\}}
+\def\dual{\vee}
+\def\ol{\overline}
+\def\wt{\widetilde}
+\def\xto{\xrightarrow}
+\def\from{\leftarrow}
+\def\To{\Rightarrow}
+\def\From{\Leftarrow}
+\def\coloneq{\coloneqq}
+\def\FF{\mathcal F}
+\def\NN{\mathcal N}
+\def\UU{\mathcal U}
+\def\VV{\mathcal V}
+\def\WW{\mathcal W}
+</script>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+    <nav><a href="/blog/">← blog</a></nav>
+  </header>
+
+  <article class="post">
+    <header class="post-head">
+      <div class="eyebrow"><a href="/blog/">blog</a> · June 2026 · linear algebra</div>
+      <h1>An Unintuitive Guide to Linear Algebra</h1>
+      <p class="byline">by <b>Snow Hessian</b> &amp; <b>Amog John Thomas Oliver Hansen Magnussen</b></p>
+    </header>
+
+    <nav class="toc">
+      <b>Contents</b>
+      <ol>
+        <li><a href="#s1">Snow relational structures</a></li>
+        <li><a href="#s2">Algebraic structures</a></li>
+        <li><a href="#s3">New abelian groups from old</a></li>
+        <li><a href="#s4">Vector spaces</a></li>
+        <li><a href="#s5">Dimension and bases</a></li>
+        <li><a href="#s6">New vector spaces from old</a></li>
+        <li><a href="#s7">Linear transformations</a></li>
+        <li><a href="#s8">Endomorphisms</a></li>
+        <li><a href="#s9">Bilinear forms</a></li>
+      </ol>
+    </nav>
+
+    <!-- ============================================================ -->
+    <section data-section="1" id="s1">
+      <h2><span class="n">§1</span>Snow relational structures</h2>
+
+      <div data-env="definition" data-title="Relational structure">
+        <p>A <b class="vocab">relational structure</b> $(S, \set{R_\alpha}_{\alpha \in A})$ is a set $S$ along with subsets $R_\alpha \subseteq S^{n_\alpha}$, where $n_\alpha \in \N$.
+        A <b class="vocab">homomorphism</b> of relational structures $f : (S, \set{R_\alpha}_{\alpha \in A}) \to (S', \set{R'_\alpha}_{\alpha \in A})$ is a function $f : S \to S'$ such that for all $\alpha \in A$, if $(x_1, \dots, x_{n_\alpha}) \in R_\alpha$ then $(f(x_1), \dots, f(x_{n_\alpha})) \in R'_\alpha$.</p>
+      </div>
+      <div data-env="notation" data-title="Restriction of relation">
+        <p>For a relation $R \subseteq S^n$ and subset $S' \subseteq S$, we denote $R \cap S'^n$ by $R\rvert_{S'}$, called the <b class="vocab">restriction</b> of $R$ to $S'$.</p>
+      </div>
+
+      <h3><span class="n">1.1</span>Snow monoids</h3>
+      <div data-env="definition" data-title="Monoid">
+        <p>A <b class="vocab">monoid</b> $(M, \set{E, T})$ is a relational structure where</p>
+        <ol>
+          <li>$E \subseteq M$;</li>
+          <li>$T \subseteq M \times M \times M$</li>
+        </ol>
+        <p>satisfying:</p>
+        <ol>
+          <li>there exists a unique $1_M \in M$ such that $1_M \in E$;</li>
+          <li>for all $x \in M$, $(1_M, x, x) \in T$ and $(x, 1_M, x) \in T$;</li>
+          <li>for all $x, y \in M$, there exists a unique $z \in M$ such that $(x, y, z) \in T$;</li>
+          <li>for all $x, y, z, u, v, w \in M$, if $(x, y, u) \in T$, $(u, z, w) \in T$, $(y, z, v) \in T$ then $(x, v, w) \in T$.</li>
+        </ol>
+      </div>
+
+      <h3><span class="n">1.2</span>Snow groups</h3>
+      <div data-env="definition" data-title="Group">
+        <p>A <b class="vocab">group</b> $(G, \set{E, T})$ is a monoid further satisfying:</p>
+        <ul>
+          <li>for all $x \in G$, there exists $y \in G$ such that $(x, y, 1_G) \in T$ and $(y, x, 1_G) \in T$.</li>
+        </ul>
+      </div>
+      <div data-env="definition" data-title="Abelian group">
+        <p>An <b class="vocab">abelian group</b> $(G, \set{E, T})$ is a group further satisfying:</p>
+        <ul>
+          <li>for all $x, y, z \in G$, if $(x, y, z) \in T$ then $(y, x, z) \in T$.</li>
+        </ul>
+      </div>
+
+      <h3><span class="n">1.3</span>Snow rings</h3>
+      <div data-env="definition" data-title="Ring">
+        <p>A <b class="vocab">ring</b> $(R, \set{Z, O, A, M})$ is a relational structure where</p>
+        <ol>
+          <li>$(R, \set{Z, A})$ is an abelian group;</li>
+          <li>$(R, \set{O, M})$ is a monoid;</li>
+        </ol>
+        <p>satisfying:</p>
+        <ol>
+          <li>for all $x, y, z, p, q, r, s \in R$, if $(y, z, s) \in A$, $(x, y, p) \in M$, $(x, z, q) \in M$, $(p, q, r) \in A$ then $(x, s, r) \in M$;</li>
+          <li>for all $x, y, z, p, q, r, s \in R$, if $(x, y, s) \in A$, $(x, z, p) \in M$, $(y, z, q) \in M$, $(p, q, r) \in A$ then $(s, z, r) \in M$.</li>
+        </ol>
+      </div>
+      <div data-env="definition" data-title="Field">
+        <p>A <b class="vocab">field</b> is a ring where $(R \setminus \set0, \set{O\rvert_{R \setminus \set0}, M\rvert_{R \setminus \set0}})$ is a group.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section data-section="2" id="s2">
+      <h2><span class="n">§2</span>Algebraic structures</h2>
+
+      <h3><span class="n">2.1</span>Monoids</h3>
+      <div data-env="definition" data-title="Monoid">
+        <p>A <b class="vocab">monoid</b> $(M,*)$ is a set $M$ equipped with a binary operation $*: M\times M\to M$ satisfying the following axioms:</p>
+        <ol>
+          <li>Identity: There exists $1_M\in M$ such that $1_M*m=m*1_M=m$ for all $m \in M$, called the identity of $M$.</li>
+          <li>Associativity: For all $x,y,z\in M$, $x*(y*z)=(x*y)*z$.</li>
+        </ol>
+      </div>
+      <div data-env="remark">
+        <p>Often, we refer to the monoid with the same name as its underlying set, which is $M$ in this case. It is also common to represent the monoid operation by concatenation. Due to associativity, parentheses are not needed. For example $xyz=x*(y*z)=(x*y)*z$.</p>
+      </div>
+      <div data-env="definition" data-title="Commutativity">
+        <p>A monoid is <b class="vocab">commutative</b> if it also obeys the following:</p>
+        <ol start="3">
+          <li>Commutativity: For all $x,y\in M$, $x*y=y*x$.</li>
+        </ol>
+      </div>
+      <div data-env="definition" data-title="Group">
+        <p>A <b class="vocab">group</b> is a monoid with inverses:</p>
+        <ol start="4">
+          <li>Inverses: For all $x \in M$, there exists $x^{-1}\in M$ such that $x*x^{-1}=x^{-1}*x=1_M$.</li>
+        </ol>
+      </div>
+      <div data-env="definition" data-title="Abelian group">
+        <p>An <b class="vocab">abelian group</b> is a commutative group.</p>
+      </div>
+      <div data-env="notation" data-title="Additive notation">
+        <p>Typically the binary operation in a commutative monoid $M$ is denoted by the addition symbol $+$, and the identity element is denoted by $0_M$ instead of $1_M$. In an abelian group, inverses are then denoted by $-x$ instead of $x^{-1}$.</p>
+      </div>
+
+      <h3><span class="n">2.2</span>Rings</h3>
+      <div data-env="definition" data-title="Algebra">
+        <p>An <b class="vocab">algebra</b> $(A,+,*)$ is a set $A$ equipped with two binary operations such that:</p>
+        <ol>
+          <li>$(A,+)$ is an abelian group; $+$ is called the additive operation, or simply addition.</li>
+          <li>$(A,*)$ is a monoid; $*$ is called the multiplicative operation, or simply multiplication.</li>
+          <li>Distributivity: For all $a,b,c\in A$, $a*(b+c)=a*b+a*c$ and $(a+b)*c = a*c + b*c$.</li>
+        </ol>
+      </div>
+      <div data-env="notation" data-title="Zero and one">
+        <p>Typically, we call the additive identity $0_A$ and the multiplicative identity $1_A$.</p>
+      </div>
+      <div data-env="definition" data-title="Ring">
+        <p>A <b class="vocab">ring</b> $(R,+,*)$ is an algebra such that $(R,*)$ is a commutative monoid.</p>
+      </div>
+      <div data-env="definition" data-title="Fields">
+        <p>A <b class="vocab">field</b> is a ring $(R,+,*)$ for which $(R\setminus\set0,*)$ is a group.</p>
+      </div>
+      <div data-env="definition" data-title="Polynomial ring">
+        <p>Let $(R, +_R, *_R)$ be a ring. The <b class="vocab">polynomial ring</b> in one indeterminate $x$ with coefficients in $R$ is the ring denoted $R[x]$ whose elements are polynomials
+        \[ p(x) = a_0 + a_1x + a_2x^2 + a_3x^3 + \dots + a_nx^n, \quad n \in \N, a_i \in R, \]
+        and the operations are defined as follows:</p>
+        <ol>
+          <li>The symbol $x^0$ is defined to be $1_R$.</li>
+          <li>$\sum_{i = 0}^n a_i x^i + \sum_{i = 0}^n b_i x^i = \sum_{i = 0}^n (a_i +_R b_i) x^i$.</li>
+          <li>$\bigl(\sum_{i = 0}^n a_i x^i\bigr) * \bigl(\sum_{i = 0}^n b_i x^i\bigr) = \sum_{i = 0}^{2n} c_ix^i$, where $c_i = \sum_{j = 0}^i a_j *_R b_{i - j}$.</li>
+        </ol>
+      </div>
+      <div data-env="exercise">
+        <ol>
+          <li>Let $R = (R, +, *)$ be a ring. Prove that $R[x]$ has infinitely many elements.</li>
+          <li>Prove that there are finitely many functions $f : R \to R$ if $R$ is a finite set.</li>
+        </ol>
+      </div>
+
+      <h3><span class="n">2.3</span>Homomorphisms</h3>
+      <div data-env="definition" data-title="Monoid homomorphism">
+        <p>If $(M, *_M)$ and $(N, *_N)$ are monoids, then a <b class="vocab">monoid homomorphism</b> from $M$ to $N$ is a function $\varphi:M\to N$ such that</p>
+        <ol>
+          <li>$\varphi(1_M)=1_N$.</li>
+          <li>$\varphi(a*_Mb)=\varphi(a)*_N\varphi(b)$ for all $a, b \in M$.</li>
+        </ol>
+      </div>
+      <div data-env="definition" data-title="Group, algebra, ring, field homomorphism">
+        <p>A monoid homomorphism between groups is a <b class="vocab">group homomorphism</b>. A function between algebras that is a homomorphism of both the additive groups and multiplicative monoids is called an <b class="vocab">algebra homomorphism</b>, and an algebra homomorphism of rings is called a <b class="vocab">ring homomorphism</b>. Naturally, a ring homomorphism between fields is a <b class="vocab">field homomorphism</b>.</p>
+      </div>
+      <div data-env="definition" data-title="Isomorphism">
+        <p>A monoid, group, algebra, ring, or field homomorphism is an <b class="vocab">isomorphism</b> if it is a bijection.</p>
+      </div>
+      <div data-env="exercise" data-title="Inverse of isomorphism">
+        <p>Let $\Phi : M \to N$ be a monoid isomorphism. Prove that the inverse $\Phi^{-1} : N \to M$ is also a monoid isomorphism.</p>
+      </div>
+      <div data-env="notation" data-title="Identity homomorphism">
+        <p>The identity function $\id_M : M \to M$ of a monoid $M$ given by $\id_M(a) = a$ is always a homomorphism, called the <b class="vocab">identity homomorphism</b>.</p>
+      </div>
+      <div data-env="definition" data-title="Kernel and image">
+        <p>Let $\varphi : M \to N$ be a monoid homomorphism.</p>
+        <ol>
+          <li>The <b class="vocab">kernel</b> of $\varphi$ is $\ker\varphi = \set {\, m \in M \mid \varphi(m) = 1_N \,}$.</li>
+          <li>The <b class="vocab">image</b> of $\varphi$ is $\im\varphi = \set {\, n \in N \mid \exists m \in M, \varphi(m) = n \,}$.</li>
+        </ol>
+        <p>Kernels and images of group homomorphisms are defined analogously. Kernels and images of algebra homomorphisms are taken using the additive structure.</p>
+      </div>
+      <div data-env="definition" data-title="Evaluation homomorphism">
+        <p>Let $R$ be a ring. The <b class="vocab">evaluation homomorphism</b> at $t \in R$ is the homomorphism
+        \[ \ev_t : R[x] \to R, \quad \ev_t(a_0 + a_1x + \dots + a_nx^n) = a_0 + a_1t + \dots + a_nt^n. \]
+        For a polynomial $p(x) \in R[x]$, we write $p(t) \coloneq \ev_t(p(x))$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Let $X$ be a set. We write $R^X$ for the set of functions $X \to R$. It is a ring when given the operations</p>
+        <ol>
+          <li>$(f + g)(x) = f(x) + g(x)$,</li>
+          <li>$(f * g)(x) = f(x) * g(x)$.</li>
+        </ol>
+        <p>Prove that the function $\Phi : R[x] \to R^R, \Phi(p(x))(t) = p(t)$ is a homomorphism of rings.</p>
+      </div>
+
+      <h3><span class="n">2.4</span>Additional concepts</h3>
+      <p>Monoids, groups, rings, and fields are examples of algebraic structures.</p>
+      <div data-env="definition" data-title="Endomorphism">
+        <p>A homomorphism $\varphi : S \to S$ from an algebraic structure to itself is called an <b class="vocab">endomorphism</b> of that structure.</p>
+      </div>
+      <div data-env="definition" data-title="Endomorphism algebra">
+        <p>The <b class="vocab">endomorphism algebra</b> of an abelian group $M=(M,+)$ is the set of all endomorphisms of $M$, and is denoted $\End(M)$. The addition operation is $(\varphi+\psi)(x)=\varphi(x)+\psi(x)$, and the multiplication operation is $(\varphi*\psi)(x)=\varphi(\psi(x))$.</p>
+      </div>
+      <div data-env="definition" data-title="Submonoid, subgroup, subring, subfield">
+        <p>A <b class="vocab">submonoid</b> of a monoid $M$ is a subset $N \subseteq M$ which satisfies:</p>
+        <ol>
+          <li>Identity: $1_M \in N$.</li>
+          <li>Closure: For all $x, y \in N$, $x * y \in N$.</li>
+        </ol>
+        <p>A submonoid of a group which is also a group is called a <b class="vocab">subgroup</b>.
+        A <b class="vocab">subring</b> is a subset of a ring which is both a subgroup under the addition operation and submonoid under the multiplication operation,
+        and a <b class="vocab">subfield</b> is a field which is a subring of another field.</p>
+      </div>
+      <div data-env="definition" data-title="Trivial monoid, group, ring">
+        <p>The <b class="vocab">trivial monoid</b> is the monoid with only the identity element $\set{1}$.
+        This is also a group, called the <b class="vocab">trivial group</b>. The <b class="vocab">trivial ring</b> is the ring with only one element $\set{0}$.</p>
+      </div>
+      <div data-env="notation">
+        <p>When using multiplicative notation, the trivial monoid and trivial group are often denoted by $1$, without the curly braces. When using additive notation, the trivial monoid and trivial group are often denoted by $0$, without the curly braces. The trivial ring is often denoted by $0$.</p>
+      </div>
+
+      <h3><span class="n">2.5</span>Exercises</h3>
+      <ol class="exercises">
+        <li>Show that the identity of a monoid is unique.
+          <details class="sol"><summary>Solution <span class="stars">★★</span></summary>
+            <p>Suppose $a,b$ are identities of $M$. By the identity property of $a$, $ab=b$, but by the identity property of $b$, $ab=a$. Thus, $a=b$.</p>
+          </details>
+        </li>
+        <li>If $g,h$ are elements of a monoid $M$ such that $gh=1_M$, then $g$ is said to be the left-inverse of $h$, and $h$ is the right-inverse of $g$.
+          <ol>
+            <li>Show that if an element of $M$ has both a left-inverse and a right-inverse, the left inverse and right inverse must be equal.
+              <details class="sol"><summary>Solution <span class="stars">★★</span></summary>
+                <p>Let $g$ have left-inverse $a$ and right-inverse $b$. Then, consider $agb$. Since $ag$ is the identity, $agb=b$, but since $gb$ is the identity, $agb=a$. Thus, $a=b$.</p>
+              </details>
+            </li>
+            <li>Conclude that in a group, inverses are unique.
+              <details class="sol"><summary>Solution <span class="stars">★★</span></summary>
+                <p>Since group inverses are double-sided, if an element has two inverses, we can choose one to be a left-inverse and one to be a right-inverse, then apply part a.</p>
+              </details>
+            </li>
+            <li>Give an example of a monoid where one element has more than one right inverse.
+              <details class="sol"><summary>Solution <span class="stars">★★★</span></summary>
+                <p>Let $M=\{f:\N\to\N\}$ with operation $f*g=g\circ f$. If $f(x)=x+1$ then any function $g$ for which $g(x)=x-1$ for $x\geq1$ is a right-inverse to $f$. There are infinitely many of these, one for every choice of $g(0)$.</p>
+              </details>
+            </li>
+          </ol>
+        </li>
+        <li>Show that a monoid where every element is right invertible is a group.
+          <details class="sol"><summary>Solution <span class="stars">★★★</span></summary>
+            <p>Let $a$ be an arbitrary element in the monoid. Let $b$ be a right inverse of $a$ and $c$ be a right inverse of $b$. Then, $abc = (ab)c = c = a(bc) = a$. Since $a=c$ and $c$ has left-inverse $b$, $a$ has left-inverse $b$.</p>
+          </details>
+        </li>
+        <li>Suppose we replace the identity axiom with the existence of a right identity $1_M$ such that for all $x$, $x*1_M=x$. Show that even then, if every element of $M$ is right-invertible then it is a group. (Note: a right identity and left inverses (or vice versa) is not a strong enough condition to be a group).
+          <details class="sol"><summary>Solution <span class="stars">★★★★</span></summary>
+            <p>As with the previous exercise, let $a$ be arbitrary, $b$ a right-inverse of $a$, and $c$ a right inverse of $b$. Let $1_M$ be a right-identity for $M$. Then, $abc=a(bc)=a1_M=a=(ab)c=1_Mc$. Then, $ba=b(1_Mc)=(b1_M)c=bc=1$, hence $a$ has left inverse $b$.</p>
+          </details>
+        </li>
+        <li>Call a monoid right-cancellative if for all $a,b,x$, $ax=bx$ implies $a=b$. Show every finite right-cancellative monoid is a group.
+          <details class="sol"><summary>Solution <span class="stars">★★★</span></summary>
+            <p>Right-cancellativity implies that $f(x)=xm$ is injective for all $m$. Since $f$ is a function on the monoid, which is finite, this implies surjectivity, which means there exists an $x$ such that $xm=1_M$. Then, every element is left-invertible, reducing to a mirrored version of Exercise 3.</p>
+          </details>
+        </li>
+        <li>Let $M$ be a finite monoid, and let $a,b\in M$ such that $ab=1_M$. Show $ba=1_M$.
+          <details class="sol"><summary>Solution <span class="stars">★★★</span></summary>
+            <p>Like the problem above, we consider $f(x) = xa$, and show this is injective, which then implies surjectivity due to the finiteness of the monoid. Suppose $f(x) = f(y)$, then we have
+            $$\begin{aligned}
+            xa &amp;= ya \\
+            xab &amp;= yab \\
+            x * 1_M &amp;= y * 1_M \\
+            x &amp;= y
+            \end{aligned}$$
+            Since $f$ is surjective, we have that $1_M = h * a$ for some $h \in M$. Right multiply both sides by $b$ and get $b = h$.</p>
+          </details>
+        </li>
+        <li>Let $G$ be a group, and let $S$ and $T$ be subsets of $G$ such that $|S|+|T|&gt;|G|$. Define $ST\coloneq\set{\,st\mid s\in S,t\in T\,}$. Show $G=ST$.</li>
+        <li>Show that in a ring, $0*x=0$.</li>
+        <li>Show that the composition of two homomorphisms is a homomorphism.</li>
+        <li>Show that a group $G$ is abelian if and only if $\phi(g)=g^{-1}$ is a homomorphism.
+          <details class="sol"><summary>Solution <span class="stars">★</span></summary>
+            <p><span class="case">$\To$)</span> $\phi(ab) = (ab)^{-1} = \underbrace{b^{-1} a^{-1} = a^{-1} b^{-1}}_{\text{abelian}} = \phi(a)\phi(b)$</p>
+            <p><span class="case">$\From$)</span>
+            $$\begin{aligned}
+                \phi(a^{-1}b^{-1}) &amp;= \phi(a^{-1})\phi(b^{-1}) \\
+                (a^{-1}b^{-1})^{-1} &amp;= ab \\
+                ba &amp;= ab
+            \end{aligned}$$</p>
+          </details>
+        </li>
+        <li>Show that a group $G$ is abelian if and only if $\phi(g)=g^2$ is a homomorphism. Why does this imply non-abelian groups cannot have endomorphism rings?
+          <details class="sol"><summary>Solution <span class="stars">★★</span></summary>
+            <p><span class="case">$\To$)</span> $\phi(ab) = (ab)^2 = abab = a^2 b^2 = \phi(a)\phi(b)$.</p>
+            <p><span class="case">$\From$)</span>
+            $$\begin{aligned}
+                \phi(ab) &amp;= \phi(a)\phi(b) \\
+                (ab)^2 &amp;= a^2 b^2 \\
+                abab &amp;= a^2 b^2 \\
+                \textcolor{#ff5a5f}{a^{-1}} abab \textcolor{#ff5a5f}{b^{-1}} &amp;= \textcolor{#ff5a5f}{a^{-1}} a^2 b^2 \textcolor{#ff5a5f}{b^{-1}} \\
+                ba &amp;= ab
+            \end{aligned}$$</p>
+            <p>In $\End(G)$, we already have multiplication: it's just function composition. To be a ring, we need addition and it needs to preserve homomorphisms. So, given $f,h \in \End(G)$, $(f+h)(g) = f(g) *_G h(g)$. Consider the identity $1_{\End(G)}$ as both $f$ and $h$. Then, we have $(1_{\End(G)} + 1_{\End(G)})(g) = g^2$. This has to be a homomorphism for addition to make sense, which means $G$ must be abelian.</p>
+          </details>
+        </li>
+        <li>Let $M$ be a monoid.
+          <ol>
+            <li>Let $N, P \subseteq M$ be submonoids. Show that $N \cap P$ is a submonoid of $M$.</li>
+            <li>Let $N_1, N_2, \dots, N_n \subseteq M$ be submonoids. Show that $N_1 \cap N_2 \cap \dots \cap N_n$ is a submonoid of $M$.</li>
+            <li>Let $\NN$ be a collection of submonoids of $M$. Show that $\bigcap_{N \in \NN} N$ is a submonoid of $M$.</li>
+            <li>Let $N_1 \subseteq N_2 \subseteq N_3 \subseteq \dots \subseteq M$ be an increasing sequence of submonoids. Show that $\bigcup_{n \in \N} N_n$ is a submonoid of $M$.</li>
+            <li>Prove the above four results for subgroups, subalgebras, subrings, and subfields.</li>
+          </ol>
+        </li>
+        <li>Let $M$ be a commutative monoid.
+          <ol>
+            <li>Let $N, P \subseteq M$ be submonoids. Show that $N + P \coloneq \set {\, n + p \mid n \in N, p \in P\,}$ is a submonoid of $M$.</li>
+            <li>Let $N_1, N_2, \dots, N_n \subseteq M$ be submonoids. Show that $N_1 + N_2 + \dots + N_n \coloneq \set {\, n_1 + n_2 + \dots + n_n \mid n_i \in N_i \,}$ is a submonoid of $M$.</li>
+            <li>Prove the above two results for subgroups of abelian groups.</li>
+          </ol>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ============================================================ -->
+    <section data-section="3" id="s3">
+      <h2><span class="n">§3</span>New abelian groups from old</h2>
+
+      <h3><span class="n">3.1</span>Direct sums</h3>
+      <div data-env="definition" data-title="Direct sum">
+        <p>Let $(A, +_A)$ and $(B, +_B)$ be abelian groups. Their <b class="vocab">direct sum</b>, denoted by $A \oplus B$, is the abelian group whose underlying set is $A \times B$ and addition operation is $(a_1, b_1) + (a_2, b_2) = (a_1 +_A a_2, b_1 +_B b_2)$.</p>
+        <p>Given a sequence of abelian groups $(A_1, +_{A_1}), \dots, (A_n, +_{A_n})$, their direct sum, denoted $A_1 \oplus A_2 \oplus \dots \oplus A_n$, is the abelian group whose underlying set is $A_1 \times A_2 \times \dots \times A_n$ and addition operation is
+        \[ (a_1, a_2, \dots, a_n) + (a_1', a_2', \dots, a_n') = (a_1 +_{A_1} a_1', a_2 +_{A_2} a_2', \dots, a_n +_{A_n} a_n'). \]</p>
+        <p>The $n$-fold direct sum of an abelian group $(A, +_A)$ with itself will be denoted $A^{\oplus n}$, i.e., $A^{\oplus n} = A \oplus A \oplus \dots \oplus A$, where $A$ appears $n$ times. Its underlying set is the $n$-fold cartesian product $A^n$.</p>
+      </div>
+      <div data-env="definition" data-title="Inclusion and projection">
+        <p>Given a direct sum $A \oplus B$, there are always four homomorphisms:</p>
+        <ul>
+          <li>The <b class="vocab">inclusions</b> $i_A : A \to A \oplus B, i_A(a) = (a, 0)$ and $i_B : B \to A \oplus B, i_B(b) = (0, b)$.</li>
+          <li>The <b class="vocab">projections</b> $p_A : A \oplus B \to A, p_A(a, b) = a$ and $p_B : A \oplus B \to B, p_B(a, b) = b$.</li>
+        </ul>
+        <p>Notice that the compositions $p_A \circ i_A : A \to A$ and $p_B \circ i_B : B \to B$ are identity maps, therefore making both $i_A$ and $i_B$ injective, and $p_A$ and $p_B$ surjective.</p>
+      </div>
+      <div data-env="exercise" data-title="Universal property of direct sums">
+        <p>Let $A$ and $B$ be abelian groups. Show the following:</p>
+        <ol>
+          <li>For any abelian group $C$ and homomorphisms $\varphi_A : C \to A$ and $\varphi_B : C \to B$, there exists a unique homomorphism $\Phi : C \to A \oplus B$ such that $p_A \circ \Phi = \varphi_A$ and $p_B \circ \Phi = \varphi_B$.
+<script type="text/tikzcd">
+C \arrow[dr, dashed, "\exists!\Phi" description] \arrow[ddr, bend right, "\varphi_A"'] \arrow[drr, bend left, "\varphi_B"] & & \\
+& A \oplus B \arrow[d, "p_A"] \arrow[r, "p_B"'] & B \\
+& A &
+</script>
+          The unique homomorphism $\Phi : C \to A \oplus B$ is denoted $\varphi_A \times \varphi_B$, called the <b class="vocab">product</b> of $\varphi_A$ and $\varphi_B$.</li>
+          <li>For any abelian group $C$ and homomorphisms $\psi_A : A \to C$ and $\psi_B : B \to C$, there exists a unique homomorphism $\Psi : A \oplus B \to C$ such that $\Psi \circ i_A = \psi_A$ and $\Psi \circ i_B = \psi_B$.
+<script type="text/tikzcd">
+& B \arrow[d, "i_B"'] \arrow[ddr, bend left, "\psi_B"] & \\
+A \arrow[r, "i_A"] \arrow[drr, bend right, "\psi_A"'] & A \oplus B \arrow[dr, dashed, "\exists!\Psi" description] & \\
+& & C
+</script>
+          The unique homomorphism $\Psi : A \oplus B \to C$ is denoted $\psi_A \amalg \psi_B$, called the <b class="vocab">coproduct</b> of $\psi_A$ and $\psi_B$.</li>
+        </ol>
+      </div>
+
+      <h3><span class="n">3.2</span>Quotients</h3>
+      <div data-env="definition" data-title="Translates">
+        <p>Let $(A, +_A)$ be an abelian group, and let $B \subseteq A$ be a subgroup. A <b class="vocab">translate</b> of $B$ by an element $a \in A$ is the subset
+        \[ a +_A B = \set{\,a +_A b \mid b \in B\,}. \]
+        Notice that for any $b \in B$, $(a +_A b) +_A B = a +_A B$.
+        The set of all translates of $B$ is denoted $A/B$.</p>
+      </div>
+      <div data-env="definition" data-title="Quotient">
+        <p>The set of all translates $A/B$ can be made into an abelian group, called the <b class="vocab">quotient of $A$ by $B$</b>, or <b class="vocab">$A$ mod $B$</b>, by defining the addition operation between two translates $a_1 +_A B$ and $a_2 +_A B$ to be
+        \[ (a_1 +_A B) +_{A/B} (a_2 +_A B) = (a_1 +_A a_2) +_A B. \]</p>
+      </div>
+      <div data-env="exercise">
+        <p>Check that the above definition actually does make $A/B$ into an abelian group.</p>
+      </div>
+      <div data-env="definition" data-title="Quotient homomorphism">
+        <p>Given a quotient $A/B$, there is always a <b class="vocab">quotient homomorphism</b> $q_{A/B} : A \to A/B, q(a) = a +_A B$. Notice that this is always surjective.</p>
+      </div>
+      <div data-env="exercise" data-title="Universal property of quotients">
+        <p>Let $A$ be an abelian group and $B \subseteq A$ a subgroup. Prove that for any abelian group $C$ and homomorphism $\varphi : A \to C$ such that $B \subseteq \ker\varphi$, there exists a unique homomorphism $\ol\varphi : A/B \to C$ such that $\ol\varphi \circ q_{A/B} = \varphi$. The homomorphism $\ol\varphi$ is often called the <b class="vocab">induced</b> homomorphism on the quotient $A/B$.</p>
+<script type="text/tikzcd">
+A \arrow[r, "q_{A/B}"] \arrow[dr, "\varphi"'] & A/B \arrow[d, dashed, "\exists!\ol\varphi"] \\
+& C
+</script>
+      </div>
+      <div data-env="definition" data-title="Cokernel">
+        <p>Let $\varphi : A \to B$ be a homomorphism of abelian groups. The <b class="vocab">cokernel</b> of $\varphi$ is the quotient $\coker\varphi = B/{\im\varphi}$.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section data-section="4" id="s4">
+      <h2><span class="n">§4</span>Vector spaces</h2>
+
+      <div data-env="definition" data-title="Vector space">
+        <p>Let $F$ be a field. An <b class="vocab">$F$-vector space</b> $(V, \rho)$ is an abelian group $V$ equipped with an algebra homomorphism $\rho: F \to \End(V)$. Often, we refer to the whole vector space simply as $V$, and we say that an $F$-vector space is <b class="vocab">over $F$</b>.</p>
+      </div>
+      <div data-env="notation" data-title="Scalar multiplication">
+        <p>For brevity, $\rho(a)(v)$ for $a \in F$ and $v \in V$ is typically denoted $av$, with $\rho$ left implicit.
+        This operation is called <b class="vocab">scalar multiplication</b>,
+        because one typically calls $F$ the <b class="vocab">field of scalars</b>.</p>
+      </div>
+      <div data-env="notation" data-title="Additive notation">
+        <p>Note that because $V$ is an abelian group, we will use $0_V$ to denote its identity element, and use additive notation. So a typical equation involving elements of $V$ and $F$ might look like $ax + by = 0$, where $a, b \in F$ and $x, y \in V$.</p>
+      </div>
+      <div data-env="definition" data-title="Linear transformation">
+        <p>Let $V$ and $W$ be $F$-vector spaces. A <b class="vocab">linear transformation</b> (or simply, linear map) from $(V, \rho_V)$ to $(W, \rho_W)$ is an abelian group homomorphism $f:V\to W$ such that for all $a\in F$,
+        \[ f\circ\rho_V(a)=\rho_W(a)\circ f. \]</p>
+      </div>
+      <div data-env="remark" data-title="Commutative diagrams">
+        <p>A category theorist would say that this means that the following diagram commutes for all $a \in F$.</p>
+<script type="text/tikzcd">
+V \arrow[d, "\rho_V(a)"'] \arrow[r, "f"] & W \arrow[d, "\rho_W(a)"] \\
+V \arrow[r, "f"'] & W
+</script>
+        <p>This is a visual way to show that applying $f$ and then $\rho_W(a)$ is the same as applying $\rho_V(a)$ and then $f$.</p>
+      </div>
+      <div data-env="definition" data-title="Isomorphism">
+        <p>A linear transformation between vector spaces is an <b class="vocab">isomorphism</b> if it is an isomorphism of abelian groups.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove that the inverse of an isomorphism of vector spaces is also a linear transformation.</p>
+      </div>
+      <div data-env="definition" data-title="Vector subspace">
+        <p>A <b class="vocab">subspace</b> of a vector space $(V, \rho_V)$ over $F$ is a subgroup of $V$ which is closed under application of $\rho_V(a)$ for all $a \in F$.</p>
+      </div>
+
+      <h3><span class="n">4.1</span>Exercises</h3>
+      <ol class="exercises">
+        <li><ol>
+          <li>Show that $F$ can be given the structure of a vector space over itself.</li>
+          <li>Show that $F^{\oplus n}$ can be given the structure of a vector space over $F$.</li>
+        </ol></li>
+        <li><ol>
+          <li>Let $U, W \subseteq V$ be subspaces. Show that $U \cap W$ is a subspace of $V$.</li>
+          <li>Let $U_1, U_2, \dots, U_n \subseteq V$ be subspaces. Show that $U_1 \cap U_2 \cap \dots \cap U_n$ is a subspace of $V$.</li>
+          <li>Let $\UU$ be a collection of subspaces of $V$. Show that $\bigcap_{U \in \UU} U$ is a subspace of $V$.</li>
+        </ol></li>
+        <li><ol>
+          <li>Let $U, W \subseteq V$ be subspaces. Show that $U + W \coloneq \set {\, u + w \mid u \in U, w \in W\,}$ is a subspace of $V$.</li>
+          <li>Let $U_1, U_2, \dots, U_n \subseteq V$ be subspaces. Show that $U_1 + U_2 + \dots + U_n \coloneq \set {\, u_1 + u_2 + \dots + u_n \mid u_i \in U_i \,}$ is a subspace of $V$.</li>
+          <li>Let $U_1, U_2, \dots, U_n \subseteq V$ be subspaces. Let $\UU$ be the collection of all subspaces of $V$ which contain $\bigcup_{i = 1}^n U_i$. Show that $U_1 + U_2 + \dots + U_n = \bigcap_{U \in \UU} U$.</li>
+        </ol></li>
+        <li><ol>
+          <li>Let $U, W \subseteq V$ be subspaces. Show that if $U \cup W$ is a subspace then either $U \subseteq W$ or $W \subseteq U$.</li>
+          <li>Let $U_1, U_2, \dots, U_n \subseteq V$ be subspaces. Assume that the field of scalars $F$ has more than $n$ elements. Show that $\bigcup_{i = 1}^n U_i$ is a subspace of $V$ if and only if $\bigcup_{i = 1}^n U_i = U_j$ for some $1 \le j \le n$.</li>
+        </ol></li>
+        <li>Let $f:V\to W$ be a linear transformation.
+          <ol>
+            <li>Show that the kernel of $f$ is a subspace of $V$.</li>
+            <li>Show that the image of $f$ is a subspace of $W$.</li>
+          </ol>
+        </li>
+        <li>Let $f : V \to W$ be a linear transformation.
+          <ol>
+            <li>Show that $\ker f = 0$ if and only if $f$ is injective.</li>
+            <li>Show that $\coker f = 0$ if and only if $f$ is surjective.</li>
+          </ol>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ============================================================ -->
+    <section data-section="5" id="s5">
+      <h2><span class="n">§5</span>Dimension and bases</h2>
+
+      <h3><span class="n">5.1</span>Bases using flags</h3>
+      <div data-env="definition" data-title="Flag">
+        <p>Let $V$ be a vector space. A <b class="vocab">flag</b> of $V$ is a sequence of subspaces $V_0, V_1, \dots, V_n \subseteq V$ such that
+        \[ 0 = V_0 \subsetneq V_1 \subsetneq \dots \subsetneq V_n = V. \]
+        The integer $n$ is called the <b class="vocab">length</b> of the flag.
+        Notice that the indices start from $0$.</p>
+      </div>
+      <div data-env="definition" data-title="Dimension">
+        <p>The <b class="vocab">dimension</b> of a vector space $V$ is the maximum length of a flag of $V$, if it exists; or is said to be infinite otherwise.
+        This is denoted by $\dim V$, or $\dim_F V$ to emphasize the field.</p>
+        <p>When the dimension of $V$ is finite, we say that $V$ is <b class="vocab">finite-dimensional</b>. Otherwise, we say it is <b class="vocab">infinite-dimensional</b>, and we write $\dim V = \infty$.</p>
+      </div>
+      <div data-env="definition" data-title="Linear independence">
+        <p>A sequence of elements $v_1, v_2, \dots, v_n \in V$ is <b class="vocab">linearly independent</b> if there exists a flag $V_0, V_1, \dots, V_n \subseteq V$ with $v_i \in V_i \setminus V_{i - 1}$ for all $i = 1, \dots, n$. Otherwise, we say that $v_1, v_2, \dots, v_n$ are <b class="vocab">linearly dependent</b>.</p>
+      </div>
+      <div data-env="definition" data-title="Basis">
+        <p>A <b class="vocab">basis</b> of $V$ is a linearly independent sequence $v_1, v_2, \dots, v_n \in V$ such that $n = \dim V$.</p>
+      </div>
+      <div data-env="definition" data-title="Span">
+        <p>Let $v_1, v_2, \dots, v_n \in V$ be a sequence of elements.
+        Their <b class="vocab">span</b>, denoted $\spn\set{v_1, v_2, \dots, v_n}$,
+        is the smallest subspace of $V$ that contains the subset $\set {v_1, v_2, \dots, v_n}$. The span of $v \in V$ may be denoted $Fv$.</p>
+        <p>Given a subspace $W \subseteq V$, the elements $v_1, v_2, \dots, v_n$ are said to <b class="vocab">span $W$</b>, or be <b class="vocab">spanning $W$</b>, if their span equals $W$. If $W = V$, one may simply say that they span, or are spanning.</p>
+      </div>
+      <div data-env="remark">
+        <p>Here, a subspace $U \subseteq V$ is said to be smaller than another subspace $W \subseteq V$ if $U \subsetneq W$.</p>
+      </div>
+
+      <h3><span class="n">5.2</span>Exercises</h3>
+      <ol class="exercises">
+        <li>Let $\Phi : V \to W$ be an isomorphism of vector spaces. Prove that $\dim V = \dim W$.</li>
+        <li>Let $v_1, v_2, \dots, v_n \in V$.
+          <ol>
+            <li>Let $\UU$ be the collection of all subspaces of $V$ which contain the subset $\set {v_1, v_2, \dots, v_n}$. Prove that $\spn\set{v_1, v_2, \dots, v_n} = \bigcap_{U \in \UU} U$.</li>
+            <li>Show that $\spn\set {v_1, \dots, v_n} = \set {\, a_1 v_1 + a_2 v_2 + \dots + a_n v_n \mid a_1, a_2, \dots, a_n \in F\,}$. An expression of the form $a_1 v_1 + a_2 v_2 + \dots + a_n v_n$ is called a <b class="vocab">linear combination</b> of $v_1, v_2, \dots, v_n$.</li>
+          </ol>
+        </li>
+        <li>Let $V_0, V_1, \dots, V_n \subseteq V$ be a flag of $V$ such that $n = \dim V$.
+          <ol>
+            <li>Let $v \in V$ and $v \ne 0$. Show that there exists an integer $i$ such that $v \in V_i \setminus V_{i - 1}$.</li>
+            <li>Let $w \in V_i \setminus V_{i - 1}$ for some $1 \le i \le n$. Show that for any $v \in V_i$, there exists $u \in V_{i - 1}$ and $a \in F$ such that $v = u + aw$.</li>
+            <li>Show further that the $u \in V_{i - 1}$ and $a \in F$ are unique.</li>
+          </ol>
+        </li>
+        <li>Let $V_0, V_1, \dots, V_n \subseteq V$ be a flag of $V$. Suppose it satisfies the following property:
+          <ul>
+            <li>For any $1 \le i \le n$, after fixing a choice of $w \in V_i \setminus V_{i - 1}$, if $v \in V_i$ then there exists $u \in V_{i - 1}$ and $a \in F$ such that $v = u + aw$.</li>
+          </ul>
+          Prove that $n = \dim V$.
+        </li>
+        <li>Let $V_0, V_1, \dots, V_n \subseteq V$ be a flag of $V$ such that $n = \dim V$. Show that $\dim V_i = i$ for all $i = 0, \dots, n$.</li>
+        <li>Let $V$ be a finite-dimensional vector space with $n = \dim V$.
+          <ol>
+            <li>Let $V_0, V_1, \dots, V_k \subseteq V$ be a flag of $V$. Show this flag can be extended to a flag $W_0, W_1, \dots, W_n \subseteq V$ in the following sense: for each $V_i$, there exists a $W_j$ such that $V_i = W_j$.</li>
+            <li>Let $v_1, v_2, \dots, v_k \in V$ be linearly independent. Show $k \le n$ and there exist $v_{k + 1}, v_{k + 2}, \dots, v_n \in V$ such that $v_1, v_2, \dots, v_n$ is a basis of $V$.</li>
+          </ol>
+        </li>
+        <li><ol>
+          <li>Let $v_1, v_2, \dots, v_n \in V$ be linearly independent. Show that $\dim \spn \set {v_1, v_2, \dots, v_k} = k$ for all $k = 1, \dots, n$.</li>
+          <li>Let $v_1, v_2, \dots, v_n \in V$ such that $\dim \spn \set {v_1, v_2, \dots, v_k} = k$ for all $k = 1, \dots, n$. Show that $v_1, v_2, \dots, v_n$ are linearly independent.</li>
+          <li>Let $v_1, v_2, \dots, v_n \in V$ be linearly independent. Show that $v_{i_1}, v_{i_2}, \dots, v_{i_k}$ is linearly independent for any subset $\set {i_1, i_2, \dots, i_k} \subseteq \set {1, 2, \dots, n}$.</li>
+          <li>Let $v_1, v_2, \dots, v_n \in V$ be linearly independent. Show that linear independence does not depend on the ordering, that is, for any permutation $i_1, i_2, \dots, i_n$ of the numbers $1$ to $n$, the sequence $v_{i_1}, v_{i_2}, \dots, v_{i_n}$ is still linearly independent.</li>
+        </ol></li>
+        <li>Let $v_1, v_2, \dots, v_n \in V$ be a basis. Show that $v_1, v_2, \dots, v_n$ span $V$.</li>
+        <li>Let $v_1, v_2, \dots, v_n \in V$ span $V$, and assume that $n = \dim V$. Produce a flag of $V$ to show that $v_1, v_2, \dots, v_n$ are linearly independent.</li>
+        <li>Let $v_1, v_2, \dots, v_n \in V$ be a basis.
+          <ol>
+            <li>Show that if $a_1, a_2, \dots, a_n \in F$ are chosen such that
+              \[ a_1 v_1 + a_2 v_2 + \dots + a_n v_n = 0, \]
+              then $a_1 = a_2 = \dots = a_n = 0$.</li>
+            <li>Show that for every $v \in V$, there exists a unique sequence of elements $a_1, a_2, \dots, a_n \in F$ such that
+              \[ v = a_1 v_1 + a_2 v_2 + \dots + a_n v_n. \]</li>
+          </ol>
+        </li>
+        <li>Show that $F^{\oplus n}$ as a vector space over $F$ has dimension $n$.</li>
+        <li>Let $W \subseteq V$ be a subspace. Prove that $\dim W \le \dim V$.</li>
+        <li>Let $V$ and $W$ be vector spaces of finite dimension.
+          <ol>
+            <li>Show that there exists an injective linear transformation $f : V \to W$ if and only if $\dim V \le \dim W$.</li>
+            <li>Show that there exists a surjective linear transformation $f : V \to W$ if and only if $\dim V \ge \dim W$.</li>
+            <li>Show that there exists an isomorphism $f : V \to W$ if and only if $\dim V = \dim W$.</li>
+          </ol>
+        </li>
+      </ol>
+
+      <h3><span class="n">5.3</span>Bases and coordinates</h3>
+      <div data-env="definition" data-title="Standard basis">
+        <p>Consider the vector space $(F^{\oplus n}, \rho)$ over $F$ with the field action $\rho(a)(x_1, x_2, \dots, x_n) = (ax_1, ax_2, \dots, ax_n)$. The <b class="vocab">standard basis</b> of $F^{\oplus n}$ is the sequence $e_1, e_2, \dots, e_n$, where $e_i = (0, \dots, 0, 1, 0, \dots, 0)$ is the element whose coordinates are all $0$ except for a single $1$ in the $i$th slot.</p>
+      </div>
+      <div data-env="definition" data-title="Coordinate">
+        <p>The <b class="vocab">$i$th coordinate map</b> of $F^{\oplus n}$ is the linear transformation $e_i^\dual : F^{\oplus n} \to F$ defined by $e_i^\dual(x_1, x_2, \dots, x_n) = x_i$. Therefore,
+        \[ e_i^\dual(e_j) = \begin{dcases} 1 &amp; \text{if } i = j, \\ 0 &amp; \text{if } i \ne j. \end{dcases} \]</p>
+      </div>
+      <div data-env="definition" data-title="Linear map associated to a sequence of vectors">
+        <p>Let $V$ be a vector space and $v_1, v_2, \dots, v_n \in V$. We define $\Phi_{(v_1, v_2, \dots, v_n)} : F^{\oplus n} \to V$ to be the linear map given by $(x_1, x_2, \dots, x_n) \mapsto x_1v_1 + x_2v_2 + \dots + x_n v_n$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Let $v_1, v_2, \dots, v_n \in V$, and let $\Phi_{(v_1, v_2, \dots, v_n)} : F^{\oplus n} \to V$ be the linear map defined above.</p>
+        <ol>
+          <li>Prove that $\Phi_{(v_1, v_2, \dots, v_n)}$ is injective if and only if $v_1, v_2, \dots, v_n$ is linearly independent.</li>
+          <li>Prove that $\Phi_{(v_1, v_2, \dots, v_n)}$ is surjective if and only if $v_1, v_2, \dots, v_n$ spans $V$.</li>
+          <li>Prove that $\Phi_{(v_1, v_2, \dots, v_n)}$ is an isomorphism if and only if $v_1, v_2, \dots, v_n$ is a basis of $V$.</li>
+        </ol>
+      </div>
+      <div data-env="definition" data-title="Coordinate vector">
+        <p>Let $B = (v_1, v_2, \dots, v_n)$ be a basis of $V$, and let $\Phi_{(v_1, v_2, \dots, v_n)} : F^{\oplus n} \to V$ be the resulting isomorphism. The <b class="vocab">coordinate vector</b> of an element $v \in V$ with respect to the basis $B$ is the element of $F^{\oplus n}$ denoted $[v]_B \coloneq \Phi_{(v_1, v_2, \dots, v_n)}^{-1}(v)$.</p>
+      </div>
+      <div data-env="definition" data-title="Coordinate">
+        <p>The <b class="vocab">$i$th coordinate map</b> with respect to $B$ is the composition $v_i^\dual \coloneq e_i^\dual \circ \Phi_{(v_1, v_2, \dots, v_n)}^{-1} : V \to F$. The <b class="vocab">$i$th coordinate</b> of an element $v \in V$ with respect to $B$ is $v_i^\dual(v)$. Therefore,
+        \[ v_i^\dual(v_j) = \begin{dcases} 1 &amp; \text{if } i = j, \\ 0 &amp; \text{if } i \ne j. \end{dcases} \]</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section data-section="6" id="s6">
+      <h2><span class="n">§6</span>New vector spaces from old</h2>
+
+      <div data-env="definition" data-title="Direct sum">
+        <p>Let $V=(V, \rho_V)$ and $W=(W, \rho_W)$ be vector spaces.
+        The <b class="vocab">(external) direct sum</b> of $V$ and $W$, denoted $V \oplus W$, is the abelian group $V \oplus W$ equipped with a field action $\rho(a)(v,w) = (\rho_V(a)(v), \rho_W(a)(w))$.</p>
+      </div>
+      <div data-env="definition" data-title="Internal direct sum">
+        <p>Let $V$ be a vector space and $W_1, W_2, \dots, W_n \subseteq V$ be subspaces. There is a linear transformation
+        \[ \Phi : W_1 \oplus W_2 \oplus \dots \oplus W_n \to W_1 + W_2 + \dots + W_n, \quad \Phi(w_1, w_2, \dots, w_n) = w_1 + w_2 + \dots + w_n. \]
+        The subspaces $W_1, W_2, \dots, W_n$ are said to be in <b class="vocab">internal direct sum</b> if $\Phi$ is an isomorphism, and we write $W_1 \oplus W_2 \oplus \dots \oplus W_n$ for the subspace $W_1 + W_2 + \dots + W_n$ of $V$.</p>
+      </div>
+      <div data-env="remark">
+        <p>Technically, we have now defined $W_1 \oplus W_2 \oplus \dots \oplus W_n$ to mean two different things. But because there is an obvious isomorphism between the external and internal direct sums, no confusion shall arise.</p>
+      </div>
+      <div data-env="definition" data-title="Quotient">
+        <p>Let $V = (V, \rho_V)$ be a vector space and $W \subseteq V$ a subspace.
+        The <b class="vocab">quotient</b> of $V$ by $W$, denoted $V/W$, is the abelian group $V/W$ equipped with a field action $\rho(a)(v + W) = \rho_V(a)(v) + W$.</p>
+      </div>
+      <div data-env="definition" data-title="Homset">
+        <p>Let $V=(V, \rho_V)$ and $W=(W, \rho_W)$ be vector spaces.
+        The <b class="vocab">homset</b> between $V$ and $W$ is the set of all linear transformations $V \to W$, and is denoted $\Hom(V, W)$.
+        This is an abelian group with addition operation $(f + g)(v) = f(v) + g(v)$, and the field action is $(\rho(a)f)(v) = f(\rho_V(a)(v)) = \rho_W(a)f(v)$. We write $\End(V)$ for $\Hom(V, V)$.</p>
+        <p>Given vector spaces $U$, $V$, and $W$, and linear transformations $f : U \to V$ and $g : V \to W$, we define the following <b class="vocab">induced maps on the homsets</b>:</p>
+        <ol>
+          <li>$f^* : \Hom(V, W) \to \Hom(U, W)$, where $f^*(\varphi) = \varphi \circ f$.</li>
+          <li>$g_* : \Hom(U, V) \to \Hom(U, W)$, where $g_*(\varphi) = g \circ \varphi$.</li>
+        </ol>
+      </div>
+      <div data-env="exercise">
+        <p>Prove that $f^*$ and $g_*$ are linear transformations.</p>
+      </div>
+      <div data-env="definition" data-title="Dual space">
+        <p>Let $V$ be a vector space over the field $F$.
+        The <b class="vocab">dual</b> of $V$ is the homset $\Hom(V, F)$, denoted $V^\dual$.</p>
+        <p>Given vector spaces $V$ and $W$, and a linear transformation $f : V \to W$, we define its <b class="vocab">dual</b> to be the linear transformation $f^\dual : W^\dual \to V^\dual, f^\dual(\varphi) = \varphi \circ f$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove that $f^\dual$ is a linear transformation.</p>
+      </div>
+      <div data-env="definition" data-title="Tensor product">
+        <p>Let $V$ and $W$ be finite-dimensional vector spaces. The <b class="vocab">tensor product</b> of $V$ and $W$, denoted $V \otimes W$, is the homset $\Hom(V^\dual, W)$. For two elements $v \in V$ and $w \in W$, we write $v \otimes w \in V \otimes W$ to mean the element defined by $(v \otimes w)(\varphi) = \varphi(v)w$.</p>
+        <p>Given vector spaces $U$, $V$, and $W$, and linear transformations $f : U \to V$ and $g : V \to W$, we define the following <b class="vocab">induced maps on the tensor products</b>:</p>
+        <ol>
+          <li>$f \otimes W : U \otimes W \to V \otimes W$, where $(f \otimes W)(\varphi) = \varphi \circ f^\dual$.</li>
+          <li>$U \otimes g : U \otimes V \to U \otimes W$, where $(U \otimes g)(\varphi) = g \circ \varphi$.</li>
+        </ol>
+        <p>More generally, given linear transformations $f_i : V_i \to W_i$, $i = 1, 2$, we define $f_1 \otimes f_2 : V_1 \otimes V_2 \to W_1 \otimes W_2$, where $(f_1 \otimes f_2)(\varphi) = f_2 \circ \varphi \circ f_1^\dual$. So $f \otimes W = f \otimes \id_W$ and $U \otimes g = \id_U \otimes g$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove that $f_1 \otimes f_2$ is a linear transformation.</p>
+      </div>
+      <div data-env="definition" data-title="Filtration quotients">
+        <p>Let $V_0, V_1, \dots, V_n \subseteq V$ be a flag. The <b class="vocab">$i$th filtration quotient</b> of the flag is the quotient $V_i/V_{i - 1}$ for $i = 1, \dots, n$. The $0$th filtration quotient is conventionally taken to be $V_0 = 0$.</p>
+      </div>
+      <div data-env="definition" data-title="Associated graded">
+        <p>The <b class="vocab">associated graded</b> of a flag $\FF = (V_0, V_1, \dots, V_n)$ is the direct sum of the filtration quotients $V_1/V_0 \oplus V_2/V_1 \oplus \dots \oplus V_n/V_{n - 1}$, denoted $\gr_\FF V$.</p>
+      </div>
+
+      <h3><span class="n">6.1</span>Exercises</h3>
+      <ol class="exercises">
+        <li>Let $V$ and $W$ be finite-dimensional vector spaces. Prove that $\dim V \oplus W = \dim V + \dim W$.</li>
+        <li>Let $V$ be a finite-dimensional vector space and $W \subseteq V$ a subspace. Prove that $\dim V/W + \dim W = \dim V$.</li>
+        <li>Let $V$ and $W$ be finite-dimensional vector spaces. Prove that $\dim \Hom(V, W) = \dim V \dim W$.</li>
+        <li>Let $V$ be a finite-dimensional vector space. Prove that $\dim V^\dual = \dim V$.</li>
+        <li>Let $V$ and $W$ be finite-dimensional vector spaces. Prove that $\dim V \otimes W = \dim V \dim W$.</li>
+        <li>Let $\FF = (V_0, V_1, \dots, V_n)$ be a flag of $V$.
+          <ol>
+            <li>Prove that $n = \dim V$ if and only if the filtration quotients $V_i/V_{i - 1}$ all have dimension $1$.</li>
+            <li>Prove that there exists an isomorphism $V \to \gr_\FF V$.</li>
+            <li>Prove that $\dim V = \sum_{i = 1}^n \dim V_i/V_{i - 1}$.</li>
+          </ol>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ============================================================ -->
+    <section data-section="7" id="s7">
+      <h2><span class="n">§7</span>Linear transformations</h2>
+      <p>We have seen that the set of all linear transformations $V \to W$ is the vector space $\Hom(V, W)$.</p>
+
+      <h3><span class="n">7.1</span>Isomorphism theorems</h3>
+      <div data-env="theorem" data-title="First isomorphism theorem">
+        <p>Let $f : V \to W$ be a linear transformation. Then the induced linear transformation on the quotient $\ol f : V/{\ker f} \to W$ gives an isomorphism $\ol f : V/{\ker f} \to \im f$.</p>
+      </div>
+      <div data-env="exercise"><p>Prove this theorem.</p></div>
+
+      <div data-env="theorem" data-title="Second isomorphism theorem">
+        <p>Let $V$ be a vector space and $U, W \subseteq V$ be subspaces of $V$. Then</p>
+        <ol>
+          <li>$W$ is a subspace of $U + W$;</li>
+          <li>$U \cap W$ is a subspace of $U$; and</li>
+        </ol>
+        <p>the linear transformation defined $f : (U + W)/W \to U/(U \cap W), f((u + w) + W) = u + U \cap W$ is an isomorphism.</p>
+      </div>
+      <div data-env="exercise"><p>Prove this theorem.</p></div>
+
+      <div data-env="theorem" data-title="Third isomorphism theorem">
+        <p>Let $V$ be a vector space and $U \subseteq W \subseteq V$ be subspaces. Then</p>
+        <ol>
+          <li>$U$ is a subspace of $W$;</li>
+          <li>$W/U$ is a subspace of $V/U$; and</li>
+        </ol>
+        <p>the linear transformation defined $f : V/W \to (V/U)/(W/U), f(v + W) = (v + U) + W/U$ is an isomorphism.</p>
+      </div>
+      <div data-env="exercise"><p>Prove this theorem.</p></div>
+
+      <div data-env="theorem" data-title="Fourth isomorphism theorem">
+        <p>Let $V$ be a vector space and $W \subseteq V$ be a subspace.</p>
+        <ol>
+          <li>Let $\VV$ denote the set of all subspaces of $V$ containing $W$.</li>
+          <li>Let $\WW$ denote the set of all subspaces of $V/W$.</li>
+        </ol>
+        <p>Then there is a bijection $\Phi : \VV \to \WW, \Phi(U) = U/W$ such that if $U_1 \subseteq U_2$ then $\Phi(U_1) \subseteq \Phi(U_2)$.</p>
+      </div>
+      <div data-env="exercise"><p>Prove this theorem.</p></div>
+
+      <h3><span class="n">7.2</span>Exercises</h3>
+      <ol class="exercises">
+        <li>Let $f : V \to W$ be a linear transformation, where $V$ is finite-dimensional. Prove that $\dim V = \dim\ker f + \dim\im f$.</li>
+      </ol>
+
+      <h3><span class="n">7.3</span>Exact sequences</h3>
+      <p>Let $V_0, V_1, \dots, V_n$ be a sequence of vector spaces and $f_i : V_i \to V_{i + 1}$ a sequence of linear transformations. This may be illustrated in a diagram as follows:
+      \[ V_0 \xto{f_0} V_1 \xto{f_1} \cdots \xto{f_{n - 1}} V_n. \]</p>
+      <div data-env="definition" data-title="Exactness">
+        <p>The sequence is said to be <b class="vocab">exact</b> at $V_i$, $1 \le i \le n - 1$, if $\ker f_i = \im f_{i - 1}$. The sequence is said to be <b class="vocab">exact</b> if it is exact at $V_i$ for all $1 \le i \le n - 1$.</p>
+      </div>
+      <div data-env="definition" data-title="Short exact sequence">
+        <p>A short exact sequence is an exact sequence of $5$ vector spaces
+        \[ 0 \to U \xto{f} V \xto{g} W \to 0. \]
+        The maps $f$ and $g$ may be omitted if no confusion may arise.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove that the sequence $0 \to U \xto f V \xto g W \to 0$ is short exact if and only if</p>
+        <ol>
+          <li>$f : U \to V$ is injective.</li>
+          <li>$g : V \to W$ is surjective.</li>
+          <li>$\ker g = \im f$.</li>
+        </ol>
+      </div>
+
+      <h3><span class="n">7.4</span>Exercises</h3>
+      <ol class="exercises">
+        <li>Let $V$ and $W$ be vector spaces. Prove that there is a short exact sequence
+          \[ 0 \to V \to V \oplus W \to W \to 0 \]
+          by first defining the relevant maps $V \to V \oplus W$ and $V \oplus W \to W$.</li>
+        <li>Let $V$ be a vector space and $W \subseteq V$ be a subspace. Prove that there is a short exact sequence
+          \[ 0 \to W \to V \to V/W \to 0 \]
+          by first defining the relevant maps $W \to V$ and $V \to V/W$.</li>
+        <li>Let the vector spaces $U$, $V$, and $W$ sit in a short exact sequence
+          \[ 0 \to U \xto{f} V \xto{g} W \to 0. \]
+          <ol>
+            <li>Prove that there exists an isomorphism $V \to U \oplus W$.</li>
+            <li>Let $X$ be a vector space. Prove that
+              \[ 0 \to \Hom(W, X) \xto{g^*} \Hom(V, X) \xto{f^*} \Hom(U, X) \to 0 \]
+              is a short exact sequence.</li>
+            <li>Prove that
+              \[ 0 \to \Hom(X, U) \xto{f_*} \Hom(X, V) \xto{g_*} \Hom(X, W) \to 0 \]
+              is a short exact sequence.</li>
+            <li>Prove that
+              \[ 0 \to W^\dual \xto{g^\dual} V^\dual \xto{f^\dual} U^\dual \to 0 \]
+              is a short exact sequence.</li>
+            <li>Prove that
+              \[ 0 \to U \otimes X \xto{f \otimes X} V \otimes X \xto{g \otimes X} W \otimes X \to 0 \]
+              is a short exact sequence.</li>
+            <li>Prove that
+              \[ 0 \to X \otimes U \xto{X \otimes f} X \otimes V \xto{X \otimes g} X \otimes W \to 0 \]
+              is a short exact sequence.</li>
+          </ol>
+        </li>
+        <li><ol>
+          <li>Let $B = (v_1, v_2, \dots, v_n)$ be a sequence of vectors in $V$. Prove that the sequence
+            \[ F^{\oplus n} \xto{\Phi_B} V \to 0 \]
+            is exact if and only if $B$ spans $V$.</li>
+          <li>Prove that $V$ is finite-dimensional if and only if there exists an exact sequence
+            \[ F^{\oplus n} \to V \to 0. \]</li>
+          <li>Let $v_1, v_2, \dots, v_n \in V$ span $V$. Prove that there exists a subsequence $v_{i_1}, v_{i_2}, \dots, v_{i_m}$, where $1 \le i_1 &lt; i_2 &lt; \dots &lt; i_m \le n$, which is a basis of $V$.</li>
+        </ol></li>
+        <li>Let $f : V \to W$ be a linear transformation. Prove that the sequence
+          \[ 0 \to \ker f \to V \xto{f} W \to \coker f \to 0 \]
+          is exact by first defining the relevant maps $\ker f \to V$ and $W \to \coker f$.</li>
+        <li>Let $V_0, V_1, \dots, V_n$ be finite-dimensional vector spaces which sit in an exact sequence
+          \[ 0 \to V_0 \to V_1 \to \cdots \to V_n \to 0. \]
+          Prove that $\sum_{i = 0}^n (-1)^i \dim V_i = 0$.</li>
+      </ol>
+
+      <h3><span class="n">7.5</span>Adjunction</h3>
+      <div data-env="definition" data-title="Set of functions">
+        <p>Let $X$ and $Y$ be sets. We write $Y^X$ for the set of functions $X \to Y$.</p>
+      </div>
+      <div data-env="exercise">
+        <p><span class="difficulty stars" title="difficulty 1">★</span>Suppose $X$ has $n$ elements and $Y$ has $m$ elements. Prove that $Y^X$ has $m^n$ elements.</p>
+      </div>
+      <div data-env="theorem" data-title="Free-forgetful adjunction">
+        <p>Let $V$ and $W$ be vector spaces, with $V$ finite-dimensional.</p>
+        <ol>
+          <li>Let $v_1, v_2, \dots, v_n \in V$ be a basis of $V$.</li>
+          <li>Let $w_1, w_2, \dots, w_n \in W$ be any sequence of elements of $W$.</li>
+        </ol>
+        <p>Let $f : \set {v_1, v_2, \dots, v_n} \to W$ be the function $f(v_i) = w_i$ for each $1 \le i \le n$. There exists a unique linear transformation $\wt f : V \to W$ extending $f$ to $V$. Furthermore, the function $\Phi : W^{\set {v_1, v_2, \dots, v_n}} \to \Hom(V, W) , \Phi(f) = \wt f$ is a bijection.</p>
+      </div>
+      <div data-env="exercise"><p>Prove this theorem.</p></div>
+
+      <h3><span class="n">7.6</span>Coordinates</h3>
+      <div data-env="definition" data-title="Standard basis">
+        <p>Consider the homset $\Hom(F^{\oplus n}, F^{\oplus m})$. For each $(i, j)$ with $1 \le i \le n$ and $1 \le j \le m$, we define the linear transformation $e_j e_i^\dual : F^{\oplus n} \to F^{\oplus m}, (e_j e_i^\dual)(v) = e_j e_i^\dual(v)$. The <b class="vocab">standard basis</b> of $\Hom(F^{\oplus n}, F^{\oplus m})$ is the sequence $e_1 e_1^\dual, e_2 e_1^\dual, \dots, e_m e_n^\dual$.</p>
+      </div>
+      <div data-env="definition" data-title="Coordinate">
+        <p>The <b class="vocab">$(i, j)$th coordinate map</b> of $\Hom(F^{\oplus n}, F^{\oplus m})$ is the linear transformation $(e_j e_i^\dual)^\dual : \Hom(F^{\oplus n}, F^{\oplus m}) \to F$. Therefore,
+        \[ (e_j e_i^\dual)^\dual(e_{j'} e_{i'}^\dual) = \begin{dcases} 1 &amp; \text{if } (i, j) = (i', j') \\ 0 &amp; \text{if } (i, j) \ne (i', j'). \end{dcases} \]</p>
+      </div>
+      <div data-env="definition" data-title="Coordinate matrix">
+        <p>Let $V$ and $W$ be finite-dimensional vector spaces. Let $B = (v_1, v_2, \dots, v_n)$ be a basis of $V$ and $C = (w_1, w_2, \dots, w_m)$ be a basis of $W$. Hence, we get an isomorphism $\Phi_{B, C} \coloneq \Phi_{C*} \circ (\Phi_B^*)^{-1} : \Hom(F^{\oplus n}, F^{\oplus m}) \to \Hom(V, W)$. The <b class="vocab">coordinate matrix</b> of a linear transformation $f : V \to W$ with respect to the bases $B$ and $C$ is the element of $\Hom(F^{\oplus n}, F^{\oplus m})$ denoted by $[f]_{C \from B} \coloneq \Phi_{B, C}^{-1}(f)$.</p>
+      </div>
+      <div data-env="definition" data-title="Coordinate">
+        <p>For each $(i, j)$ with $1 \le i \le n$ and $1 \le j \le m$, we define the linear transformation $w_j v_i^\dual : V \to W, (w_j v_i^\dual)(v) = w_j v_i^\dual(v)$. We call the linear transformation $(w_j v_i^\dual)^\dual : \Hom(V, W) \to F$ the <b class="vocab">$(i, j)$th coordinate map</b> of $\Hom(V, W)$ with respect to $B$ and $C$. The <b class="vocab">$(i, j)$th coordinate</b> of a linear transformation $f \in \Hom(V, W)$ with respect to $B$ and $C$ is $(w_j v_i^\dual)^\dual(f)$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove that $(w_j v_i^\dual)^\dual = (e_j e_i^\dual)^\dual \circ \Phi_{B, C}^{-1}$.</p>
+      </div>
+      <div data-env="theorem" data-title="Matrix multiplication">
+        <p>Let $f : U \to V$ and $g : V \to W$ be linear transformations. Let $B = (u_i)_{1 \le i \le n}$, $C = (v_i)_{1 \le i \le p}$, and $D = (w_i)_{1 \le i \le m}$ be bases of $U$, $V$, and $W$ respectively. Then
+        \[ (w_ju_i^\dual)^\dual(g \circ f) = \sum_{k = 1}^p (v_ku_i^\dual)^\dual(f) (w_jv_k^\dual)^\dual(g). \]</p>
+      </div>
+      <div data-env="exercise"><p>Prove this theorem.</p></div>
+      <div data-env="theorem" data-title="Matrix-vector multiplication">
+        <p>Let $f : V \to W$ be a linear transformation. Let $B = (v_i)_{1 \le i \le n}$ and $C = (w_i)_{1 \le i \le m}$ be bases of $V$ and $W$ respectively. Let $v \in V$. Then
+        \[ w_j^\dual(f(v)) = \sum_{i = 1}^n (w_jv_i^\dual)^\dual(f) v_i^\dual(v). \]</p>
+      </div>
+      <div data-env="exercise"><p>Prove this theorem.</p></div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section data-section="8" id="s8">
+      <h2><span class="n">§8</span>Endomorphisms</h2>
+
+      <div data-env="definition" data-title="Trace">
+        <p>Let $V$ be a finite-dimensional vector space and $B = (v_1, v_2, \dots, v_n)$ be a basis of $V$. For an element $f = \sum_{i, j = 1}^n a_{i, j} v_jv_i^\dual \in \End(V)$, its <b class="vocab">trace</b> is the element of $F$ given by $\tr(f) = \sum_{i, j = 1}^n a_{i, j} v_i^\dual(v_j)$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove the following properties about the trace:</p>
+        <ol>
+          <li>$\tr : \Hom(V, V) \to F$ is a linear transformation.</li>
+          <li>For $f : V \to W$ and $g : W \to V$ linear transformations of finite-dimensional $V$ and $W$, $\tr(f \circ g) = \tr(g \circ f)$.</li>
+          <li>$\tr(f) = \tr([f]_{B \from B})$.</li>
+        </ol>
+      </div>
+
+      <p>Recall that $\End(V)$ is an algebra as well as a vector space.</p>
+      <ol>
+        <li>Addition of endomorphisms is defined $(f + g)(v) = f(v) + g(v)$.</li>
+        <li>The additive identity of $\End(V)$ is the zero transformation $0_{\End(V)} : V \to V, 0_{\End(V)}(v) = 0_V$.</li>
+        <li>Multiplication of endomorphisms is defined $(f * g)(v) = f(g(v))$.</li>
+        <li>The multiplicative identity of $\End(V)$ is the identity transformation $1_{\End(V)} = \id_V : V \to V$.</li>
+      </ol>
+      <div data-env="definition" data-title="Evaluation homomorphism">
+        <p>Let $V$ be a vector space over $F$. The <b class="vocab">evaluation homomorphism</b> at $f \in \End(V)$ is the homomorphism
+        \[ \ev_f : F[x] \to \End(V), \quad \ev_f(a_0 + a_1x + \dots + a_nx^n) = a_0 \id_V + a_1 f + \dots + a_n f^n. \]
+        For a polynomial $p(x) \in F[x]$, we write $p(f) \coloneq \ev_f(p(x))$.</p>
+      </div>
+
+      <div data-env="theorem" data-title="Minimal polynomials exist">
+        <p>Let $V$ be a finite-dimensional vector space over $F$, and $f : V \to V$ be an endomorphism. Then there exists a nonzero polynomial $p(x) \in F[x]$ such that $p(f) = 0$.</p>
+      </div>
+      <div data-env="proof">
+        <p>Let $n = \dim V$. The vector space $\End(V)$ has dimension $n^2$, so the sequence $\id_V, f, f^2, f^3, \dots, f^{n^2}$ is linearly dependent. Therefore, there exists a nonzero $p(x) \in F[x]$ with $\deg p(x) \le n^2$ such that $p(f) = 0$.</p>
+      </div>
+      <div data-env="definition" data-title="Minimal polynomial">
+        <p>For an endomorphism $f : V \to V$ of a finite-dimensional vector space $V$, the <b class="vocab">minimal polynomial</b> of $f$ is the monic polynomial $p(x) \in F[x]$ of least degree such that $p(f) = 0$. We denote the minimal polynomial by $\irr(f, F)$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Let $p(x) \in F[x]$ be a polynomial such that $p(f) = 0$. Prove that $\irr(f, F) \mid p(x)$.</p>
+      </div>
+
+      <div data-env="definition" data-title="Invariant subspace">
+        <p>Let $f : V \to V$ be an endomorphism. An <b class="vocab">$f$-invariant subspace</b> of $V$ is a subspace $W \subseteq V$ such that $f$ restricts to an endomorphism $f\rvert_W : W \to W$. One may omit the endomorphism and simply say <b class="vocab">invariant subspace</b> if no confusion may arise.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove that the above definition amounts to saying that if $w \in W$ then $f(w) \in W$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Let $\ol f : V/W \to V/W$ denote the induced endomorphism on the quotient. Prove that $\lcm\set{\irr(f\rvert_W, F), \irr(\ol f, F)}$ divides $\irr(f, F)$, and that $\irr(f, F)$ divides $\irr(f\rvert_W, F)\,\irr(\ol f, F)$.</p>
+      </div>
+
+      <div data-env="definition" data-title="Primary component">
+        <p>Let $f : V \to V$ be an endomorphism of a finite-dimensional vector space $V$. Let $p(x) \mid \irr(f, F)$ be an irreducible factor. The <b class="vocab">$p(x)$-primary component</b> of $V$ with respect to $f$ is the subspace $\bigcup_{n \in \N} \ker(p(f)^n)$. For any irreducible $p(x) \in F[x]$, we define $V_p(f) \coloneq \bigcup_{n \in \N} \ker(p(f)^n)$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Let $p(x) \in F[x]$ be an irreducible polynomial.</p>
+        <ol>
+          <li>Check that $V_p(f)$ actually is a subspace of $V$.</li>
+          <li>Prove that $V_p(f) \ne 0$ if and only if $p(x) \mid \irr(f, F)$.</li>
+          <li>Prove that $\ker(p(f)^n)$ is an $f$-invariant subspace for all $n \in \N$.</li>
+        </ol>
+      </div>
+      <div data-env="definition" data-title="Cyclic subspace">
+        <p>Let $f : V \to V$ be an endomorphism. An <b class="vocab">$f$-cyclic subspace</b> of $V$ is a subspace spanned by the infinite sequence $v, f(v), f^2(v), \dots$ for some $v \in V$. This $f$-cyclic subspace is denoted $F[f]v$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove that $f$-cyclic subspaces are $f$-invariant.</p>
+      </div>
+
+      <div data-env="theorem" data-title="Primary decomposition" id="thm:primary">
+        <p>Let $f : V \to V$ be an endomorphism of a finite-dimensional vector space $V$. Let
+        \[ \irr(f, F) = p_1(x)^{e_1} p_2(x)^{e_2} \dots p_n(x)^{e_n}, \quad p_i(x) \in F[x], e_i \in \N \]
+        be a factorization of $\irr(f, F)$ into irreducible factors. Then:</p>
+        <ol>
+          <li>$V_{p_i}(f) = \ker(p_i(f)^{e_i}) \supsetneq \ker(p_i(f)^{e_i - 1})$.</li>
+          <li>$V = V_{p_1}(f) \oplus V_{p_2}(f) \oplus \dots \oplus V_{p_n}(f)$ as an internal direct sum of $f$-invariant subspaces.</li>
+          <li>There exist $v_{i,1}, v_{i,2}, \dots, v_{i,r_i} \in V_{p_i}(f)$ such that $V_{p_i}(f) = F[f]v_{i,1} \oplus F[f]v_{i,2} \oplus \dots \oplus F[f]v_{i, r_i}$.</li>
+          <li>If $e_{i, j}$ is the smallest positive integer such that $p_i(f)^{e_{i, j}}(v_{i, j}) = 0$, then $F[f]v_{i, j} = \spn\set {\, f^a p_i(f)^b(v_{i,j}) \mid 0 \le a &lt; \deg p_i(x), 0 \le b &lt; e_{i, j} \,}$, and $e_i = \max \set {e_{i,1}, e_{i,2}, \dots, e_{i, r_i}}$.</li>
+          <li>For each $1 \le i \le n$, the multiset $\set {e_{i,1}, e_{i,2}, \dots, e_{i, r_i}}$ is uniquely determined by $f$.</li>
+        </ol>
+      </div>
+      <div data-env="proof">
+        <ol>
+          <li>There exist polynomials $a(x), b(x) \in F[x]$ such that
+            \[ a(x) \irr(f, F) + b(x) p_i(x)^{e_i + 1} = p_i(x)^{e_i}. \]
+            Letting $v \in \ker(p_i(f)^{e_i + 1})$,
+            \[ 0 = (a(f) \irr(f, F)(f) + b(f) p_i(f)^{e_i + 1})(v) = p_i(f)^{e_i}(v). \]
+            So $v \in \ker(p_i(f)^{e_i})$. However, since $g \coloneq p_i(f)^{e_i - 1} \prod_{j \ne i} p_j(f)^{e_j} \ne 0$, there exists $v \in V$ such that $g(v) \ne 0$, but clearly $(p_i(f) g)(v) = 0$. So $\ker(p_i(f)^{e_i - 1}) \ne \ker(p_i(f)^{e_i})$.</li>
+          <li>For each $1 \le i \le n$, let $q_i(x) = \irr(f, F)/p_i(x)^{e_i}$. There exist polynomials $a_i(x), b_i(x) \in F[x]$ such that
+            \[ a_i(x) p_i(x)^{e_i} + b_i(x) q_i(x) = 1. \]
+            Define the endomorphisms $P_i = b_i(f) q_i(f) : V \to V$. They satisfy:
+            <ol>
+              <li>If $v \in V_{p_i}(f)$ then $v = a_i(f)p_i(f)^{e_i}(v) + P_i(v) = P_i(v)$.</li>
+              <li>$P_i^2 = b_i(f) q_i(f) (1 - a_i(f) p_i(f)^{e_i}) = P_i$.</li>
+              <li>For $i \ne j$, $P_iP_j = b_i(f) q_i(f) b_j(f) q_j(f) = 0$.</li>
+              <li>For each $1 \le i \le n$, $\sum_{j = 1}^n b_j(x) q_j(x) - 1 = -a_i(x) p_i(x)^{e_i} + \sum_{j \ne i} b_j(x) q_j(x)$ is divisible by $p_i(x)^{e_i}$. Therefore $\sum_{j = 1}^n b_j(x) q_j(x) - 1$ is divisible by $\irr(f, F)$, and $\sum_{j = 1}^n P_j = \id_V$.</li>
+            </ol>
+            From the above, we conclude that $\im P_i = V_{p_i}(f)$ and $\ker P_i = \bigoplus_{j \ne i} V_{p_j}(f)$. Now $V = V_{p_1}(f) + V_{p_2}(f) + \dots + V_{p_n}(f)$ because if $v \in V$ then
+            \[ v = \id_V(v) = P_1(v) + P_2(v) + \dots + P_n(v). \]
+            The sum is direct because if $v = v_1 + v_2 + \dots + v_n = 0$ for $v_i \in V_{p_i}(f)$, then $P_i(v) = v_i = 0$.</li>
+          <li><p>We may assume that $V = V_p(f)$, $p(x) = p_1(x)$, $e = e_1$. We induct on $e$. We must have $e &gt; 0$, so our base case is when $\irr(f, F) = p(x)$. For this, we also induct on $\dim V$.</p>
+            <p>When $\dim V = 0$, there is nothing to do, so assume that $\dim V &gt; 0$. Let $d = \deg p(x)$. Then there exists $v_1 \in V$ such that the sequence $v_1, f(v_1), \dots, f^{d - 1}(v_1)$ is linearly independent. Let $W_1 = F[f]v_1$, and consider the induced map $\ol f : V/W_1 \to V/W_1$ on the quotient. Because $\dim V/W_1 &lt; \dim V$, the induction hypothesis applies so that $V/W_1 = F[\ol f]\ol v_2 \oplus F[\ol f]\ol v_3 \oplus \dots \oplus F[\ol f]\ol v_r$. Indeed, each $\ol v_i \in V/W_1$ may be chosen so that $\ol v_i, \ol f(\ol v_i), \dots, \ol f{}^{d - 1}(\ol v_i)$ is linearly independent. Choosing $v_i \in V$ such that $q_{V/W_1}(v_i) = \ol v_i$, and writing $W_i = F[f]v_i$, we find that
+            \[ q_{V/W_1}\rvert_{W_i} : W_i = \spn\set{v_i, f(v_i), \dots, f^{d - 1}(v_i)} \to \ol W_i \coloneq F[\ol f]\ol v_i = \spn\set{\ol v_i, \ol f(\ol v_i), \dots, \ol f{}^{d - 1}(\ol v_i)} \]
+            is an isomorphism for each $i \ge 2$. So $V = W_1 \oplus W_2 \oplus \dots \oplus W_r$.</p>
+            <p>Now when $e &gt; 1$, we consider the flag
+            \[ 0 \subset \ker(p(f)) \subset \ker(p(f)^2) \subset \dots \subset \ker(p(f)^e) = V. \]
+            Write $V_i = \ker(p(f)^i)$. Notice that $V_{i - 1} = p(f)(V_i)$. So $\ol f : V_e/V_{e - 1} \to V_e/V_{e - 1}$ has minimal polynomial $p(x)$, and the base case applies to yield $V_e/V_{e - 1} = F[\ol f]\ol v_1 \oplus F[\ol f]\ol v_2 \oplus \dots \oplus F[\ol f]\ol v_r$. Again, choose $v_i \in V_e$ such that $q_{V_e/V_{e - 1}}(v_i) = \ol v_i$. Let $W = F[f]v_1 \oplus F[f]v_2 \oplus \dots \oplus F[f]v_r$. We wish to show that $V = W$. It is certainly true from construction that $V = W + p(f)(V)$. But now, notice that we have
+            \[ V = W + p(f)(W + p(f)(V)) = W + p(f)^2(V) = \dots = W + p(f)^e(V). \]
+            However, since $V = \ker(p(f)^e)$, it follows that $V = W$.</p></li>
+          <li>This follows from the previous part, and is left as an exercise for the reader.</li>
+          <li>Indeed, the direct summands $V_{p_i}(f)$ are uniquely determined by $f$. Now considering a single $V_{p_i}(f) = V_p(f)$, $p(x) = p_i(x)$, $e = e_i$, we have seen that the filtration quotients $V_i/V_{i - 1}$ of the flag $V_i = \ker(p(f)^i)$ are each equal to $\bigoplus_{j = 1}^{s_i} F[\ol f]\ol v_{i, j}$ for some $\ol v_{i, j} \in V_i$, $s_i \in \N$, and $\ol f : V_i/V_{i - 1} \to V_i/V_{i - 1}$ the induced map, with
+            \[ F[\ol f]\ol v_{i, j} = \spn\set{\ol v_{i, j}, \ol f(\ol v_{i, j}), \dots, \ol f{}^{d - 1}(\ol v_{i, j})}. \]
+            Therefore, $\dim V_i/V_{i - 1} = ds_i$. The sequence $0 = s_0, s_1, s_2, \dots, s_e$ is increasing, and the number of times each number $1 \le e_{i, j} \le e$ appears in the multiset is precisely $s_{e_{i, j}} - s_{e_{i, j} - 1}$.</li>
+        </ol>
+      </div>
+
+      <div data-env="definition" data-title="Eigenvalue">
+        <p>Let $f : V \to V$ be an endomorphism. An <b class="vocab">eigenvalue</b> of $f$ is an element $\lambda \in F$ such that $f - \lambda \id_V$ is not injective.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Prove the following if $V$ is finite-dimensional:</p>
+        <ol>
+          <li>$\lambda \in F$ is an eigenvalue of $f$ if and only if $\lambda$ is a root of $\irr(f, F)$.</li>
+          <li>Let $n = \dim V$. There are at most $n$ eigenvalues of $f$.</li>
+        </ol>
+      </div>
+      <div data-env="definition" data-title="Eigenspace">
+        <p>Let $f : V \to V$ be an endomorphism and $\lambda \in F$ an eigenvalue of $f$. The <b class="vocab">$\lambda$-eigenspace</b> of $f$ is the subspace $\ker(f - \lambda \id_V)$. For any $\lambda \in F$, we define $E_\lambda(f) \coloneq \ker(f - \lambda \id_V)$.</p>
+        <p>The <b class="vocab">generalized $\lambda$-eigenspace</b> of $f$ is the subspace $\bigcup_{n \in \N} \ker((f - \lambda \id_V)^n)$. For any $\lambda \in F$, we define $V_\lambda(f) \coloneq \bigcup_{n \in \N} \ker((f - \lambda \id_V)^n)$.</p>
+      </div>
+      <div data-env="exercise">
+        <p>Let $\lambda \in F$.</p>
+        <ol>
+          <li>Check that $V_\lambda(f)$ actually is a subspace of $V$.</li>
+          <li>Prove that $V_\lambda(f) \ne 0$ if and only if $\lambda$ is an eigenvalue of $f$.</li>
+          <li>Prove that $\ker((f - \lambda \id_V)^n)$ is an $f$-invariant subspace for all $n \in \N$.</li>
+        </ol>
+      </div>
+
+      <div data-env="theorem" data-title="Jordan decomposition">
+        <p>Let $f : V \to V$ be an endomorphism of a finite-dimensional vector space $V$. Suppose that $\irr(f, F)$ factorizes into linear factors as follows:
+        \[ \irr(f, F) = (x - \lambda_1)^{e_1} (x - \lambda_2)^{e_2} \dots (x - \lambda_n)^{e_n}, \quad \lambda_i \in F, e_i \in \N. \]
+        Then:</p>
+        <ol>
+          <li>$V_{\lambda_i}(f) = \ker((f - \lambda_i \id_V)^{e_i}) \supsetneq \ker((f - \lambda_i \id_V)^{e_i - 1})$.</li>
+          <li>$V = V_{\lambda_1}(f) \oplus V_{\lambda_2}(f) \oplus \dots \oplus V_{\lambda_n}(f)$ as an internal direct sum of $f$-invariant subspaces.</li>
+          <li>There exist $v_{i,1}, v_{i,2}, \dots, v_{i,r_i} \in V_{\lambda_i}(f)$ such that $V_{\lambda_i}(f) = F[f]v_{i,1} \oplus F[f]v_{i,2} \oplus \dots \oplus F[f]v_{i, r_i}$.</li>
+          <li>$F[f]v_{i, j} = \spn\set {v_{i,j}, (f - \lambda_i \id_V)(v_{i, j}), \dots, (f - \lambda_i \id_V)^{e_{i,j} - 1}(v_{i, j})}$, and $e_i = \max \set {e_{i,1}, e_{i,2}, \dots, e_{i, r_i}}$.</li>
+          <li>For each $1 \le i \le n$, the multiset $\set {e_{i,1}, e_{i,2}, \dots, e_{i, r_i}}$ is uniquely determined by $f$.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section data-section="9" id="s9">
+      <h2><span class="n">§9</span>Bilinear forms</h2>
+
+      <div data-env="definition" data-title="Bilinear function">
+        <p>A function $f : U \times V \to W$, where $U$, $V$, and $W$ are vector spaces, is <b class="vocab">bilinear</b> if</p>
+        <ol>
+          <li>for all $u \in U$, the function $f_u : V \to W, f_u(v) = f(u, v)$ is linear; and</li>
+          <li>for all $v \in V$, the function $f^v : U \to W, f^v(u) = f(u, v)$ is linear.</li>
+        </ol>
+      </div>
+      <div data-env="definition" data-title="Bilinear form">
+        <p>A <b class="vocab">bilinear form</b> on $V$, a vector space over $F$, is a bilinear function $f : V \times V \to F$.</p>
+      </div>
+      <div data-env="definition" data-title="Symmetric, alternating, skew">
+        <p>A bilinear form $f : V \times V \to F$ is</p>
+        <ol>
+          <li><b class="vocab">symmetric</b> if $f(u, v) = f(v, u)$ for all $u, v \in V$;</li>
+          <li><b class="vocab">alternating</b> if $f(v, v) = 0$ for all $v \in V$;</li>
+          <li><b class="vocab">skew</b> if $f(u, v) = -f(v, u)$ for all $u, v \in V$.</li>
+        </ol>
+      </div>
+    </section>
+
+    <nav class="post-nav">
+      <a class="btn" href="/blog/dirichlet/">← Dirichlet's Theorem</a>
+      <a class="btn" href="/blog/">all posts →</a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    <span>amog.fun/blog/linear-algebra</span>
+    <span>flags first, bases later</span>
+  </footer>
+</div>
+</body>
+</html>
