@@ -1,3 +1,7 @@
 node_modules/
 .wrangler/
 .DS_Store
+.claude/
+.env
+.env.*
+.dev.vars
