@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fibonacci Nim · amog.fun</title>
+<meta name="description" content="Fibonacci Nim against Amog: take up to twice what your opponent just took.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='32' cy='32' r='16' fill='%23f5cc3b'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/nim/kit.css">
+<script src="/assets/math.js" defer></script>
+<style>
+  .fib-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .fib-top b { font-family: var(--display); font-weight: 400; font-size: 44px; line-height: 1; }
+  .coins { display: flex; flex-wrap: wrap; gap: 7px; }
+  .coin { width: 26px; height: 26px; border-radius: 50%; border: 0; padding: 0; opacity: .3; cursor: default;
+    background: radial-gradient(circle at 34% 30%, #fff6c9, transparent 45%), #f5cc3b; box-shadow: inset 0 -2px 0 #b8901f; }
+  .coin.live { opacity: 1; cursor: pointer; }
+  .coins.on .coin.live:hover, .coins.on .coin.live:hover ~ .coin { opacity: .25; transform: scale(.85); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="nk-head">
+    <div class="sig">fibonacci : ℕ → Zeckendorf</div>
+    <h1>Fibonacci Nim</h1>
+    <p>One pile of coins. The first move may take anything but the whole pile. After that you may take at most twice what your opponent just took. Take the last coin to win. The bright coins are the ones you are allowed to take.</p>
+  </div>
+  <nav class="nk-nav" id="nk-nav"></nav>
+  <div id="nim"></div>
+
+  <section class="theory">
+    <h2>The Fibonacci trick</h2>
+    <p>Write $F_1 = 1, F_2 = 2, F_{k+1} = F_k + F_{k-1}$, so $1, 2, 3, 5, 8, 13, 21, 34, 55, 89, \dots$</p>
+    <p>\begin{theorem}[Zeckendorf, 1972]\label{thm:zeck}Every positive integer is uniquely a sum of non-consecutive Fibonacci numbers.\end{theorem}</p>
+    <p>\begin{theorem}[Whinihan, 1963]With $n$ coins left and a limit of $L$, the player to move loses if and only if the smallest part of the Zeckendorf representation of $n$ is larger than $L$. Otherwise the winning move takes exactly that smallest part.\end{theorem}</p>
+    <p>\begin{corollary}If the pile starts at a Fibonacci number, the first player loses. Try starting Amog on 55.\end{corollary}</p>
+  </section>
+
+  <footer class="footer"><span>amog.fun/nim/fibonacci</span><span>1, 1, 2, 3, 5, 8, Amog</span></footer>
+</div>
+<script src="/nim/kit.js"></script>
+<script>
+(() => {
+  const FIB = [1, 2];
+  while (FIB[FIB.length - 1] < 1e6) FIB.push(FIB[FIB.length - 1] + FIB[FIB.length - 2]);
+  const zeck = n => { const out = []; for (let i = FIB.length - 1; i >= 0 && n > 0; i--) if (FIB[i] <= n) { out.push(FIB[i]); n -= FIB[i]; } return out; };
+  const isP = s => s.n === 0 || zeck(s.n).pop() > s.limit;
+  NimKit.start({
+    id: "fibonacci",
+    options: [{ key: "size", label: "Coins", choices: [["random", "random"], ["50", "50"], ["55", "55 (a trap)"], ["100", "100"]], def: "random" }],
+    create(o) {
+      let n = +o.size;
+      if (o.size === "random") do n = 20 + Math.floor(Math.random() * 60); while (FIB.includes(n));
+      return { n, limit: n - 1, last: 0 };
+    },
+    moves: s => Array.from({ length: Math.min(s.limit, s.n) }, (_, k) => k + 1),
+    apply: (s, k) => ({ n: s.n - k, limit: 2 * k, last: k }),
+    isP,
+    describe: (k, who, s) => `took ${k} (${s.n - k} left)`,
+    render(el, s, ctx) {
+      const max = Math.min(s.limit, s.n);
+      el.innerHTML = `<div class="fib-top"><div><span class="nk-label">coins left</span><br><b>${s.n}</b></div>
+        <div class="nk-label">${s.last ? `last move took ${s.last}, so ` : "first move: "}take 1 – ${max}</div></div>
+        <div class="coins ${ctx.locked ? "" : "on"}">${Array.from({ length: s.n }, (_, j) => {
+          const k = s.n - j, live = k <= max;
+          return `<button class="coin ${live ? "live" : ""} ${live && ctx.isGood(k) ? "good" : ""}" data-k="${k}" ${live ? `aria-label="take ${k}"` : "tabindex=-1"}></button>`;
+        }).join("")}</div>`;
+      el.onclick = e => { const b = e.target.closest(".coin.live"); if (b && !ctx.locked) ctx.play(+b.dataset.k); };
+    },
+    math(s) {
+      if (!s.n) return "";
+      const z = zeck(s.n);
+      return `<p>$${s.n} = ${z.join(" + ")}$</p><p>Smallest part: $${z[z.length - 1]}$. Allowed: $1$ to $${Math.min(s.limit, s.n)}$.</p>`;
+    },
+  });
+})();
+</script>
+</body>
+</html>

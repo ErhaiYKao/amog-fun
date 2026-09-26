@@ -10,6 +10,17 @@
     ]
   },
   {
+    "slug": "nim",
+    "title": "Nim & Friends",
+    "signature": "nim : Games → Heaps",
+    "blurb": "Nim, Fibonacci Nim, Wythoff's queen, Kayles, Staircase Nim and Northcott's game, against an Amog who plays perfectly. Turn on \"show the math\" to see why he wins.",
+    "tags": [
+      "games",
+      "vs AI",
+      "math"
+    ]
+  },
+  {
     "slug": "alchemy",
     "title": "Alchemy",
     "signature": "alchemy : Void → Everything",

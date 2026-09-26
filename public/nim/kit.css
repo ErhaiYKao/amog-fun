@@ -1,0 +1,55 @@
+/* shared styles for the Nim family (amog.fun/nim/*) */
+:root { --you: var(--g1); --amog: var(--g2); }
+.nk-head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+.nk-head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
+.nk-head p { margin: 0 0 18px; color: #d3cfc5; max-width: 62ch; }
+.nk-nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 22px; }
+.nk-nav a { font-family: var(--mono); font-size: 12.5px; color: var(--muted); text-decoration: none; border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 12px; }
+.nk-nav a:hover { color: var(--ink); border-color: var(--muted); }
+.nk-nav a.on { color: var(--bg); background: var(--ink); border-color: var(--ink); }
+
+.nk { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
+.nk-board-wrap { position: relative; min-height: 260px; }
+.nk-board { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; min-height: 260px; }
+.nk-board.locked { cursor: progress; }
+.nk-panel { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 16px; }
+.nk-scores { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nk-score { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--bg-2); }
+.nk-score .who { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.nk-score .who::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.nk-score .n { font-family: var(--display); font-size: 42px; line-height: 1.05; }
+.nk-score.you { --c: var(--you); } .nk-score.amog { --c: var(--amog); }
+.nk-score.active { border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset; }
+.nk-status { min-height: 48px; font-size: 17px; color: #ddd9cf; }
+.nk-controls { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
+.nk-field > span { display: block; font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+.seg { display: flex; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { flex: 1; font-family: var(--mono); font-size: 12.5px; color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 7px 4px; cursor: pointer; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--bg-3); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.nk-hint { font-family: var(--mono); font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; cursor: pointer; border-top: 1px solid var(--line); padding-top: 12px; }
+.nk-math { font-size: 15.5px; color: #d3cfc5; }
+.nk-math:empty { display: none; }
+.nk-math .verdict { font-family: var(--mono); font-size: 12.5px; margin-top: 8px; }
+.nk-math .verdict.p { color: var(--g2); } .nk-math .verdict.n { color: var(--g3); }
+.nk-log { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 12px; color: var(--muted); display: grid; gap: 3px; max-height: 180px; overflow: auto; }
+.nk-log li.you { color: var(--you); } .nk-log li.amog { color: var(--amog); }
+
+.nk-over { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity .25s; }
+.nk-over.show { opacity: 1; pointer-events: auto; }
+.nk-over .card { background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 22px 26px; text-align: center; max-width: 340px; }
+.nk-over h2 { font-family: var(--display); font-weight: 400; font-size: 40px; margin: 0 0 6px; line-height: 1.05; }
+.nk-over p { margin: 0 0 16px; color: var(--muted); }
+
+/* things renderers share */
+.good { box-shadow: 0 0 0 2px var(--g3), 0 0 12px -2px var(--g3) !important; }
+.nk-label { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.theory { max-width: 760px; margin-top: 56px; }
+.theory h2 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0 0 10px; }
+.theory p { color: #d3cfc5; }
+
+@media (max-width: 860px) {
+  .nk { grid-template-columns: 1fr; gap: 18px; }
+  .nk-panel { position: static; }
+  .nk-board { padding: 16px 12px; }
+}

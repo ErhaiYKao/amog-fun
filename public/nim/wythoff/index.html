@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wythoff's Game · amog.fun</title>
+<meta name="description" content="Wythoff's game against Amog: race a queen to the corner. The losing squares follow the golden ratio.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><text x='32' y='46' font-size='40' text-anchor='middle' fill='%23ece8de'>♛</text></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/nim/kit.css">
+<script src="/assets/math.js" defer></script>
+<style>
+  .wy { display: grid; gap: 2px; max-width: 560px; margin: 0 auto; }
+  .sq { aspect-ratio: 1; border: 0; padding: 0; border-radius: 3px; background: var(--bg-3); display: grid; place-items: center; font-size: clamp(12px, 3vw, 24px); color: var(--ink); cursor: default; position: relative; }
+  .sq.dk { background: #14141d; }
+  .sq.reach { background: #4fd6e81f; cursor: pointer; }
+  .sq.reach:hover { background: #4fd6e866; }
+  .sq.cold::after { content: ""; width: 26%; height: 26%; border-radius: 50%; background: var(--g2); opacity: .55; }
+  .sq.corner { box-shadow: inset 0 0 0 2px var(--g3); }
+  .sq.from { box-shadow: inset 0 0 0 2px var(--line-2); }
+  .sq .q { font-size: 1.25em; line-height: 1; filter: drop-shadow(0 0 6px #4fd6e8aa); }
+  .axis { font-family: var(--mono); font-size: 11px; color: var(--faint); text-align: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="nk-head">
+    <div class="sig">wythoff : ℕ² → φ</div>
+    <h1>Wythoff's Game</h1>
+    <p>A queen that only moves left, down, or diagonally down-left, any distance. Whoever moves her into the green corner wins. It is Nim with two heaps where you may also take the same amount from both.</p>
+  </div>
+  <nav class="nk-nav" id="nk-nav"></nav>
+  <div id="nim"></div>
+
+  <section class="theory">
+    <h2>The golden squares</h2>
+    <p>Let $\varphi = \frac{1 + \sqrt 5}{2}$. The squares where the player to move loses (the red dots when you show the math) are exactly</p>
+    <p>$$\bigl(\lfloor k\varphi \rfloor,\ \lfloor k\varphi^2 \rfloor\bigr) \quad\text{and its mirror}, \qquad k = 0, 1, 2, \dots$$</p>
+    <p>\begin{theorem}[Wythoff, 1907]The position $(a, b)$ with $a \le b$ is a loss for the player to move if and only if $a = \lfloor (b - a)\,\varphi \rfloor$.\end{theorem}</p>
+    <p>\begin{theorem}[Beatty, Rayleigh]The sequences $\lfloor k\varphi \rfloor$ and $\lfloor k\varphi^2 \rfloor$ for $k \ge 1$ partition the positive integers, because $\frac{1}{\varphi} + \frac{1}{\varphi^2} = 1$.\end{theorem}</p>
+    <p>That is why each row, column and diagonal holds exactly one losing square, and why every other square can reach one.</p>
+  </section>
+
+  <footer class="footer"><span>amog.fun/nim/wythoff</span><span>the queen is irrational</span></footer>
+</div>
+<script src="/nim/kit.js"></script>
+<script>
+(() => {
+  const PHI = (1 + Math.sqrt(5)) / 2;
+  const cold = (x, y) => { const a = Math.min(x, y), b = Math.max(x, y); return a === Math.floor((b - a) * PHI); };
+  NimKit.start({
+    id: "wythoff",
+    options: [{ key: "size", label: "Board", choices: [["8", "8×8"], ["12", "12×12"], ["16", "16×16"]], def: "12" }],
+    create(o) {
+      const n = +o.size;
+      let x, y;
+      do { x = Math.floor(n / 2) + Math.floor(Math.random() * Math.ceil(n / 2)); y = Math.floor(n / 2) + Math.floor(Math.random() * Math.ceil(n / 2)); } while (cold(x, y));
+      return { n, x, y, from: null };
+    },
+    moves(s) {
+      const out = [];
+      for (let k = 1; k <= s.x; k++) out.push({ x: s.x - k, y: s.y });
+      for (let k = 1; k <= s.y; k++) out.push({ x: s.x, y: s.y - k });
+      for (let k = 1; k <= Math.min(s.x, s.y); k++) out.push({ x: s.x - k, y: s.y - k });
+      return out;
+    },
+    apply: (s, m) => ({ n: s.n, x: m.x, y: m.y, from: { x: s.x, y: s.y } }),
+    isP: s => cold(s.x, s.y),
+    describe: (m, who, s) => `queen ${s.x},${s.y} → ${m.x},${m.y}`,
+    render(el, s, ctx) {
+      const reach = (x, y) => (x < s.x && y === s.y) || (x === s.x && y < s.y) || (s.x - x === s.y - y && x < s.x);
+      let h = `<div class="wy" style="grid-template-columns: repeat(${s.n}, 1fr)">`;
+      for (let y = s.n - 1; y >= 0; y--) for (let x = 0; x < s.n; x++) {
+        const r = !ctx.locked && reach(x, y);
+        const cls = ["sq", (x + y) % 2 ? "" : "dk", r ? "reach" : "", ctx.hint && cold(x, y) ? "cold" : "", x === 0 && y === 0 ? "corner" : "",
+          s.from && s.from.x === x && s.from.y === y ? "from" : "", r && ctx.isGood({ x, y }) ? "good" : ""].join(" ");
+        h += `<button class="${cls}" data-x="${x}" data-y="${y}" ${r ? `aria-label="move to ${x},${y}"` : "tabindex=-1"}>${x === s.x && y === s.y ? '<span class="q">♛</span>' : ""}</button>`;
+      }
+      el.innerHTML = h + `</div><div class="axis">queen at (${s.x}, ${s.y}) · corner at (0, 0)</div>`;
+      el.onclick = e => { const b = e.target.closest(".sq.reach"); if (b && !ctx.locked) ctx.play({ x: +b.dataset.x, y: +b.dataset.y }); };
+    },
+    math(s) {
+      const a = Math.min(s.x, s.y), b = Math.max(s.x, s.y), k = b - a;
+      const pairs = Array.from({ length: 7 }, (_, i) => `(${Math.floor(i * PHI)}, ${Math.floor(i * PHI * PHI)})`).join(", ");
+      return `<p>Losing squares: $${pairs}, \\dots$</p><p>Here $a = ${a}$, $b - a = ${k}$, $\\lfloor ${k}\\varphi \\rfloor = ${Math.floor(k * PHI)}$.</p>`;
+    },
+  });
+})();
+</script>
+</body>
+</html>

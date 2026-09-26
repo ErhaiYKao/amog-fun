@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nim · amog.fun</title>
+<meta name="description" content="Play Nim against Amog, plus Fibonacci Nim, Wythoff's game, Kayles, Staircase Nim and Northcott's game.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='18' cy='44' r='7' fill='%234fd6e8'/><circle cx='34' cy='44' r='7' fill='%234fd6e8'/><circle cx='50' cy='44' r='7' fill='%234fd6e8'/><circle cx='26' cy='26' r='7' fill='%23c8f04a'/><circle cx='42' cy='26' r='7' fill='%23c8f04a'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/nim/kit.css">
+<script src="/assets/math.js" defer></script>
+<style>
+  .heap { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px dashed var(--line); }
+  .heap:last-child { border-bottom: 0; }
+  .heap .nk-label { width: 64px; flex: none; }
+  .heap .nk-label b { display: block; font-family: var(--display); font-weight: 400; font-size: 26px; color: var(--ink); }
+  .stones { display: flex; flex-wrap: wrap; gap: 8px; }
+  .stone { width: 30px; height: 30px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; transition: transform .1s, opacity .1s;
+    background: radial-gradient(circle at 34% 30%, #ffffff90, transparent 42%), var(--c); }
+  .stones.live .stone:hover, .stones.live .stone:hover ~ .stone { opacity: .35; transform: scale(.85); }
+  .stones:not(.live) .stone { cursor: default; }
+  .ghost { width: 30px; height: 30px; border-radius: 50%; border: 1.5px dashed var(--line-2); }
+  .bin { font-family: var(--mono); font-size: 13px; border-collapse: collapse; margin-bottom: 8px; }
+  .bin td { padding: 1px 6px; text-align: right; } .bin tr.sum td { border-top: 1px solid var(--line-2); color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="nk-head">
+    <div class="sig">nim : Heaps → {P, N}</div>
+    <h1>Nim</h1>
+    <p>Take any number of stones from one heap. Whoever takes the last stone wins. Click a stone to take it and everything to its right.</p>
+  </div>
+  <nav class="nk-nav" id="nk-nav"></nav>
+  <div id="nim"></div>
+
+  <section class="theory">
+    <h2>Why Amog always wins</h2>
+    <p>\begin{definition}The <em>nim-sum</em> $a \oplus b$ is binary addition without carrying: XOR, digit by digit.\end{definition}</p>
+    <p>\begin{theorem}[Bouton, 1901]\label{thm:bouton}A Nim position with heaps $h_1, \dots, h_k$ is a loss for the player to move if and only if $h_1 \oplus h_2 \oplus \cdots \oplus h_k = 0$.\end{theorem}</p>
+    <p>\begin{proof}From nim-sum $0$, any move changes exactly one heap, so the nim-sum becomes nonzero. From nim-sum $s \neq 0$, take the highest bit of $s$ and a heap $h$ with that bit set; then $h \oplus s &lt; h$, so shrinking $h$ to $h \oplus s$ is legal and makes the nim-sum $0$. The empty position has nim-sum $0$ and the player to move has already lost.\end{proof}</p>
+    <p>\begin{remark}In <em>misère</em> Nim the last player to move loses. Play exactly as usual until your move would leave only heaps of size 1; then leave an odd number of them instead of an even one.\end{remark}</p>
+    <p>Every other game on these pages is secretly Nim too. By the Sprague–Grundy theorem, any finite impartial game is equivalent to a single Nim heap, whose size is the game's <em>Grundy value</em>.</p>
+  </section>
+
+  <footer class="footer"><span>amog.fun/nim</span><span>a heap of heaps</span></footer>
+</div>
+<script src="/nim/kit.js"></script>
+<script>
+(() => {
+  const COLORS = ["#4fd6e8", "#c8f04a", "#ff5a5f", "#f5cc3b", "#b692f6", "#ff9b54"];
+  const xor = h => h.reduce((a, b) => a ^ b, 0);
+  const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+  const isP = (s, who, opts) => {
+    const h = s.heaps;
+    if (opts.rules === "misere" && h.every(x => x <= 1)) return h.filter(x => x === 1).length % 2 === 1;
+    return xor(h) === 0;
+  };
+  NimKit.start({
+    id: "classic",
+    options: [
+      { key: "heaps", label: "Heaps", choices: [["classic", "3·4·5"], ["random", "random"], ["big", "big"]], def: "classic" },
+      { key: "rules", label: "Rules", choices: [["normal", "normal"], ["misere", "misère"]], def: "normal" },
+    ],
+    misere: o => o.rules === "misere",
+    create(o) {
+      if (o.heaps === "classic") return { heaps: [3, 4, 5] };
+      let h;
+      do h = Array.from({ length: o.heaps === "big" ? 6 : 4 }, () => rnd(1, o.heaps === "big" ? 15 : 9));
+      while (isP({ heaps: h }, 0, o));
+      return { heaps: h };
+    },
+    moves: s => s.heaps.flatMap((h, i) => Array.from({ length: h }, (_, k) => ({ i, k: k + 1 }))),
+    apply: (s, m) => ({ heaps: s.heaps.map((h, i) => (i === m.i ? h - m.k : h)), last: m }),
+    isP,
+    describe: m => `took ${m.k} from heap ${"ABCDEF"[m.i]}`,
+    render(el, s, ctx) {
+      el.innerHTML = s.heaps.map((h, i) => {
+        const stones = Array.from({ length: h }, (_, j) => {
+          const m = { i, k: h - j };
+          return `<button class="stone ${ctx.isGood(m) ? "good" : ""}" style="--c:${COLORS[i]}" data-i="${i}" data-k="${h - j}" aria-label="take ${h - j} from heap ${"ABCDEF"[i]}"></button>`;
+        }).join("");
+        const ghosts = s.last && s.last.i === i ? `<span class="ghost"></span>`.repeat(s.last.k) : "";
+        return `<div class="heap"><div class="nk-label">heap ${"ABCDEF"[i]}<b>${h}</b></div><div class="stones ${ctx.locked ? "" : "live"}">${stones}${ghosts}</div></div>`;
+      }).join("");
+      el.onclick = e => {
+        const b = e.target.closest(".stone");
+        if (b && !ctx.locked) ctx.play({ i: +b.dataset.i, k: +b.dataset.k });
+      };
+    },
+    math(s, who, o) {
+      const h = s.heaps, w = Math.max(1, ...h.map(x => x.toString(2).length));
+      const row = (label, x, cls = "") => `<tr class="${cls}"><td>${label}</td><td>${x}</td><td>${x.toString(2).padStart(w, "0").split("").join(" ")}</td></tr>`;
+      const table = `<table class="bin">${h.map((x, i) => row("ABCDEF"[i], x)).join("")}${row("⊕", xor(h), "sum")}</table>`;
+      const note = o.rules === "misere" && h.every(x => x <= 1) ? "<p>Misère endgame: only heaps of size 1 remain, so what matters is their parity.</p>" : "";
+      return table + `<div>$${h.join(" \\oplus ")} = ${xor(h)}$</div>` + note;
+    },
+  });
+})();
+</script>
+</body>
+</html>

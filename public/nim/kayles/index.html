@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kayles · amog.fun</title>
+<meta name="description" content="Kayles against Amog: bowl down one pin or two neighbours. Whoever knocks down the last pin wins.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><ellipse cx='24' cy='36' rx='7' ry='18' fill='%23ece8de'/><ellipse cx='42' cy='36' rx='7' ry='18' fill='%23ece8de'/><rect x='17' y='24' width='14' height='3' fill='%23ff5a5f'/><rect x='35' y='24' width='14' height='3' fill='%23ff5a5f'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/nim/kit.css">
+<script src="/assets/math.js" defer></script>
+<style>
+  .lane { display: flex; flex-wrap: wrap; align-items: flex-end; row-gap: 22px; padding: 26px 4px 10px; border-radius: 12px; background: linear-gradient(180deg, transparent, #b0885014 70%, #b0885030); }
+  .slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .pin { width: 24px; height: 60px; border: 0; padding: 0; cursor: default; border-radius: 50% 50% 42% 42% / 38% 38% 62% 62%;
+    background: linear-gradient(180deg, transparent 20%, var(--g2) 20% 26%, transparent 26%), radial-gradient(ellipse at 38% 30%, #fff, #e6e1d6 55%, #bdb7ab); transition: transform .35s, opacity .35s; transform-origin: 50% 100%; }
+  .lane.on .pin.up { cursor: pointer; }
+  .lane.on .pin.up:hover { transform: rotate(-12deg); }
+  .pin.down { transform: rotate(84deg) translateX(10px); opacity: .18; }
+  .pin.just { opacity: .35; }
+  .num { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+  .gap { width: 22px; display: flex; justify-content: center; padding-bottom: 22px; }
+  .ball { width: 16px; height: 16px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: radial-gradient(circle at 35% 30%, #9fb6ff, #3a4fb8); opacity: .5; }
+  .ball:hover { opacity: 1; transform: scale(1.15); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="nk-head">
+    <div class="sig">kayles : Pins → Grundy</div>
+    <h1>Kayles</h1>
+    <p>A row of skittles. On your turn, bowl down one pin (click it) or two neighbouring pins at once (click the ball between them). Whoever knocks down the last pin wins.</p>
+  </div>
+  <nav class="nk-nav" id="nk-nav"></nav>
+  <div id="nim"></div>
+
+  <section class="theory">
+    <h2>Pins are secretly heaps</h2>
+    <p>Knocking pins splits the row into separate runs, and each run is its own little game. The Sprague–Grundy theorem says each run of $n$ pins behaves exactly like a Nim heap of size $G(n)$.</p>
+    <p>\begin{definition}$G(0) = 0$ and $G(n) = \operatorname{mex}\{\, G(a) \oplus G(b) : a + b = n - 1 \text{ or } a + b = n - 2 \,\}$, where $\operatorname{mex}$ is the smallest natural number not in the set.\end{definition}</p>
+    <p>\begin{theorem}[Sprague–Grundy]The row is a loss for the player to move exactly when the nim-sum of $G$ over all runs is $0$.\end{theorem}</p>
+    <p>\begin{remark}The values start $0, 1, 2, 3, 1, 4, 3, 2, 1, 4, 2, 6, \dots$ and, from $n = 71$ on, repeat with period $12$ (Guy and Smith, 1956). So Amog never really needs to count past 83.\end{remark}</p>
+  </section>
+
+  <footer class="footer"><span>amog.fun/nim/kayles</span><span>strike</span></footer>
+</div>
+<script src="/nim/kit.js"></script>
+<script>
+(() => {
+  const G = [0];
+  const g = n => {
+    while (G.length <= n) {
+      const m = G.length, seen = new Set();
+      for (let a = 0; a <= m - 1; a++) seen.add(G[a] ^ G[m - 1 - a]);
+      for (let a = 0; a <= m - 2; a++) seen.add(G[a] ^ G[m - 2 - a]);
+      let v = 0; while (seen.has(v)) v++;
+      G.push(v);
+    }
+    return G[n];
+  };
+  const runs = pins => pins.map(p => (p ? 1 : 0)).join("").split("0").filter(Boolean).map(r => r.length);
+  const nimsum = pins => runs(pins).reduce((a, r) => a ^ g(r), 0);
+  NimKit.start({
+    id: "kayles",
+    options: [{ key: "pins", label: "Pins", choices: [["10", "10"], ["15", "15"], ["21", "21"]], def: "15" }],
+    create: o => ({ pins: Array(+o.pins).fill(true), just: [] }),
+    moves: s => s.pins.flatMap((p, i) => (!p ? [] : s.pins[i + 1] ? [{ i, two: false }, { i, two: true }] : [{ i, two: false }])),
+    apply(s, m) {
+      const pins = s.pins.slice();
+      pins[m.i] = false;
+      if (m.two) pins[m.i + 1] = false;
+      return { pins, just: m.two ? [m.i, m.i + 1] : [m.i] };
+    },
+    isP: s => nimsum(s.pins) === 0,
+    describe: m => (m.two ? `bowled pins ${m.i + 1} and ${m.i + 2}` : `bowled pin ${m.i + 1}`),
+    render(el, s, ctx) {
+      let h = `<div class="lane ${ctx.locked ? "" : "on"}">`;
+      s.pins.forEach((up, i) => {
+        const one = { i, two: false }, two = { i, two: true };
+        h += `<div class="slot"><button class="pin ${up ? "up" : "down"} ${s.just.includes(i) ? "just" : ""} ${up && ctx.isGood(one) ? "good" : ""}" data-i="${i}" ${up ? `aria-label="bowl pin ${i + 1}"` : "tabindex=-1"}></button><span class="num">${i + 1}</span></div>`;
+        if (i < s.pins.length - 1) {
+          const pair = up && s.pins[i + 1] && !ctx.locked;
+          h += `<div class="gap">${pair ? `<button class="ball ${ctx.isGood(two) ? "good" : ""}" data-i="${i}" aria-label="bowl pins ${i + 1} and ${i + 2}"></button>` : ""}</div>`;
+        }
+      });
+      el.innerHTML = h + "</div>";
+      el.onclick = e => {
+        if (ctx.locked) return;
+        const b = e.target.closest(".pin.up, .ball");
+        if (b) ctx.play({ i: +b.dataset.i, two: b.classList.contains("ball") });
+      };
+    },
+    math(s) {
+      const r = runs(s.pins);
+      if (!r.length) return "";
+      return `<p>Runs of standing pins: $${r.join(", ")}$</p><p>$${r.map(n => `G(${n})`).join(" \\oplus ")} = ${r.map(g).join(" \\oplus ")} = ${nimsum(s.pins)}$</p>`;
+    },
+  });
+})();
+</script>
+</body>
+</html>
