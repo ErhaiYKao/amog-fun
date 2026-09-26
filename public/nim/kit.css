@@ -53,3 +53,10 @@
   .nk-panel { position: static; }
   .nk-board { padding: 16px 12px; }
 }
+
+/* spoilers: theory sections stay blurred until revealed */
+.spoiler { position: relative; }
+.spoiler-body { transition: filter .3s; }
+.spoiler.hidden .spoiler-body { filter: blur(9px); user-select: none; pointer-events: none; }
+.spoiler-btn { position: absolute; left: 50%; top: 90px; transform: translateX(-50%); z-index: 2; }
+.spoiler:not(.hidden) .spoiler-btn { position: static; transform: none; margin-top: 8px; }

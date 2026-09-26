@@ -30,8 +30,25 @@
     el.innerHTML = VARIANTS.map(([href, name]) => `<a href="${href}" class="${here === href ? "on" : ""}">${name}</a>`).join("");
   }
 
+  // theory sections are spoilers: blur everything under the heading until asked
+  function spoilers() {
+    document.querySelectorAll(".theory").forEach(sec => {
+      const body = document.createElement("div");
+      body.className = "spoiler-body";
+      [...sec.children].filter(el => el.tagName !== "H2").forEach(el => body.appendChild(el));
+      const btn = document.createElement("button");
+      btn.className = "btn spoiler-btn";
+      sec.classList.add("spoiler", "hidden");
+      const sync = () => { btn.textContent = sec.classList.contains("hidden") ? "Show the solution (spoiler)" : "Hide the solution"; };
+      btn.addEventListener("click", () => { sec.classList.toggle("hidden"); sync(); });
+      sync();
+      sec.append(body, btn);
+    });
+  }
+
   function start(cfg) {
     nav();
+    spoilers();
     const root = document.getElementById("nim");
     const K = "amog.nim." + cfg.id;
     const baseOpts = [
