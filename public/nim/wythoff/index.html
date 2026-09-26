@@ -26,7 +26,7 @@
 <div class="wrap">
   <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
   <div class="nk-head">
-    <div class="sig">wythoff : ℕ² → φ</div>
+    <div class="sig">wythoff : ℕ² → (0, 0)</div>
     <h1>Wythoff's Game</h1>
     <p>A queen that only moves left, down, or diagonally down-left, any distance. Whoever moves her into the green corner wins. It is Nim with two heaps where you may also take the same amount from both.</p>
   </div>
@@ -34,7 +34,8 @@
   <div id="nim"></div>
 
   <section class="theory">
-    <h2>The golden squares</h2>
+    <h2>Why Amog always wins</h2>
+    <h3>The golden squares</h3>
     <p>Let $\varphi = \frac{1 + \sqrt 5}{2}$. The squares where the player to move loses (the red dots when you show the math) are exactly</p>
     <p>$$\bigl(\lfloor k\varphi \rfloor,\ \lfloor k\varphi^2 \rfloor\bigr) \quad\text{and its mirror}, \qquad k = 0, 1, 2, \dots$$</p>
     <p>\begin{theorem}[Wythoff, 1907]The position $(a, b)$ with $a \le b$ is a loss for the player to move if and only if $a = \lfloor (b - a)\,\varphi \rfloor$.\end{theorem}</p>
@@ -42,7 +43,7 @@
     <p>That is why each row, column and diagonal holds exactly one losing square, and why every other square can reach one.</p>
   </section>
 
-  <footer class="footer"><span>amog.fun/nim/wythoff</span><span>the queen is irrational</span></footer>
+  <footer class="footer"><span>amog.fun/nim/wythoff</span><span>long live the queen</span></footer>
 </div>
 <script src="/nim/kit.js"></script>
 <script>
@@ -64,6 +65,16 @@
       for (let k = 1; k <= s.y; k++) out.push({ x: s.x, y: s.y - k });
       for (let k = 1; k <= Math.min(s.x, s.y); k++) out.push({ x: s.x - k, y: s.y - k });
       return out;
+    },
+    custom: {
+      placeholder: "e.g. 9 14",
+      help: "queen's column and row, 0–15",
+      parse(t) {
+        const p = NimKit.nums(t);
+        if (!p || p.length !== 2 || p.some(v => v > 15)) return "Give a column and a row from 0 to 15, like 9 14.";
+        const m = Math.max(...p);
+        return { n: m < 8 ? 8 : m < 12 ? 12 : 16, x: p[0], y: p[1], from: null };
+      },
     },
     apply: (s, m) => ({ n: s.n, x: m.x, y: m.y, from: { x: s.x, y: s.y } }),
     isP: s => cold(s.x, s.y),

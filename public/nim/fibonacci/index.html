@@ -23,7 +23,7 @@
 <div class="wrap">
   <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
   <div class="nk-head">
-    <div class="sig">fibonacci : ℕ → Zeckendorf</div>
+    <div class="sig">fibonacci : Pile → Greed</div>
     <h1>Fibonacci Nim</h1>
     <p>One pile of coins. The first move may take anything but the whole pile. After that you may take at most twice what your opponent just took. Take the last coin to win. The bright coins are the ones you are allowed to take.</p>
   </div>
@@ -31,7 +31,8 @@
   <div id="nim"></div>
 
   <section class="theory">
-    <h2>The Fibonacci trick</h2>
+    <h2>Why Amog always wins</h2>
+    <h3>The Fibonacci trick</h3>
     <p>Write $F_1 = 1, F_2 = 2, F_{k+1} = F_k + F_{k-1}$, so $1, 2, 3, 5, 8, 13, 21, 34, 55, 89, \dots$</p>
     <p>\begin{theorem}[Zeckendorf, 1972]\label{thm:zeck}Every positive integer is uniquely a sum of non-consecutive Fibonacci numbers.\end{theorem}</p>
     <p>\begin{theorem}[Whinihan, 1963]With $n$ coins left and a limit of $L$, the player to move loses if and only if the smallest part of the Zeckendorf representation of $n$ is larger than $L$. Otherwise the winning move takes exactly that smallest part.\end{theorem}</p>
@@ -56,6 +57,15 @@
       return { n, limit: n - 1, last: 0 };
     },
     moves: s => Array.from({ length: Math.min(s.limit, s.n) }, (_, k) => k + 1),
+    custom: {
+      placeholder: "e.g. 42",
+      help: "a pile of 2–150 coins",
+      parse(t) {
+        const n = NimKit.nums(t);
+        if (!n || n.length !== 1 || n[0] < 2 || n[0] > 150) return "Give one pile size from 2 to 150.";
+        return { n: n[0], limit: n[0] - 1, last: 0 };
+      },
+    },
     apply: (s, k) => ({ n: s.n - k, limit: 2 * k, last: k }),
     isP,
     describe: (k, who, s) => `took ${k} (${s.n - k} left)`,

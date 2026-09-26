@@ -11,11 +11,12 @@
  *   math(s, who, opts)      -> HTML (LaTeX ok) for the "show the math" panel
  *   misere(opts)            -> true if the last player to move loses (optional)
  *   prefer(move, s, who)    -> true for moves to favour when several are equally good (optional)
+ *   custom: { placeholder, help, parse(text, opts) -> state or error string }  (optional: "custom start" box)
  * })
  */
 (function () {
   "use strict";
-  const VARIANTS = [["/nim/", "Nim"], ["/nim/fibonacci/", "Fibonacci"], ["/nim/wythoff/", "Wythoff"], ["/nim/kayles/", "Kayles"], ["/nim/staircase/", "Staircase"], ["/nim/northcott/", "Northcott"]];
+  const VARIANTS = [["/nim/", "Nim"], ["/nim/fibonacci/", "Fibonacci"], ["/nim/wythoff/", "Wythoff"], ["/nim/kayles/", "Kayles"], ["/nim/staircase/", "Staircase"], ["/nim/northcott/", "Northcott"], ["/nim/subtraction/", "Subtraction"], ["/nim/hackenbush/", "Hackenbush"]];
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
@@ -67,6 +68,7 @@
         <div class="nk-scores"><div class="nk-score you" id="nk-you"><div class="who">you</div><div class="n" id="nk-wy">0</div></div><div class="nk-score amog" id="nk-amog"><div class="who">amog</div><div class="n" id="nk-wa">0</div></div></div>
         <div class="nk-status" id="nk-status"></div>
         <div class="nk-controls">${allOpts.map(o => `<div class="nk-field"><span>${esc(o.label)}</span><div class="seg" data-key="${o.key}">${o.choices.map(([v, l]) => `<button data-v="${esc(v)}">${esc(l)}</button>`).join("")}</div></div>`).join("")}
+          ${cfg.custom ? `<div class="nk-field"><span>Custom start</span><form class="nk-custom" id="nk-cform"><input id="nk-cin" spellcheck="false" autocomplete="off" placeholder="${esc(cfg.custom.placeholder)}"><button class="btn">Play</button></form><div class="nk-chelp" id="nk-chelp">${esc(cfg.custom.help || "")}</div></div>` : ""}
           <button class="btn" id="nk-new">New game</button></div>
         <label class="nk-hint"><input type="checkbox" id="nk-hintbox"> show the math</label>
         <div class="nk-math" id="nk-math"></div>
@@ -85,23 +87,40 @@
         opts[key] = typeof o.def === "number" ? +b.dataset.v : b.dataset.v;
         store.set(K + ".opts", opts);
         sync();
-        newGame();
+        newGame(key === "first" || key === "level" ? lastCustom : null); // a custom start survives who-goes-first changes
       });
       sync();
     });
     $("nk-hintbox").checked = hint;
     $("nk-hintbox").addEventListener("change", e => { hint = e.target.checked; store.set(K + ".hint", hint); render(); });
-    $("nk-new").addEventListener("click", newGame);
-    $("nk-again").addEventListener("click", newGame);
+    $("nk-new").addEventListener("click", () => newGame());
+    $("nk-again").addEventListener("click", () => newGame(lastCustom));
+    let lastCustom = null;
+    if (cfg.custom) {
+      $("nk-cin").value = store.get(K + ".custom", "");
+      $("nk-cform").addEventListener("submit", e => {
+        e.preventDefault();
+        const text = $("nk-cin").value.trim(), help = $("nk-chelp");
+        let r = text ? cfg.custom.parse(text, opts) : "Type a position first.";
+        if (typeof r !== "string" && !cfg.moves(r, opts.first === "you" ? 0 : 1).length) r = "Nothing to play from there.";
+        help.classList.toggle("err", typeof r === "string");
+        help.textContent = typeof r === "string" ? r : cfg.custom.help || "";
+        if (typeof r === "string") return;
+        store.set(K + ".custom", text);
+        lastCustom = r;
+        newGame(r);
+      });
+    }
 
     const misere = () => !!(cfg.misere && cfg.misere(opts));
     const good = m => cfg.isP(cfg.apply(s, m, 0), 1, opts);
     const favour = (ms, who) => { if (!cfg.prefer) return ms; const p = ms.filter(m => cfg.prefer(m, s, who)); return p.length ? p : ms; };
 
-    function newGame() {
+    function newGame(from) {
       clearTimeout(timer);
       gid++;
-      s = cfg.create(opts);
+      if (!from) lastCustom = null;
+      s = from ? structuredClone(from) : cfg.create(opts);
       turn = opts.first === "you" ? 0 : 1;
       over = false;
       log = [];
@@ -174,5 +193,8 @@
     newGame();
   }
 
-  window.NimKit = { start, pick };
+  // "1 3, 5 7" -> [1, 3, 5, 7]; null if there's anything but numbers and separators
+  const nums = t => (/^[\d\s,;·.\-]*$/.test(t) ? (t.match(/\d+/g) || []).map(Number) : null);
+
+  window.NimKit = { start, pick, nums };
 })();

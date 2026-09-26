@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subtraction Game · amog.fun</title>
+<meta name="description" content="The subtraction game against Amog: one pile, and you may only take certain amounts.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><rect x='14' y='29' width='36' height='7' rx='3' fill='%23b692f6'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/nim/kit.css">
+<script src="/assets/math.js" defer></script>
+<style>
+  .sub-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .sub-top b { font-family: var(--display); font-weight: 400; font-size: 44px; line-height: 1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
+  .chip { width: 24px; height: 24px; border-radius: 6px; background: linear-gradient(180deg, #cdb6fb, #8d6ad8); box-shadow: inset 0 -2px 0 #5f449c; }
+  .chip.gone { background: transparent; box-shadow: none; border: 1.5px dashed var(--line-2); }
+  .takes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .takes .btn { font-family: var(--mono); min-width: 74px; }
+  .takes .btn:disabled { opacity: .3; cursor: default; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="nk-head">
+    <div class="sig">subtraction : Pile → Pile − S</div>
+    <h1>Subtraction Game</h1>
+    <p>One pile. On your turn take an amount from the allowed set $S$ (pick it under "Take"). No more, no less, and nothing in between. Whoever cannot move loses (with 1–3 or 1–5, that means taking the last chip wins).</p>
+  </div>
+  <nav class="nk-nav" id="nk-nav"></nav>
+  <div id="nim"></div>
+
+  <section class="theory">
+    <h2>Why Amog always wins</h2>
+    <h3>Counting in circles</h3>
+    <p>\begin{proposition}\label{prop:mod}If you may take $1, 2, \dots, k$, the player to move loses exactly when the pile is a multiple of $k + 1$.\end{proposition}</p>
+    <p>\begin{proof}From a multiple of $k+1$, any take of $t$ leaves a remainder $k + 1 - t \in \{1, \dots, k\}$, which the opponent removes on the next move. From anything else, take the remainder mod $k+1$. The pile $0$ is a multiple and the player to move has lost.\end{proof}</p>
+    <p>For a general subtraction set $S$, call $n$ a <em>P-position</em> when no move from $n$ reaches a P-position ($0$ is one). Computing this bottom up always gives an eventually periodic pattern.</p>
+    <p>\begin{example}For $S = \{1, 3, 4\}$ the losing piles are $n \equiv 0, 2 \pmod 7$. For $S = \{2, 5, 6\}$ you cannot take $1$, so a pile of $1$ is already stuck: the losing piles are $n \equiv 0, 1, 4, 8 \pmod{11}$.\end{example}</p>
+    <p>\begin{remark}By Sprague–Grundy each pile has a Grundy value $G(n) = \operatorname{mex}\{G(n - s) : s \in S\}$, and several piles would combine by nim-sum. One pile is enough to beat you.\end{remark}</p>
+  </section>
+
+  <footer class="footer"><span>amog.fun/nim/subtraction</span><span>take it or leave it (you can't leave it)</span></footer>
+</div>
+<script src="/nim/kit.js"></script>
+<script>
+(() => {
+  const SETS = { "3": [1, 2, 3], "5": [1, 2, 3, 4, 5], "134": [1, 3, 4], "256": [2, 5, 6] };
+  const setOf = o => SETS[o.set] || SETS["3"];
+  // P[n] for the current set, built bottom up
+  const lose = (n, S) => { const P = []; for (let i = 0; i <= n; i++) P.push(!S.some(t => t <= i && P[i - t])); return P; };
+  const isP = s => lose(s.n, s.S)[s.n];
+  NimKit.start({
+    id: "subtraction",
+    options: [
+      { key: "set", label: "Take", choices: [["3", "1–3"], ["5", "1–5"], ["134", "{1,3,4}"], ["256", "{2,5,6}"]], def: "3" },
+      { key: "size", label: "Pile", choices: [["random", "random"], ["21", "21"], ["40", "40"]], def: "random" },
+    ],
+    create(o) {
+      const S = setOf(o);
+      if (o.size !== "random") return { n: +o.size, last: 0, S };
+      let n;
+      do n = 15 + Math.floor(Math.random() * 30); while (isP({ n, S }));
+      return { n, last: 0, S };
+    },
+    custom: {
+      placeholder: "e.g. 33",
+      help: "pile of 1–60 chips (uses the Take set above)",
+      parse(t, o) {
+        const n = NimKit.nums(t);
+        if (!n || n.length !== 1 || n[0] < 1 || n[0] > 60) return "Give one pile size from 1 to 60.";
+        return { n: n[0], last: 0, S: setOf(o) };
+      },
+    },
+    moves: s => s.S.filter(t => t <= s.n),
+    apply: (s, t) => ({ ...s, n: s.n - t, last: t }),
+    isP,
+    describe: (t, who, s) => `took ${t} (${s.n - t} left)`,
+    render(el, s, ctx) {
+      el.innerHTML = `<div class="sub-top"><div><span class="nk-label">chips left</span><br><b>${s.n}</b></div>
+        <div class="nk-label">allowed: {${s.S.join(", ")}}</div></div>
+        <div class="chips">${'<span class="chip"></span>'.repeat(s.n)}${'<span class="chip gone"></span>'.repeat(s.last)}</div>
+        <div class="takes">${s.S.map(t => `<button class="btn ${t <= s.n && ctx.isGood(t) ? "good" : ""}" data-t="${t}" ${t > s.n || ctx.locked ? "disabled" : ""}>take ${t}</button>`).join("")}</div>`;
+      el.onclick = e => { const b = e.target.closest("[data-t]"); if (b && !b.disabled && !ctx.locked) ctx.play(+b.dataset.t); };
+    },
+    math(s) {
+      const S = s.S, P = lose(Math.max(s.n, 30), S);
+      const row = P.slice(0, 31).map((p, i) => (p ? `<b style="color:var(--g2)">${i}</b>` : i)).join(" ");
+      return `<p>Losing piles for $S = \\{${S.join(", ")}\\}$ (red):</p><p class="mono" style="font-size:12.5px;line-height:1.7">${row} …</p><p>Pile now: $${s.n}$.</p>`;
+    },
+  });
+})();
+</script>
+</body>
+</html>

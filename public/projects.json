@@ -13,7 +13,7 @@
     "slug": "nim",
     "title": "Nim & Friends",
     "signature": "nim : Games → Heaps",
-    "blurb": "Nim, Fibonacci Nim, Wythoff's queen, Kayles, Staircase Nim and Northcott's game, against an Amog who plays perfectly. Turn on \"show the math\" to see why he wins.",
+    "blurb": "Nim, Fibonacci Nim, Wythoff's queen, Kayles, Staircase Nim, Northcott's game, subtraction games and Blue-Red Hackenbush, against an Amog who plays perfectly. Set up your own starting positions, or turn on \"show the math\" to see why he wins.",
     "tags": [
       "games",
       "vs AI",

@@ -47,6 +47,14 @@
 .theory { max-width: 760px; margin-top: 56px; }
 .theory h2 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0 0 10px; }
 .theory p { color: #d3cfc5; }
+.theory h3 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 0 0 6px; color: var(--ink); }
+.nk-custom { display: flex; gap: 6px; }
+.nk-custom input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; color: var(--ink); background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; }
+.nk-custom input:focus { outline: none; border-color: var(--g1); }
+.nk-custom .btn { padding: 7px 12px; }
+.nk-chelp { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-top: 5px; }
+.nk-chelp:empty { display: none; }
+.nk-chelp.err { color: var(--g2); }
 
 @media (max-width: 860px) {
   .nk { grid-template-columns: 1fr; gap: 18px; }

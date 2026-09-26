@@ -212,10 +212,10 @@
       <div class="best">personal best: <b id="best">0</b></div>
       <div class="rules">
         <ul>
-          <li><b class="m">Moni</b>: +10 × combo. Every 5 bonks in a row bumps the combo.</li>
-          <li><b class="f">Megumin</b>: −25 and an EXPLOSION that stuns you.</li>
-          <li><b class="f">Shiro</b>: −25 and she steals 3 seconds.</li>
-          <li>Whiffing an empty hole resets your combo. So does letting a Moni get away.</li>
+          <li><b class="m">Moni</b>: +10 × combo. Every 5 bonks in a row bumps the combo, up to ×5.</li>
+          <li>Whiffing an empty hole or letting a Moni get away knocks the combo down one step.</li>
+          <li><b class="f">Megumin</b>: −25, halves your combo, and an EXPLOSION that stuns you.</li>
+          <li><b class="f">Shiro</b>: −25, halves your combo, and she steals 3 seconds.</li>
           <li>Golden Moni is worth 5×.</li>
         </ul>
       </div>
@@ -310,12 +310,15 @@
     h.className = 'hole';
     h.innerHTML = '<div class="pit"></div><div class="win"><div class="mole"></div></div>';
     field.appendChild(h);
-    holes.push({ el: h, mole: h.querySelector('.mole'), kind: null, timer: 0, until: 0 });
+    holes.push({ el: h, mole: h.querySelector('.mole'), kind: null, busy: false, until: 0 });
   }
 
   let playing = false, score = 0, combo = 1, streak = 0, bonks = 0, timeLeft = ROUND;
   let lastTick = 0, nextSpawn = 0, stunnedUntil = 0, raf = 0;
   let best = 0;
+  const MAX_COMBO = 5, STREAK_PER_STEP = 5;
+  // mistakes cost combo steps instead of wiping it, so one long streak doesn't decide the whole round
+  const dropCombo = to => { streak = 0; combo = Math.max(1, to); renderHUD(); };
   try { best = +localStorage.getItem('amog.whackamoni.best') || 0; } catch {}
   $('best').textContent = best;
 
@@ -344,7 +347,7 @@
 
   function spawn(now) {
     const d = difficulty();
-    const free = holes.filter(h => !h.kind);
+    const free = holes.filter(h => !h.kind && !h.busy);
     if (!free.length || holes.length - free.length >= d.maxUp) return;
     const h = pick(free);
     const r = Math.random();
@@ -364,10 +367,11 @@
   function hide(h, wasHit) {
     const kind = h.kind;
     h.kind = null;
-    h.el.classList.remove('up');
+    h.busy = false;
+    h.el.classList.remove('up', 'hit');
     h.el.classList.add('down');
     if (!wasHit && (kind === 'moni' || kind === 'golden') && playing) {
-      streak = 0; combo = 1; renderHUD(); say('escape');
+      dropCombo(combo - 1); say('escape');
     }
   }
 
@@ -383,26 +387,28 @@
     if (!playing) return;
     const now = performance.now();
     if (now < stunnedUntil) return;
+    if (h.busy) return; // already bonked, still on its way down
     if (!h.kind) {
-      streak = 0; combo = 1; renderHUD(); say('whiff');
+      dropCombo(combo - 1); say('whiff');
       return;
     }
     const kind = h.kind;
+    h.kind = null; h.busy = true; // it can't escape (or be bonked twice) while the squash plays
     h.el.classList.add('hit');
     if (kind === 'moni' || kind === 'golden') {
       const pts = 10 * combo * (kind === 'golden' ? 5 : 1);
       score += pts; bonks++; streak++;
-      if (streak % 5 === 0) combo = Math.min(combo + 1, 8);
+      if (streak % STREAK_PER_STEP === 0) combo = Math.min(combo + 1, MAX_COMBO);
       popText(h, `+${pts}<small>${kind === 'golden' ? 'GOLDEN MONI' : 'bonk'}</small>`, 'good');
       say('moni');
       sfx.bonk(kind === 'golden');
     } else if (kind === 'megumin') {
-      score = Math.max(0, score - 25); streak = 0; combo = 1;
+      score = Math.max(0, score - 25); dropCombo(Math.floor(combo / 2));
       stunnedUntil = now + 1100;
       explode(e);
       say('megumin');
     } else {
-      score = Math.max(0, score - 25); streak = 0; combo = 1;
+      score = Math.max(0, score - 25); dropCombo(Math.floor(combo / 2));
       timeLeft = Math.max(0, timeLeft - 3);
       blank();
       say('shiro');
@@ -461,7 +467,7 @@
   function start() {
     sfx.init();
     score = 0; combo = 1; streak = 0; bonks = 0; timeLeft = ROUND; stunnedUntil = 0;
-    holes.forEach(h => { h.kind = null; h.el.classList.remove('up', 'hit', 'down'); });
+    holes.forEach(h => { h.kind = null; h.busy = false; h.el.classList.remove('up', 'hit', 'down'); });
     overlay.hidden = true;
     playing = true;
     field.classList.add('playing');
@@ -474,7 +480,7 @@
     playing = false;
     cancelAnimationFrame(raf);
     field.classList.remove('playing');
-    holes.forEach(h => { if (h.kind) hide(h, true); });
+    holes.forEach(h => { if (h.kind || h.busy) hide(h, true); });
     const newBest = score > best;
     if (newBest) { best = score; try { localStorage.setItem('amog.whackamoni.best', best); } catch {} $('best').textContent = best; }
     const verdict =
@@ -509,7 +515,7 @@
 
   // ---------- input ----------
   holes.forEach(h => h.el.addEventListener('pointerdown', e => { e.preventDefault(); swing(e); whack(h, e); }));
-  field.addEventListener('pointerdown', e => { if (e.target === field) { swing(e); if (playing && performance.now() >= stunnedUntil) { streak = 0; combo = 1; renderHUD(); } } });
+  field.addEventListener('pointerdown', e => { if (e.target === field) { swing(e); if (playing && performance.now() >= stunnedUntil) dropCombo(combo - 1); } });
   document.addEventListener('keydown', e => {
     if ((e.key === ' ' || e.key === 'Enter') && !playing && document.activeElement?.id !== 'go') { e.preventDefault(); start(); }
     // numpad-style keys 7 8 9 / 4 5 6 / 1 2 3

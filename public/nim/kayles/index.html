@@ -28,7 +28,7 @@
 <div class="wrap">
   <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
   <div class="nk-head">
-    <div class="sig">kayles : Pins → Grundy</div>
+    <div class="sig">kayles : Pins → Gutter</div>
     <h1>Kayles</h1>
     <p>A row of skittles. On your turn, bowl down one pin (click it) or two neighbouring pins at once (click the ball between them). Whoever knocks down the last pin wins.</p>
   </div>
@@ -36,7 +36,8 @@
   <div id="nim"></div>
 
   <section class="theory">
-    <h2>Pins are secretly heaps</h2>
+    <h2>Why Amog always wins</h2>
+    <h3>Pins are secretly heaps</h3>
     <p>Knocking pins splits the row into separate runs, and each run is its own little game. The Sprague–Grundy theorem says each run of $n$ pins behaves exactly like a Nim heap of size $G(n)$.</p>
     <p>\begin{definition}$G(0) = 0$ and $G(n) = \operatorname{mex}\{\, G(a) \oplus G(b) : a + b = n - 1 \text{ or } a + b = n - 2 \,\}$, where $\operatorname{mex}$ is the smallest natural number not in the set.\end{definition}</p>
     <p>\begin{theorem}[Sprague–Grundy]The row is a loss for the player to move exactly when the nim-sum of $G$ over all runs is $0$.\end{theorem}</p>
@@ -66,6 +67,17 @@
     options: [{ key: "pins", label: "Pins", choices: [["10", "10"], ["15", "15"], ["21", "21"]], def: "15" }],
     create: o => ({ pins: Array(+o.pins).fill(true), just: [] }),
     moves: s => s.pins.flatMap((p, i) => (!p ? [] : s.pins[i + 1] ? [{ i, two: false }, { i, two: true }] : [{ i, two: false }])),
+    custom: {
+      placeholder: "e.g. 3 5 7",
+      help: "lengths of the runs of pins (≤ 30 pins total)",
+      parse(t) {
+        const r = NimKit.nums(t);
+        if (!r || !r.length || r.some(x => x < 1)) return "Give the run lengths, like 3 5 7.";
+        const pins = r.flatMap((n, i) => (i ? [false] : []).concat(Array(n).fill(true)));
+        if (pins.length > 30) return "That's too many pins for the lane (max 30 including gaps).";
+        return { pins, just: [] };
+      },
+    },
     apply(s, m) {
       const pins = s.pins.slice();
       pins[m.i] = false;

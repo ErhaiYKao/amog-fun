@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nim · amog.fun</title>
-<meta name="description" content="Play Nim against Amog, plus Fibonacci Nim, Wythoff's game, Kayles, Staircase Nim and Northcott's game.">
+<meta name="description" content="Play Nim against Amog, plus Fibonacci Nim, Wythoff's game, Kayles, Staircase Nim, Northcott's game, subtraction games and Blue-Red Hackenbush.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='18' cy='44' r='7' fill='%234fd6e8'/><circle cx='34' cy='44' r='7' fill='%234fd6e8'/><circle cx='50' cy='44' r='7' fill='%234fd6e8'/><circle cx='26' cy='26' r='7' fill='%23c8f04a'/><circle cx='42' cy='26' r='7' fill='%23c8f04a'/></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
 <link rel="stylesheet" href="/nim/kit.css">
@@ -60,12 +60,23 @@
   NimKit.start({
     id: "classic",
     options: [
-      { key: "heaps", label: "Heaps", choices: [["classic", "3·4·5"], ["random", "random"], ["big", "big"]], def: "classic" },
+      { key: "heaps", label: "Heaps", choices: [["classic", "3·4·5"], ["1357", "1·3·5·7"], ["random", "random"], ["big", "big"]], def: "classic" },
       { key: "rules", label: "Rules", choices: [["normal", "normal"], ["misere", "misère"]], def: "normal" },
     ],
     misere: o => o.rules === "misere",
+    custom: {
+      placeholder: "e.g. 2 5 8 11",
+      help: "1–6 heaps of 1–20 stones",
+      parse(t) {
+        const h = NimKit.nums(t);
+        if (!h || !h.length || h.length > 6) return "Give 1 to 6 heap sizes, like 2 5 8 11.";
+        if (h.some(x => x < 1 || x > 20)) return "Each heap needs 1 to 20 stones.";
+        return { heaps: h };
+      },
+    },
     create(o) {
       if (o.heaps === "classic") return { heaps: [3, 4, 5] };
+      if (o.heaps === "1357") return { heaps: [1, 3, 5, 7] };
       let h;
       do h = Array.from({ length: o.heaps === "big" ? 6 : 4 }, () => rnd(1, o.heaps === "big" ? 15 : 9));
       while (isP({ heaps: h }, 0, o));

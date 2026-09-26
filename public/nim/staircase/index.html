@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Staircase Nim · amog.fun</title>
-<meta name="description" content="Staircase Nim against Amog: push coins down the stairs. Only the odd steps matter.">
+<meta name="description" content="Staircase Nim against Amog: push coins down the stairs to the ground.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><path d='M10 54h14v-12h14v-12h14v-12' fill='none' stroke='%23ece8de' stroke-width='5'/><circle cx='45' cy='22' r='5' fill='%23f5cc3b'/></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
 <link rel="stylesheet" href="/nim/kit.css">
@@ -27,7 +27,7 @@
 <div class="wrap">
   <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
   <div class="nk-head">
-    <div class="sig">staircase : Steps → Odd</div>
+    <div class="sig">staircase : Steps → Ground</div>
     <h1>Staircase Nim</h1>
     <p>Coins sit on a staircase. On your turn, slide one or more coins from the top of any step down to the step just below. Coins on the ground are out of play. Whoever makes the last move wins. Click a coin to push it and every coin above it down one step.</p>
   </div>
@@ -35,7 +35,8 @@
   <div id="nim"></div>
 
   <section class="theory">
-    <h2>Only the odd steps count</h2>
+    <h2>Why Amog always wins</h2>
+    <h3>Only the odd steps count</h3>
     <p>\begin{theorem}Staircase Nim with $c_i$ coins on step $i$ is a loss for the player to move if and only if $c_1 \oplus c_3 \oplus c_5 \oplus \cdots = 0$.\end{theorem}</p>
     <p>\begin{proof}Moving coins from an odd step to an even step is exactly a Nim move on the odd heaps. If your opponent moves coins from an even step $2j$ down to the odd step $2j - 1$, simply push the same coins on to step $2j - 2$, which restores the odd steps. The game is finite, so your opponent eventually runs out of such stalling moves.\end{proof}</p>
     <p>The even steps are a mirage. Amog ignores them completely, except to undo your attempts to hide there.</p>
@@ -55,6 +56,16 @@
       let c;
       do c = [0].concat(Array.from({ length: n }, () => Math.floor(Math.random() * 6))); while (oddXor(c) === 0);
       return { c, to: -1 };
+    },
+    custom: {
+      placeholder: "e.g. 3 0 2 5",
+      help: "coins on steps 1, 2, 3, … (2–8 steps, ≤ 12 each)",
+      parse(t) {
+        const c = NimKit.nums(t);
+        if (!c || c.length < 2 || c.length > 8) return "Give coin counts for 2 to 8 steps, like 3 0 2 5.";
+        if (c.some(x => x > 12)) return "At most 12 coins per step.";
+        return { c: [0].concat(c), to: -1 };
+      },
     },
     moves: s => s.c.flatMap((x, i) => (i === 0 ? [] : Array.from({ length: x }, (_, k) => ({ i, k: k + 1 })))),
     apply(s, m) {

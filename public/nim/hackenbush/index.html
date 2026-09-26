@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blue-Red Hackenbush · amog.fun</title>
+<meta name="description" content="Stacks of blue and red tokens against Amog. You take blue, he takes red, and everything above goes too.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><rect x='18' y='44' width='28' height='9' rx='4' fill='%234fd6e8'/><rect x='18' y='32' width='28' height='9' rx='4' fill='%23ff5a5f'/><rect x='18' y='20' width='28' height='9' rx='4' fill='%234fd6e8'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<link rel="stylesheet" href="/nim/kit.css">
+<script src="/assets/math.js" defer></script>
+<style>
+  .hb { display: flex; justify-content: space-around; align-items: flex-end; gap: 10px; min-height: 330px; border-bottom: 3px solid var(--line-2); padding: 0 6px; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .tower { display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; }
+  .tok { width: clamp(38px, 9vw, 58px); height: 26px; border-radius: 8px; border: 0; padding: 0; cursor: default; transition: opacity .1s, transform .1s; }
+  .tok.B { background: linear-gradient(180deg, #b9f4fb, var(--g1) 60%, #1b8594); }
+  .tok.R { background: linear-gradient(180deg, #ffc7c9, var(--g2) 60%, #a8262b); }
+  .tok.ghost { background: transparent; border: 1.5px dashed var(--line-2); }
+  .hb.on .tok.mine { cursor: pointer; }
+  .hb.on .tok.mine:hover, .hb.on .tok.mine:hover ~ .tok { opacity: .3; transform: translateY(-6px); }
+  .val { font-family: var(--mono); font-size: 12px; color: var(--muted); min-height: 1.3em; margin-bottom: 4px; }
+  .legend { display: flex; gap: 16px; justify-content: center; margin-top: 12px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="nk-head">
+    <div class="sig">hackenbush : Stacks → Surreals</div>
+    <h1>Blue-Red Hackenbush</h1>
+    <p>Stacks of coloured tokens. You own the <span style="color:var(--g1)">blue</span> ones, Amog owns the <span style="color:var(--g2)">red</span> ones. On your turn remove one token of your colour, and every token above it falls off too. Whoever has no token to take loses. Click a blue token.</p>
+  </div>
+  <nav class="nk-nav" id="nk-nav"></nav>
+  <div id="nim"></div>
+
+  <section class="theory">
+    <h2>Why Amog always wins</h2>
+    <h3>Every stack is a number</h3>
+    <p>This game is <em>partizan</em>: you and Amog have different moves, so Sprague–Grundy does not apply. Instead each position is a <em>surreal number</em> (Conway, <em>On Numbers and Games</em>), positive when it favours blue.</p>
+    <p>\begin{definition}The value of a single token is $+1$ if blue and $-1$ if red. A stack whose bottom $c$ tokens share a colour, followed by tokens $t_1, t_2, \dots$ above the first change of colour, has value
+    $$v = \pm c + \sum_{j \ge 1} \frac{\sigma(t_j)}{2^j}, \qquad \sigma(\text{blue}) = +1,\ \sigma(\text{red}) = -1.$$\end{definition}</p>
+    <p>\begin{example}Blue, blue, red (bottom to top) is $2 - \frac12 = \frac32$. Blue, red, blue is $1 - \frac12 + \frac14 = \frac34$.\end{example}</p>
+    <p>\begin{theorem}[Berlekamp, Conway, Guy]The value of a position is the sum $V$ of its stack values. If $V &gt; 0$ blue wins whoever starts, if $V &lt; 0$ red wins whoever starts, and if $V = 0$ the player to move loses.\end{theorem}</p>
+    <p>\begin{remark}Every value is a dyadic rational $\frac{m}{2^k}$. To win, make a move that keeps $V$ on your side of $0$, and among those take the token that costs you the least: usually the highest one of your colour sitting above a colour change.\end{remark}</p>
+  </section>
+
+  <footer class="footer"><span>amog.fun/nim/hackenbush</span><span>numbers are games too</span></footer>
+</div>
+<script src="/nim/kit.js"></script>
+<script>
+(() => {
+  const COLOR = ["B", "R"]; // you are blue, Amog is red
+  const value = st => {
+    let v = 0, i = 0;
+    const sg = c => (c === "B" ? 1 : -1);
+    while (i < st.length && st[i] === st[0]) v += sg(st[i++]);
+    for (let w = 0.5; i < st.length; i++, w /= 2) v += sg(st[i]) * w;
+    return v;
+  };
+  const total = s => s.stacks.reduce((a, st) => a + value(st), 0);
+  const frac = v => {
+    if (Number.isInteger(v)) return String(v);
+    let d = 1; while (!Number.isInteger(v * d)) d *= 2;
+    return `${v < 0 ? "-" : ""}\\tfrac{${Math.abs(v * d)}}{${d}}`;
+  };
+  const moves = (s, who) => s.stacks.flatMap((st, i) => st.flatMap((c, j) => (c === COLOR[who] ? [{ i, j }] : [])));
+  const apply = (s, m) => ({ stacks: s.stacks.map((st, i) => (i === m.i ? st.slice(0, m.j) : st)), cut: { i: m.i, n: s.stacks[m.i].length - m.j } });
+  const isP = (s, who) => (who === 0 ? total(s) <= 0 : total(s) >= 0);
+  NimKit.start({
+    id: "hackenbush",
+    options: [{ key: "stacks", label: "Stacks", choices: [["3", "3"], ["4", "4"], ["5", "5"]], def: "4" }],
+    create(o) {
+      // like the other variants: whoever moves first has a (narrow) win
+      const sign = o.first === "you" ? 1 : -1;
+      let s;
+      do s = { stacks: Array.from({ length: +o.stacks }, () => Array.from({ length: 2 + Math.floor(Math.random() * 5) }, () => NimKit.pick(COLOR))), cut: null };
+      while (!(sign * total(s) > 0 && sign * total(s) <= 1.5));
+      return s;
+    },
+    custom: {
+      placeholder: "e.g. BBR RB BRRB",
+      help: "one word per stack, bottom to top (B/R, ≤ 6 stacks of ≤ 8)",
+      parse(t) {
+        const w = t.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+        if (!w.length || w.length > 6 || w.some(x => !/^[BR]{1,8}$/.test(x))) return "Stacks are words of B and R, like BBR RB BRRB (up to 6 stacks of 8).";
+        return { stacks: w.map(x => x.split("")), cut: null };
+      },
+    },
+    moves, apply, isP,
+    // among equally winning moves, give up as little value as possible
+    prefer(m, s, who) {
+      const d = mv => Math.abs(total(apply(s, mv)) - total(s));
+      return d(m) === Math.min(...moves(s, who).map(d));
+    },
+    describe: (m, who, s) => { const n = s.stacks[m.i].length - m.j; return `stack ${m.i + 1}: took token ${m.j + 1}${n > 1 ? ` (${n} fell)` : ""}`; },
+    render(el, s, ctx) {
+      el.innerHTML = `<div class="hb ${ctx.locked ? "" : "on"}">${s.stacks.map((st, i) => {
+        const toks = st.map((c, j) => {
+          const mine = c === "B" && !ctx.locked, m = { i, j };
+          return `<button class="tok ${c} ${mine ? "mine" : ""} ${mine && ctx.isGood(m) ? "good" : ""}" data-i="${i}" data-j="${j}" ${mine ? `aria-label="take token ${j + 1} of stack ${i + 1}"` : "tabindex=-1"}></button>`;
+        }).join("");
+        const ghosts = s.cut && s.cut.i === i ? '<span class="tok ghost"></span>'.repeat(s.cut.n) : "";
+        return `<div class="col"><div class="val">${ctx.hint && st.length ? frac(value(st)).replace(/\\tfrac\{(\d+)\}\{(\d+)\}/, "$1/$2") : ""}</div><div class="tower">${toks}${ghosts}</div></div>`;
+      }).join("")}</div><div class="legend"><span><i style="background:var(--g1)"></i>yours</span><span><i style="background:var(--g2)"></i>Amog's</span></div>`;
+      el.onclick = e => { const b = e.target.closest(".tok.mine"); if (b && !ctx.locked) ctx.play({ i: +b.dataset.i, j: +b.dataset.j }); };
+    },
+    math(s) {
+      const vs = s.stacks.filter(st => st.length).map(value), V = total(s);
+      const who = V > 0 ? "blue (you) wins whoever moves" : V < 0 ? "red (Amog) wins whoever moves" : "whoever moves loses";
+      return `<p>$V = ${vs.map(frac).join(" + ").replace(/\+ -/g, "- ") || "0"} = ${frac(V)}$</p><p>So ${who}.</p>`;
+    },
+  });
+})();
+</script>
+</body>
+</html>
