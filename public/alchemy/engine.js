@@ -4,6 +4,10 @@
   const D = root.ALCHEMY_DATA || require("./data.js");
   const { ITEMS, RECIPES, SMELT, ACTIONS, QUESTS, CONFIG: C } = D;
   RECIPES.forEach((r, i) => (r.id = r.id || "r" + i));
+  // stable across data.js edits (ids shift when recipes are inserted), used for hidden-recipe prefs
+  RECIPES.forEach(r => (r.key = r.key || Object.keys(r.out).join("+") + "<" + Object.keys(r.in).join("+")));
+  const AUTO = ["autoHammer", "autoSieve"]; // machines with their own input setting
+  const AUTOGEN = C.autoGen;
 
   // per-tile state for machines that need it
   const TILE = {
@@ -12,15 +16,17 @@
     rainBarrel: () => ({ water: 0 }),
     infested: () => ({ t: 0 }),
     crucible: () => ({ cobble: 0, melt: 0, lava: 0 }),
-    cobblegen: () => ({ acc: 0 }),
+    autoGen: () => ({ acc: 0 }),
+    autoGen2: () => ({ acc: 0 }),
+    autoGen3: () => ({ acc: 0 }),
     autoHammer: () => ({ t: 0 }),
     autoSieve: () => ({ t: 0 }),
   };
 
   function create(now = Date.now()) {
     const s = {
-      v: 1, t: now, start: now, won: 0, clicks: 0,
-      inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {},
+      v: 2, t: now, start: now, won: 0, clicks: 0,
+      inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {}, hide: {},
       sel: { sieve: "dirt", hammer: "cobble", autoHammer: "cobble", autoSieve: "gravel" },
       opt: { feedBarrels: true, compostSaplings: false, feedCrucible: true },
       fuel: [0, 0, 0, 0], queue: [], slots: [], ev: [],
@@ -46,6 +52,7 @@
         const i = s.island.indexOf(null);
         if (i < 0) return;
         s.island[i] = { id, ...(TILE[id] ? TILE[id]() : {}) };
+        if (AUTO.includes(id)) s.island[i].sel = s.sel[id]; // new machines start on the last input you picked
       }
     } else s.inv[id] = (s.inv[id] || 0) + n;
     s.got[id] = (s.got[id] || 0) + n;
@@ -83,6 +90,8 @@
   function actionState(s, id) {
     const a = ACTIONS[id];
     if (a.tree && !grownTrees(s)) return { ok: false, reason: "needs a grown tree" };
+    if (a.requires && !built(s, a.requires)) return { ok: false, reason: `build a ${ITEMS[a.requires].name.toLowerCase()}` };
+    if (a.needTool && !tool(s, a.tool)) return { ok: false, reason: `needs a ${a.tool === "pick" ? "pickaxe" : a.tool}` };
     let power = a.base || 0;
     if (a.tool) power += toolValue(s, a.tool);
     if (a.per) power += count(s, a.per);
@@ -114,10 +123,21 @@
   }
 
   // ---------- crafting ----------
+  // total inputs for crafting r `times` times (scaled recipes get pricier with each one you own)
+  function cost(s, r, times = 1) {
+    if (!r.scale) return Object.fromEntries(Object.entries(r.in).map(([id, n]) => [id, n * times]));
+    const have = count(s, r.scale.per), out = {};
+    for (let i = 0; i < times; i++) {
+      const f = 1 + r.scale.k * (have + i * (r.out[r.scale.per] || 0));
+      for (const id in r.in) out[id] = (out[id] || 0) + Math.ceil(r.in[id] * f);
+    }
+    return out;
+  }
   function recipeState(s, r, times = 1) {
     if (r.at === "table" && !built(s, "table")) return { ok: false, reason: "needs a crafting table" };
     for (const id in r.needs || {}) if (count(s, id) < r.needs[id]) return { ok: false, reason: `needs ${ITEMS[id].name}` };
-    for (const id in r.in) if (count(s, id) < r.in[id] * times) return { ok: false, reason: "missing ingredients" };
+    const need = cost(s, r, times);
+    for (const id in need) if (count(s, id) < need[id]) return { ok: false, reason: "missing ingredients" };
     let place = 0, freed = 0;
     for (const id in r.out) if (isPlace(id)) place += r.out[id] * times;
     for (const id in r.in) if (isPlace(id)) freed += r.in[id] * times;
@@ -135,12 +155,27 @@
   function craft(s, r, times = 1) {
     times = Math.min(times, maxCraft(s, r));
     if (times <= 0) return 0;
-    for (const id in r.in) take(s, id, r.in[id] * times);
+    const need = cost(s, r, times);
+    for (const id in need) take(s, id, need[id]);
     for (const id in r.out) give(s, id, r.out[id] * times);
     return times;
   }
 
   const visible = (s, r) => Object.keys(r.in).some(id => s.seen[id]);
+
+  // hidden recipes: "user" if you hid it, "auto" for a tool you already own (or own better), else null.
+  // s.hide[key] = 1 hides, 0 forces it back into view.
+  function toolKind(id) {
+    for (const kind in C.tools) { const e = C.tools[kind].find(([t]) => t === id); if (e) return [kind, e[1]]; }
+    return null;
+  }
+  function hidden(s, r) {
+    const pref = s.hide[r.key];
+    if (pref === 1) return "user";
+    if (pref === 0) return null;
+    const tk = toolKind(Object.keys(r.out)[0]);
+    return tk && toolValue(s, tk[0]) >= tk[1] ? "auto" : null;
+  }
 
   // ---------- island ----------
   const expandCost = s => Math.round(C.land.base + C.land.step * (s.island.length - C.start.land));
@@ -245,6 +280,7 @@
   }
 
   function autoRun(s, tile, dt, period, table, input, mesh) {
+    if (!table[input]) input = tile.sel = Object.keys(table).find(k => k !== "mesh");
     tile.t += dt;
     tile.idle = false;
     while (tile.t >= period) {
@@ -290,17 +326,17 @@
           } else tile.melt = 0;
           break;
         }
-        case "cobblegen": {
-          tile.acc += dt * toolValue(s, "pick");
+        case "autoGen": case "autoGen2": case "autoGen3": {
+          tile.acc += dt * AUTOGEN[tile.id];
           const n = Math.floor(tile.acc);
           if (n > 0) { tile.acc -= n; give(s, "cobble", n); }
           break;
         }
         case "autoHammer":
-          autoRun(s, tile, dt, C.autoHammer.time, ACTIONS.hammer.inputs, s.sel.autoHammer, 0);
+          autoRun(s, tile, dt, C.autoHammer.time, ACTIONS.hammer.inputs, tile.sel || s.sel.autoHammer, 0);
           break;
         case "autoSieve":
-          autoRun(s, tile, dt, C.autoSieve.time, Object.assign({ mesh: true }, ACTIONS.sieve.inputs), s.sel.autoSieve, toolValue(s, "mesh"));
+          autoRun(s, tile, dt, C.autoSieve.time, Object.assign({ mesh: true }, ACTIONS.sieve.inputs), tile.sel || s.sel.autoSieve, toolValue(s, "mesh"));
           break;
       }
     }
@@ -339,6 +375,13 @@
     for (const k in base) if (s[k] === undefined) s[k] = base[k];
     for (const k in base.sel) if (!s.sel[k]) s.sel[k] = base.sel[k];
     for (const k in base.opt) if (s.opt[k] === undefined) s.opt[k] = base.opt[k];
+    if ((s.v || 1) < 2) {
+      // v2: cobblestone generators became manual; the ones you already had keep mining themselves
+      s.island = s.island.map(t => (t && t.id === "cobblegen" ? { id: "autoGen", acc: 0 } : t));
+      if (s.island.some(t => t && t.id === "autoGen")) s.seen.autoGen = 1;
+      s.island.forEach(t => { if (t && AUTO.includes(t.id) && !t.sel) t.sel = s.sel[t.id]; });
+      s.v = 2;
+    }
     s.ev = [];
     return s;
   }
@@ -357,7 +400,7 @@
 
   const api = {
     DATA: D, KEY, create, count, built, free, grownTrees, give, take, tool, toolValue, actionState, act,
-    recipeState, maxCraft, craft, visible, expandCost, expand, demolish, feedBarrels, fullRain, lavaCrucible,
+    cost, recipeState, maxCraft, craft, visible, hidden, toolKind, expandCost, expand, demolish, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, addFuel, tick, currentQuest, serialize, revive, catchUp,
   };
   root.Alchemy = api;

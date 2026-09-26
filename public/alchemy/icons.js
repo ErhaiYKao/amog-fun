@@ -267,6 +267,15 @@
       for (let y = 3; y < 9; y++) for (let x = 3; x < 13; x++) P(x, y, (x + y) % 2 ? "#f2efe6" : "#7c7c84");
       P(12, 12, "#d42a1f");
     },
+    autogen(P, c, _, rnd) {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++)
+        P(x, y, x === 0 || y === 0 || x === 15 || y === 15 ? c : shade("#b9b9bf", (rnd(x, y) - 0.5) * 0.1));
+      for (let y = 3; y < 11; y++) for (let x = 3; x < 13; x++) {
+        const row = Math.floor(y / 3), ox = (x + (row % 2) * 2) % 4;
+        P(x, y, x < 5 ? shade("#ff7a1a", (rnd(x, y, 3) - 0.5) * 0.4) : x > 10 ? shade("#3f76e4", (rnd(x, y, 4) - 0.5) * 0.3) : shade("#7b7b7b", ox === 0 || y % 3 === 0 ? -0.3 : 0));
+      }
+      P(12, 12, "#d42a1f"); P(3, 12, c); P(4, 12, c);
+    },
     terminal(P) {
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const d = Math.hypot(x - 7.5, y - 7.5);

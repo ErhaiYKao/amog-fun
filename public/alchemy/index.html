@@ -101,7 +101,27 @@
   .ing { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
   .ing.lack { color: var(--g2); }
   .ing.need { color: var(--g1); }
-  .rec .btns { display: flex; gap: 4px; }
+  .rec .btns { display: flex; gap: 4px; align-items: center; }
+  .rec.hid { opacity: .32; }
+  .rec.hid:hover { opacity: .6; }
+  .rec .eye { background: none; border: 0; color: var(--faint); font-family: var(--mono); font-size: 11px; cursor: pointer; padding: 4px 2px; }
+  .rec .eye:hover { color: var(--ink); }
+  .rec-sep { font-family: var(--mono); font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; margin: 8px 0 2px; }
+  /* sieve drop table */
+  .drops { margin-top: 12px; font-size: 14px; }
+  .drops summary { font-family: var(--mono); font-size: 12px; color: var(--muted); cursor: pointer; }
+  .drops table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11.5px; margin-top: 8px; }
+  .drops th, .drops td { text-align: right; padding: 3px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .drops th:first-child, .drops td:first-child { text-align: left; }
+  .drops th { color: var(--muted); font-weight: 500; }
+  .drops th.cur, .drops td.cur { color: var(--g1); }
+  .drops td.na { color: var(--faint); }
+  .drops .in td { color: var(--ink); background: var(--bg); font-weight: 500; }
+  .drops .item { display: inline-flex; align-items: center; gap: 6px; }
+  .drops p { margin: 8px 0 0; color: var(--faint); font-family: var(--mono); font-size: 11px; }
+  .unitrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .unitrow .bar { flex: 1; min-width: 60px; }
+  .unitrow .no { font-family: var(--mono); font-size: 11px; color: var(--faint); width: 22px; }
 
   /* log */
   .log ul { list-style: none; margin: 0; padding: 0; font-size: 14.5px; display: grid; gap: 4px; }
@@ -154,7 +174,8 @@
         <canvas class="island" id="island" width="180" height="146" aria-label="Your island"></canvas>
         <div class="tileinfo" id="tile"></div>
       </section>
-      <section class="card" style="--o:3"><div class="card-h"><h2>Work</h2><span class="meta">keys 1–4</span></div><div class="actions" id="actions"></div></section>
+      <section class="card" style="--o:3"><div class="card-h"><h2>Work</h2><span class="meta">keys 1–5</span></div><div class="actions" id="actions"></div>
+        <details class="drops" id="drops-box"><summary>sieve drop table</summary><div id="drops"></div></details></section>
       <section class="card" id="machines-card" style="--o:6"><div class="card-h"><h2>Machines</h2></div><div id="machines"></div></section>
     </div>
     <div class="col">

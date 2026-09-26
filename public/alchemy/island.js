@@ -37,6 +37,7 @@
       case "crucible": return [t.lava / C.crucible.lava, "#ff7a1a"];
       case "infested": return [t.t / C.infested.time, "#f2efe6"];
       case "autoHammer": case "autoSieve": return t.idle ? null : [t.t / C[t.id].time, "#4fd6e8"];
+      case "autoGen": case "autoGen2": case "autoGen3": return [t.acc, "#9a9aa2"];
       default: return null;
     }
   }
@@ -114,8 +115,9 @@
       case "rainBarrel": return t.water >= 1 ? "full of rainwater" : `filling · ${Math.floor(t.water * 100)}%`;
       case "infested": return `next string in ${Math.ceil(C.infested.time - t.t)} s`;
       case "crucible": return `${t.cobble} cobblestone waiting · ${t.lava} mB lava`;
-      case "cobblegen": { const p = A.tool(s, "pick"); return p ? `${p[1]} cobblestone/s (${UI.name(p[0]).toLowerCase()})` : "needs a pickaxe"; }
-      case "autoHammer": case "autoSieve": return `${t.idle ? "waiting for" : "working on"} ${UI.name(s.sel[t.id]).toLowerCase()}`;
+      case "cobblegen": { const p = A.tool(s, "pick"); return p ? `mine it from the Work panel (${UI.name(p[0]).toLowerCase()})` : "needs a pickaxe to mine"; }
+      case "autoGen": case "autoGen2": case "autoGen3": return `${C.autoGen[t.id]} cobblestone/s, no pickaxe needed`;
+      case "autoHammer": case "autoSieve": return `${t.idle ? "waiting for" : "working on"} ${UI.name(t.sel || s.sel[t.id]).toLowerCase()} · input set under Machines`;
       case "furnace": return "fuel and smelting are under Machines";
       default: return D.ITEMS[t.id].desc || "";
     }

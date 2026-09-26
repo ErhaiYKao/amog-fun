@@ -7,10 +7,11 @@
   const TOOLS = new Set(Object.values(C.tools).flat().map(([t]) => t));
 
   // ---------- work ----------
-  const ACT_ICON = { chop: "log", leaves: "leaves", sieve: "sieve", hammer: "woodHammer" };
-  const LOCKED = { sieve: "Build a sieve and a mesh to sift dirt for stone.", hammer: "Craft a hammer to smash cobblestone into gravel." };
+  const ACT_ICON = { chop: "log", leaves: "leaves", sieve: "sieve", hammer: "woodHammer", mine: "stonePick" };
+  const LOCKED = { sieve: "Build a sieve and a mesh to sift dirt for stone.", hammer: "Craft a hammer to smash cobblestone into gravel.", mine: "Build a cobblestone generator (water + lava) and mine it with a pickaxe." };
   function unlocked(s, id) {
     if (id === "sieve") return !!s.seen.sieve;
+    if (id === "mine") return !!s.seen.cobblegen;
     if (id === "hammer") return C.tools.hammer.some(([t]) => s.seen[t]);
     return true;
   }
@@ -18,6 +19,10 @@
     if (id === "sieve") {
       const n = A.built(s, "sieve"), m = A.tool(s, "mesh");
       return `${n} sieve${n === 1 ? "" : "s"} · ${m ? name(m[0]) : "no mesh"}`;
+    }
+    if (id === "mine") {
+      const n = A.built(s, "cobblegen"), p = A.tool(s, "pick");
+      return `${p ? name(p[0]) : "no pickaxe"} · ${n} gen${n === 1 ? "" : "s"} · power ${st.power || 0}/${ACTIONS[id].work}`;
     }
     const t = ACTIONS[id].tool && A.tool(s, ACTIONS[id].tool);
     return `${t ? name(t[0]) : "bare hands"} · power ${st.power || 0}/${ACTIONS[id].work}`;
@@ -32,7 +37,7 @@
         continue;
       }
       const st = A.actionState(s, id);
-      const hammer = id === "hammer" && A.tool(s, "hammer");
+      const hammer = (id === "hammer" || id === "mine") && A.tool(s, a.tool);
       const chips = a.inputs ? `<div class="chips">${Object.keys(a.inputs).filter(k => s.seen[k]).map(k =>
         `<button class="chip" data-act="sel:${id}:${k}" aria-pressed="${s.sel[id] === k}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span></button>`).join("")}</div>` : "";
       h += `<div class="act ${st.ok ? "" : "off"}">
@@ -42,39 +47,78 @@
       UI.v("w:" + id, (s.work[id] || 0) / a.work);
     }
     UI.setHTML($("actions"), "actions", h);
+    renderDrops();
+  }
+
+  // ---------- sieve drop table ----------
+  const MESH = C.tools.mesh; // [[id, tier]]
+  const num = x => (x >= 1 ? x.toFixed(1) : x >= 0.1 ? x.toFixed(2) : x.toFixed(3));
+  function renderDrops() {
+    const s = UI.s, box = $("drops-box");
+    box.hidden = !s.seen.sieve;
+    if (box.hidden) return;
+    const cur = A.toolValue(s, "mesh");
+    const head = `<tr><th>per sift</th>${MESH.map(([m, tier]) => `<th class="${tier === cur ? "cur" : ""}">${s.seen[m] ? esc(name(m).replace(" Mesh", "")) : "?"}</th>`).join("")}</tr>`;
+    let body = "";
+    for (const input in D.SIEVE) {
+      if (!s.seen[input]) continue;
+      body += `<tr class="in"><td colspan="${MESH.length + 1}"><span class="item">${img(input, "sm")}${esc(name(input))}</span></td></tr>`;
+      const ids = [...new Set(D.SIEVE[input].map(e => e[0]))];
+      for (const id of ids) {
+        const cells = MESH.map(([, tier]) => {
+          let ev = 0, gated = true;
+          for (const [d, p, n = 1, gate] of D.SIEVE[input]) {
+            if (d !== id || (typeof gate === "number" && tier < gate)) continue;
+            gated = false;
+            ev += Math.min(1, p * C.meshLuck[tier]) * n;
+          }
+          return `<td class="${gated ? "na" : ""} ${tier === cur ? "cur" : ""}">${gated ? "—" : num(ev)}</td>`;
+        }).join("");
+        body += `<tr><td>${s.seen[id] ? `<span class="item">${img(id, "sm")}${esc(name(id))}</span>` : "???"}</td>${cells}</tr>`;
+      }
+    }
+    UI.setHTML($("drops"), "drops", `<table>${head}${body}</table><p>Average number of each item per sift, by mesh (your best mesh is highlighted). — means that mesh is too coarse to catch it. ??? is something you haven't found yet.</p>`);
   }
 
   // ---------- inventory ----------
   function renderInventory() {
     const s = UI.s;
     for (const id in ITEMS) UI.v("c:" + id, UI.fmt(A.count(s, id)));
-    const ids = Object.keys(ITEMS).filter(id => !ITEMS[id].place && (s.inv[id] || 0) > 0);
+    const owned = Object.keys(ITEMS).filter(id => !ITEMS[id].place && (s.inv[id] || 0) > 0);
+    // only your best tool of each kind; the older ones still count for recipes that eat them
+    const best = id => { const tk = A.toolKind(id); return !tk || A.tool(s, tk[0])[0] === id; };
+    const ids = owned.filter(best), older = owned.length - ids.length;
     UI.setHTML($("inventory"), "inv", ids.length
       ? ids.map(id => `<div class="slot ${TOOLS.has(id) ? "tool" : ""}" data-tip="${id}">${img(id)}<span class="n" data-v="c:${id}"></span></div>`).join("")
       : `<p class="empty">Nothing yet. Chop the tree.</p>`);
-    UI.setHTML($("invmeta"), "invmeta", `${ids.length} kinds`);
+    UI.setHTML($("invmeta"), "invmeta", `${ids.length} kinds${older ? ` · ${older} older tool${older === 1 ? "" : "s"} hidden` : ""}`);
   }
 
   // ---------- crafting ----------
   function renderCrafting() {
     const s = UI.s;
-    const rows = RECIPES.filter(r => A.visible(s, r)).map(r => ({ r, st: A.recipeState(s, r) }))
-      .filter(x => UI.filter !== "can" || x.st.ok)
-      .sort((a, b) => b.st.ok - a.st.ok);
-    const h = rows.map(({ r, st }) => {
+    const rows = RECIPES.filter(r => A.visible(s, r)).map(r => ({ r, st: A.recipeState(s, r), hid: A.hidden(s, r) }))
+      .filter(x => UI.filter !== "can" || (x.st.ok && !x.hid))
+      .sort((a, b) => !!a.hid - !!b.hid || b.st.ok - a.st.ok);
+    const firstHid = rows.findIndex(x => x.hid);
+    const h = rows.map(({ r, st, hid }, i) => {
       const [outId, outN] = Object.entries(r.out)[0];
       const place = ITEMS[outId].place;
       const title = r.name === "Transmute" ? `Transmute into ${name(outId)}` : r.name || name(outId);
       const extra = Object.entries(r.out).slice(1).map(([k, n]) => `+ ${n} ${name(k)}`).join(" ");
-      const ings = Object.entries(r.in).map(([k, n]) =>
+      const ings = Object.entries(A.cost(s, r)).map(([k, n]) =>
         `<span class="ing ${A.count(s, k) < n ? "lack" : ""}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span>/${n}</span>`).join("") +
         Object.keys(r.needs || {}).map(k => `<span class="ing need" data-tip="${k}">${img(k, "sm")}needs</span>`).join("");
       const why = !st.ok && st.reason !== "missing ingredients" ? `<div class="meta">${esc(st.reason)}</div>` : "";
       const max = st.ok && !place ? A.maxCraft(s, r) : 0;
-      UI.v("m:" + r.id, max);
-      return `<div class="rec ${st.ok ? "" : "no"}"><span data-tip="${outId}">${img(outId)}</span>
-        <div><div class="name">${esc(title)}${outN > 1 ? ` <small>×${outN}</small>` : ""}${extra ? ` <small>${esc(extra)}</small>` : ""}${place ? " <small>· takes a tile</small>" : ""}</div><div class="ings">${ings}</div>${why}</div>
-        <div class="btns"><button class="mini" data-act="craft:${r.id}:1" ${st.ok ? "" : "disabled"}>Craft</button>${max > 1 ? `<button class="mini" data-act="craft:${r.id}:max">×<span data-v="m:${r.id}"></span></button>` : ""}</div></div>`;
+      UI.v("m:" + r.id, max < 2 ? "max" : max);
+      UI.v("md:" + r.id, max < 2);
+      const note = hid === "auto" ? " <small>· you have this or better</small>" : hid ? " <small>· hidden</small>" : r.scale ? ` <small>· pricier with each ${esc(name(r.scale.per).toLowerCase())}</small>` : "";
+      const sep = i === firstHid ? `<div class="rec-sep">hidden · ${rows.length - firstHid}</div>` : "";
+      // the max button stays put (greyed out) so the row doesn't jump when you run low
+      return `${sep}<div class="rec ${st.ok ? "" : "no"} ${hid ? "hid" : ""}"><span data-tip="${outId}">${img(outId)}</span>
+        <div><div class="name">${esc(title)}${outN > 1 ? ` <small>×${outN}</small>` : ""}${extra ? ` <small>${esc(extra)}</small>` : ""}${place ? " <small>· takes a tile</small>" : ""}${note}</div><div class="ings">${ings}</div>${why}</div>
+        <div class="btns"><button class="mini" data-act="craft:${r.id}:1" ${st.ok ? "" : "disabled"}>Craft</button>${place ? "" : `<button class="mini" data-act="craft:${r.id}:max" data-d="md:${r.id}">×<span data-v="m:${r.id}"></span></button>`}<button class="eye" data-act="hide:${r.id}" title="${hid ? "show this recipe again" : "hide this recipe"}">${hid ? "show" : "hide"}</button></div></div>`;
     }).join("");
     UI.setHTML($("crafting"), "craft", h || `<p class="empty">No recipes yet. Everything starts with a log.</p>`);
     UI.setHTML($("craftfilter"), "cf", ["all", "can"].map(f =>
@@ -164,18 +208,30 @@
     const gens = A.built(s, "cobblegen");
     if (gens) {
       const p = A.tool(s, "pick");
-      parts.push(sec("cobblegen", `Cobblestone Generators ×${gens}`, `<div class="row meta">${p ? `${esc(name(p[0]))} · ${(p[1] * gens).toFixed(2)} cobblestone/s` : "Needs a pickaxe to mine."}</div>`));
+      parts.push(sec("cobblegen", `Cobblestone Generators ×${gens}`, `<div class="row meta">${p ? `mine them from the Work panel (key 5) · ${esc(name(p[0]).toLowerCase())} + ${gens} generator${gens === 1 ? "" : "s"} = ${p[1] + gens} power per swing` : "Needs a pickaxe to mine."}</div>`));
+    }
+
+    const autoGens = s.island.filter(t => t && C.autoGen[t.id]);
+    if (autoGens.length) {
+      const rate = autoGens.reduce((a, t) => a + C.autoGen[t.id], 0);
+      const by = Object.keys(C.autoGen).map(id => [id, tiles(id).length]).filter(([, n]) => n).map(([id, n]) => `${n} × ${name(id).replace("Auto-Generator ", "")}`).join(", ");
+      parts.push(sec(autoGens[autoGens.length - 1].id, `Auto-Generators ×${autoGens.length}`, `<div class="row meta">${esc(by)} · ${rate} cobblestone/s · upgrade them in the crafting list</div>`));
     }
 
     for (const [id, inputs] of [["autoHammer", Object.keys(ACTIONS.hammer.inputs)], ["autoSieve", Object.keys(ACTIONS.sieve.inputs)]]) {
-      const list = tiles(id);
+      const list = s.island.map((t, i) => [t, i]).filter(([t]) => t && t.id === id);
       if (!list.length) continue;
-      list.forEach((t, k) => UI.v(`${id}:${k}`, t.idle ? 0 : t.t / C[id].time));
-      const sel = s.sel[id], idle = list.some(t => t.idle);
-      const wait = idle ? `<div class="row meta">waiting for ${esc(name(sel).toLowerCase())}${C.reserve[sel] ? ` (leaves ${C.reserve[sel]} for crafting)` : ""}${id === "autoSieve" && !A.toolValue(s, "mesh") ? " and a mesh" : ""}</div>` : "";
-      parts.push(sec(id, `${name(id)}s ×${list.length}`,
-        `<div class="row"><span class="meta">input</span><div class="chips">${inputs.map(k => `<button class="chip" data-act="auto:${id}:${k}" aria-pressed="${sel === k}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span></button>`).join("")}</div></div>` +
-        wait + units(list, (_, k) => `<div class="unit"><div class="bar"><i data-w="${id}:${k}"></i></div></div>`)));
+      list.forEach(([t], k) => UI.v(`${id}:${k}`, t.idle ? 0 : t.t / C[id].time));
+      const chips = (act, sel) => `<div class="chips">${inputs.filter(k => s.seen[k]).map(k => `<button class="chip" data-act="${act}:${k}" aria-pressed="${sel === k}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span></button>`).join("")}</div>`;
+      const noMesh = id === "autoSieve" && !A.toolValue(s, "mesh");
+      // each machine has its own input, so e.g. one hammer does cobble → gravel and the next gravel → sand
+      const rows = list.map(([t, i], k) => {
+        const sel = t.sel || s.sel[id];
+        const wait = t.idle ? `<div class="row meta">#${k + 1} waiting for ${esc(name(sel).toLowerCase())}${C.reserve[sel] ? ` (leaves ${C.reserve[sel]} for crafting)` : ""}${noMesh ? " and a mesh" : ""}</div>` : "";
+        return `<div class="unitrow"><span class="no">#${k + 1}</span>${chips(`autot:${i}`, sel)}<div class="bar"><i data-w="${id}:${k}"></i></div></div>${wait}`;
+      }).join("");
+      const all = list.length > 1 ? `<div class="row"><span class="meta">set all</span>${chips(`auto:${id}`, null)}</div>` : "";
+      parts.push(sec(id, `${name(id)}s ×${list.length}`, all + rows));
     }
 
     UI.setHTML($("machines"), "mach", parts.join("") || `<p class="empty">Machines you build show up here.</p>`);
@@ -183,7 +239,12 @@
 
   Object.assign(UI.handlers, {
     sel: ([act, k]) => { UI.s.sel[act] = k; },
-    auto: ([id, k]) => { UI.s.sel[id] = k; },
+    auto: ([id, k]) => { UI.s.sel[id] = k; UI.s.island.forEach(t => { if (t && t.id === id) t.sel = k; }); },
+    autot: ([i, k]) => { const t = UI.s.island[+i]; if (t) { t.sel = k; UI.s.sel[t.id] = k; } },
+    hide: ([rid]) => {
+      const r = RECIPES.find(x => x.id === rid);
+      UI.s.hide[r.key] = A.hidden(UI.s, r) ? 0 : 1;
+    },
     filter: ([f]) => { UI.filter = f; },
     craft: ([rid, n]) => {
       const r = RECIPES.find(x => x.id === rid);

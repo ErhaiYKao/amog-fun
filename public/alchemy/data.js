@@ -2,10 +2,12 @@
  *
  * ITEMS    id -> { name, icon: [shape, color, extra], desc, fuel: [heat, seconds], compost: units, place: true }
  *          place: true means it is a machine that sits on a tile of the island (trees, barrels, sieves...).
- * RECIPES  crafting: { in: {id: n}, out: {id: n}, at: "table", needs: {id: n}, name }
+ * RECIPES  crafting: { in: {id: n}, out: {id: n}, at: "table", needs: {id: n}, name, scale: {per, k} }
  *          at: "table" requires a crafting table on the island. needs: items you must own, not used up.
+ *          scale: inputs cost (1 + k * how many `per` you already have), rounded up. Used to stop barrel spam.
  * SMELT    furnace: input -> { out, time (s), heat }. Heat 1 = wood, 2 = charcoal, 3 = coal.
- * ACTIONS  the things you click. inputs map what you put in -> drop table.
+ * ACTIONS  the things you click. inputs map what you put in -> drop table. requires: a machine that must be
+ *          built. needTool: power from `per` alone isn't enough, you need the tool too.
  * Drop tables are lists of [item, chance, amount, gate]. gate is a minimum mesh tier (number)
  *          or a tool kind you must own (string, e.g. "crook").
  * QUESTS   the guided path, in order. need: { got: {id: n} } (ever obtained), { built: {id: n} },
@@ -86,13 +88,16 @@
     // machines (each takes one tile of the island)
     tree: { name: "Oak Tree", icon: ["tree"], place: true, desc: "Drops leaves on its own once grown." },
     table: { name: "Crafting Table", icon: ["table"], place: true },
-    barrel: { name: "Oak Barrel", icon: ["barrel", "#9a6b3a"], place: true, desc: "Turns 6 compost into dirt." },
+    barrel: { name: "Oak Barrel", icon: ["barrel", "#9a6b3a"], place: true, desc: "Turns 6 compost into dirt. Each extra barrel costs more planks." },
     rainBarrel: { name: "Rain Barrel", icon: ["barrel", "#9a6b3a", "#3f76e4"], place: true, desc: "Fills with rainwater. Mix in dust for clay." },
     infested: { name: "Infested Leaves", icon: ["infested"], place: true, desc: "A silkworm colony. Spins string." },
     sieve: { name: "Sieve", icon: ["sieve"], place: true, desc: "Each sieve adds sieving power. Needs a mesh." },
     furnace: { name: "Furnace", icon: ["furnace"], place: true },
     crucible: { name: "Crucible", icon: ["crucible"], place: true, desc: "Melts cobblestone into lava." },
-    cobblegen: { name: "Cobblestone Generator", icon: ["gen"], place: true, desc: "Makes cobblestone forever. Needs a pickaxe." },
+    cobblegen: { name: "Cobblestone Generator", icon: ["gen"], place: true, desc: "Water meets lava. Mine it with a pickaxe (Work panel); more generators, more cobblestone per swing." },
+    autoGen: { name: "Auto-Generator Mk I", icon: ["autogen", "#dcdcdc"], place: true, desc: "Mines itself: 0.5 cobblestone/s. No pickaxe needed." },
+    autoGen2: { name: "Auto-Generator Mk II", icon: ["autogen", "#f5cc3b"], place: true, desc: "Mines itself: 1.5 cobblestone/s." },
+    autoGen3: { name: "Auto-Generator Mk III", icon: ["autogen", "#5ee0d8"], place: true, desc: "Mines itself: 4 cobblestone/s." },
     autoHammer: { name: "Auto-Hammer", icon: ["autohammer"], place: true },
     autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true },
   };
@@ -117,6 +122,10 @@
       name: "Hammer", verb: "Smash", key: "4", work: 4, tool: "hammer",
       inputs: { cobble: [["gravel", 1, 1]], gravel: [["sand", 1, 1]], sand: [["dust", 1, 1]] },
     },
+    mine: {
+      name: "Mine the generators", verb: "Mine", key: "5", work: 4, tool: "pick", per: "cobblegen", requires: "cobblegen", needTool: true,
+      drops: [["cobble", 1, 1]],
+    },
   };
 
   const SMELT = {
@@ -134,7 +143,7 @@
     { in: { planks: 4 }, out: { table: 1 } },
     { name: "Plant a sapling", in: { sapling: 1 }, out: { tree: 1 } },
     { in: { stick: 5 }, out: { crook: 1 }, at: "table" },
-    { in: { planks: 7 }, out: { barrel: 1 }, at: "table" },
+    { in: { planks: 7 }, out: { barrel: 1 }, at: "table", scale: { per: "barrel", k: 1 } }, // 7, 14, 21, ... planks
     { in: { silkworm: 1, leaves: 6 }, out: { infested: 1 } },
     { in: { string: 3 }, out: { twine: 1 } },
     { in: { string: 6, stick: 2 }, out: { stringMesh: 1 }, at: "table" },
@@ -154,7 +163,7 @@
     { in: { stick: 1, charcoal: 1 }, out: { torch: 4 } },
     { in: { stick: 1, coal: 1 }, out: { torch: 4 } },
     { in: { crucibleFired: 1, torch: 2 }, out: { crucible: 1 }, at: "table" },
-    { in: { waterBucket: 1, lavaBucket: 1, cobble: 4 }, out: { cobblegen: 1, bucket: 2 }, at: "table" },
+    { in: { waterBucket: 1, lavaBucket: 1, cobble: 4 }, out: { cobblegen: 1 }, at: "table" }, // the buckets go in with the fluids
     { in: { ironPiece: 4 }, out: { ironChunk: 1 } },
     { in: { goldPiece: 4 }, out: { goldChunk: 1 } },
     { in: { flint: 6, stringMesh: 1 }, out: { flintMesh: 1 }, at: "table" },
@@ -165,6 +174,10 @@
     { in: { iron: 2 }, out: { gear: 1 }, at: "table" },
     { in: { stoneHammer: 1, gear: 1, redstone: 2, cobble: 8 }, out: { autoHammer: 1 }, at: "table" },
     { in: { sieve: 1, gear: 1, redstone: 2 }, out: { autoSieve: 1 }, at: "table" },
+    // auto-generators: their own upgrade path, each tier is built from the one before
+    { in: { cobblegen: 1, gear: 2, redstone: 4, cobble: 16 }, out: { autoGen: 1 }, at: "table" },
+    { in: { autoGen: 1, gear: 2, gold: 4, redstone: 8 }, out: { autoGen2: 1 }, at: "table" },
+    { in: { autoGen2: 1, diamond: 2, gold: 4, glowstone: 8 }, out: { autoGen3: 1 }, at: "table" },
     { in: { diamond: 3, stick: 2, twine: 2 }, needs: { cast: 1 }, out: { diamondPick: 1 }, at: "table" },
     { in: { diamond: 2, stick: 2, twine: 1 }, out: { diamondHammer: 1 }, at: "table" },
     { in: { diamond: 3, stick: 2, twine: 1 }, out: { diamondAxe: 1 }, at: "table" },
@@ -198,12 +211,13 @@
     { id: "charcoal", title: "Charcoal", text: "Fuel the furnace with planks and smelt a log.", need: { got: { charcoal: 1 } } },
     { id: "clay", title: "Clay", text: "Build a rain barrel and let it fill. Hammer sand into dust and mix it in.", need: { got: { clayBlock: 1 } } },
     { id: "crucible", title: "Crucible", text: "Fire a clay crucible and set it over torches. It melts cobblestone into lava.", need: { built: { crucible: 1 } } },
-    { id: "gen", title: "Infinite Cobblestone", text: "A bucket of water and a bucket of lava make a generator. Mining it takes a pickaxe.", need: { built: { cobblegen: 1 } } },
+    { id: "gen", title: "Infinite Cobblestone", text: "A bucket of water and a bucket of lava make a generator (the buckets go with them). Mine it with a pickaxe from the Work panel.", need: { built: { cobblegen: 1 } } },
     { id: "coal", title: "Real Coal", text: "Sieve gravel for coal. Only coal burns hot enough for ore.", need: { got: { coal: 1 } } },
     { id: "iron", title: "Iron Age", text: "Four iron pieces make a chunk. Smelt it with coal.", need: { got: { iron: 1 } } },
     { id: "cast", title: "Pickaxe Cast", text: "Mould a pickaxe cast from clay and fire it.", need: { got: { cast: 1 } } },
-    { id: "ironpick", title: "Iron Pickaxe", text: "Cast an iron pickaxe. Generators mine much faster.", need: { got: { ironPick: 1 } } },
-    { id: "auto", title: "Automation", text: "Build an auto-hammer or an auto-sieve. Redstone comes from sieving dust.", need: { anyBuilt: ["autoHammer", "autoSieve"] } },
+    { id: "ironpick", title: "Iron Pickaxe", text: "Cast an iron pickaxe. Every swing at the generators mines far more.", need: { got: { ironPick: 1 } } },
+    { id: "auto", title: "Automation", text: "Build an auto-hammer or an auto-sieve. Redstone comes from sieving dust. Each one can be set to its own input, so you can chain them.", need: { anyBuilt: ["autoHammer", "autoSieve"] } },
+    { id: "autogen", title: "Hands-Free Stone", text: "Upgrade a cobblestone generator into an auto-generator. It mines itself, and has its own upgrades.", need: { anyBuilt: ["autoGen", "autoGen2", "autoGen3"] } },
     { id: "diamond", title: "Diamonds", text: "An iron mesh finds diamonds in gravel.", need: { got: { diamond: 1 } } },
     { id: "pstone", title: "The Philosopher's Stone", text: "Redstone, glowstone and a diamond. Then transmute.", need: { got: { pstone: 1 } } },
     { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. Build it to finish.", need: { got: { terminal: 1 } } },
@@ -213,19 +227,20 @@
     start: { land: 6 },
     land: { max: 36, base: 3, step: 1.5 }, // the n-th expansion costs base + step * n dirt
     tree: { grow: 45, litter: 20, drops: [["leaves", 1, 1], ["sapling", 0.12, 1], ["stick", 0.06, 1]] },
-    barrel: { units: 6, time: 15 },
+    barrel: { units: 6, time: 8 },
     rain: { time: 30 },
     infested: { time: 15, drops: [["string", 1, 1], ["silkworm", 0.03, 1]] },
     crucible: { cobble: 4, melt: 10, perCobble: 250, lava: 2000 }, // a bucket is 1000 mB
     autoHammer: { time: 2.5 },
     autoSieve: { time: 3 },
+    autoGen: { autoGen: 0.5, autoGen2: 1.5, autoGen3: 4 }, // cobblestone per second
     reserve: { cobble: 16, leaves: 6 }, // auto machines and barrels leave this much for crafting
     offline: 7200, // seconds of progress credited while the tab is closed
     tools: {
       axe: [["woodAxe", 1], ["stoneAxe", 2], ["ironAxe", 4], ["diamondAxe", 7]], // extra chopping power
       crook: [["crook", 2]], // extra shaking power
       hammer: [["woodHammer", 1], ["stoneHammer", 2], ["ironHammer", 4], ["diamondHammer", 8]],
-      pick: [["stonePick", 0.25], ["ironPick", 0.8], ["diamondPick", 2]], // cobblestone per second per generator
+      pick: [["stonePick", 1], ["ironPick", 3], ["diamondPick", 6]], // mining power per swing (plus 1 per generator)
       mesh: [["stringMesh", 1], ["flintMesh", 2], ["ironMesh", 3], ["diamondMesh", 4]],
     },
     meshLuck: [0, 1, 1.25, 1.5, 1.8], // drop chance multiplier per mesh tier
