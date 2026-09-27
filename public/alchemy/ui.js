@@ -45,11 +45,21 @@
 
   // ---------- quest + stats ----------
   function renderQuest() {
-    const s = UI.s, q = A.currentQuest(s), n = D.QUESTS.filter(x => s.quests[x.id]).length;
-    const list = D.QUESTS.map(x => `<li class="${s.quests[x.id] ? "done" : ""}">${UI.esc(x.title)}</li>`).join("");
+    const s = UI.s, open = A.openQuests(s), n = D.QUESTS.filter(x => s.quests[x.id]).length;
+    // the advancement tree: done, open now, or locked behind other quests
+    const title = id => UI.esc(D.QUESTS.find(x => x.id === id).title);
+    const list = D.QUESTS.map(x => {
+      const st = s.quests[x.id] ? "done" : open.includes(x) ? "open" : "locked";
+      const after = st === "locked" ? ` <small>after ${x.after.filter(a => !s.quests[a]).map(title).join(", ")}</small>` : "";
+      return `<li class="${st}">${UI.esc(x.title)}${after}</li>`;
+    }).join("");
+    const tree = `<details ${UI.treeOpen ? "open" : ""} data-tree><summary>advancement tree (${n}/${D.QUESTS.length})</summary><ol>${list}</ol></details>`;
+    const q = open.find(x => x.id === UI.questPick) || open[0];
+    const others = open.filter(x => x !== q);
     UI.setHTML($("quest"), "quest", q
-      ? `<div class="num">Quest ${n + 1} of ${D.QUESTS.length}</div><h2>${UI.esc(q.title)}</h2><p>${UI.esc(q.text)}</p><details><summary>all quests</summary><ol>${list}</ol></details>`
-      : `<div class="num">All ${D.QUESTS.length} quests done</div><h2>Everything</h2><p>The void has been fully factored. Keep automating, or reset and speedrun it.</p><details><summary>all quests</summary><ol>${list}</ol></details>`);
+      ? `<div class="num">${open.length > 1 ? `${open.length} quests open` : "Quest"} · ${n}/${D.QUESTS.length} done</div><h2>${UI.esc(q.title)}</h2><p>${UI.esc(q.text)}</p>` +
+        (others.length ? `<div class="also">also open: ${others.map(x => `<button class="linkish" data-act="quest:${x.id}">${UI.esc(x.title)}</button>`).join(" · ")}</div>` : "") + tree
+      : `<div class="num">All ${D.QUESTS.length} quests done</div><h2>Everything</h2><p>The void has been fully factored. Keep automating, or reset and speedrun it.</p>${tree}`);
     UI.setHTML($("stats"), "stats", `<span>played <b data-v="st:time"></b></span><span>clicks <b data-v="st:clicks"></b></span><span>quests <b>${n}/${D.QUESTS.length}</b></span>`);
     UI.v("st:time", UI.secs(((s.won || Date.now()) - s.start) / 1000));
     UI.v("st:clicks", UI.fmt(s.clicks));
@@ -106,6 +116,8 @@
     const h = UI.handlers[type];
     if (h) { h(args, el, e); render(); }
   });
+  // keep the advancement tree open/closed across re-renders
+  document.addEventListener("toggle", e => { if (e.target.matches && e.target.matches("[data-tree]")) UI.treeOpen = e.target.open; }, true);
   document.addEventListener("change", e => {
     const el = e.target.closest("[data-opt]");
     if (el) { UI.s.opt[el.dataset.opt] = el.checked; render(); }
@@ -123,6 +135,7 @@
   Object.assign(UI.handlers, {
     act: ([id], el) => UI.doAct(id, el),
     closewin: () => $("win").classList.remove("show"),
+    quest: ([id]) => { UI.questPick = id; },
     export: () => {
       const code = btoa(unescape(encodeURIComponent(A.serialize(UI.s))));
       if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => UI.log("Save copied to clipboard."), () => prompt("Your save:", code));

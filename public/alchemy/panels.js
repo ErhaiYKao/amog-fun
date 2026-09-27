@@ -9,6 +9,7 @@
 
   // ---------- where does an item come from (besides crafting)? ----------
   const MESH = C.tools.mesh; // [[id, tier]]
+  const num = x => (x >= 1 ? x.toFixed(1) : x >= 0.1 ? x.toFixed(2) : x.toFixed(3));
   const meshName = tier => name(MESH[tier - 1][0]).toLowerCase();
   function sources(id) {
     const out = [];
@@ -18,12 +19,15 @@
       const e = table.filter(d => d[0] === id);
       if (!e.length) continue;
       const gate = Math.min(...e.map(d => (typeof d[3] === "number" ? d[3] : 1)));
-      add(`sieving ${name(inp).toLowerCase()}${gate > 1 ? ` (${meshName(gate)} or better)` : ""}`);
+      // with your best mesh (or the first one you can use), how many per sieve on average
+      const tier = Math.max(gate, A.toolValue(UI.s, "mesh") || 1);
+      const ev = e.reduce((a, [, p, n = 1, g]) => a + (typeof g === "number" && tier < g ? 0 : Math.min(1, p * C.meshLuck[tier]) * n), 0);
+      add(`sieving ${name(inp).toLowerCase()}${gate > 1 ? ` (${meshName(gate)} or better)` : ""}: ${num(ev)} per sieve with a ${meshName(tier)}`);
     }
     for (const [c, b] of Object.entries({ cDirt: "dirt", cGravel: "gravel", cSand: "sand", cDust: "dust" }))
-      if (D.SIEVE[b].some(d => d[0] === id)) add(`heavy-sieving ${name(c).toLowerCase()}`);
+      if (D.SIEVE[b].some(d => d[0] === id)) add(`heavy-sieving ${name(c).toLowerCase()} (7× the rate above)`);
     for (const [inp, t] of Object.entries(ACTIONS.hammer.inputs)) if (t.some(d => d[0] === id)) add(`hammering ${name(inp).toLowerCase()}`);
-    for (const [inp, t] of Object.entries(ACTIONS.chammer.inputs)) if (t.some(d => d[0] === id)) add(`crushing ${name(inp).toLowerCase()} with a compressed hammer`);
+    for (const [inp, t] of Object.entries(ACTIONS.chammer.inputs)) if (t.some(d => d[0] === id)) add(`heavy-smashing ${name(inp).toLowerCase()} with a compressed hammer (9 at once)`);
     for (const [inp, r] of Object.entries(SMELT)) if (r.out === id) add(`smelting ${name(inp).toLowerCase()} (Furnace tab)`);
     if (ALLOY[id]) add(`the alloy smelter (Alloy tab)`);
     for (const [seed, c] of Object.entries(CROPS)) if (c.drops.some(d => d[0] === id)) add(`farmland planted with ${name(seed).toLowerCase()}`);
@@ -43,8 +47,8 @@
   const LOCKED = {
     sieve: "Build a sieve and a mesh to sift dirt for stone.",
     hammer: "Craft a hammer to smash cobblestone into gravel.",
-    chammer: "Craft a compressed hammer (steel) to crush compressed blocks 9 at a time.",
-    hsieve: "Build a heavy sieve (steel) to sift compressed blocks.",
+    chammer: "Craft a compressed hammer (compressed cobblestone + iron) to smash compressed blocks 9 at a time.",
+    hsieve: "Build a heavy sieve (sieve + compressed cobblestone + iron) to sieve compressed blocks.",
     mine: "Build a cobblestone generator (water + lava) and mine it with a pickaxe.",
   };
   function unlocked(s, id) {
@@ -73,7 +77,7 @@
       const a = ACTIONS[id];
       if (!unlocked(s, id)) {
         // only tease the next locked late-game actions once you're close to them
-        if ((id === "chammer" || id === "hsieve") && !s.seen.steel) continue;
+        if ((id === "chammer" || id === "hsieve") && !s.seen.iron) continue;
         h += `<div class="act off"><button class="go" disabled>${img(ACT_ICON[id])}<span><b>${a.verb}</b><br><small class="meta">locked</small></span><span class="k">${a.key}</span></button><div class="why" style="color:var(--muted)">${LOCKED[id]}</div></div>`;
         continue;
       }
@@ -83,7 +87,7 @@
         `<button class="chip" data-act="sel:${id}:${k}" aria-pressed="${s.sel[id] === k}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span></button>`).join("")}</div>` : "";
       h += `<div class="act ${st.ok ? "" : "off"}">
         <button class="go" data-act="act:${id}" ${st.ok ? "" : "disabled"}>${img(held ? held[0] : ACT_ICON[id])}<span><b>${a.verb}</b><br><small class="meta">${esc(detail(s, id, st))}</small></span><span class="k">${a.key}</span></button>
-        <div class="bar green"><i data-w="w:${id}"></i></div>${chips}
+        <div class="bar green"><i data-w="w:${id}"></i></div>${chips}${a.mesh ? `<button class="linkish" data-act="drops">drop rates</button>` : ""}
         <div class="why">${st.ok ? "" : esc(st.reason)}</div></div>`;
       UI.v("w:" + id, (s.work[id] || 0) / a.work);
     }
@@ -92,7 +96,6 @@
   }
 
   // ---------- sieve drop table ----------
-  const num = x => (x >= 1 ? x.toFixed(1) : x >= 0.1 ? x.toFixed(2) : x.toFixed(3));
   function renderDrops() {
     const s = UI.s, box = $("drops-box");
     box.hidden = !s.seen.sieve;
@@ -241,7 +244,7 @@
     }
     return `<div class="units">${h}</div>` +
       (q.length ? `<div class="row meta">queued: ${esc(q.map(j => `${j.n} × ${name(S.rec(j.id).out)}`).join(", "))} <button class="mini" data-act="clearq:${st}">clear</button></div>` : "") +
-      `<div class="row meta">queue jobs from the <a href="#" data-act="tab:${st}">${st === "furnace" ? "Furnace" : "Alloy"} tab</a> in the crafting panel</div>`;
+      `<div class="row meta">queue jobs from the <button class="linkish" data-act="tab:${st}:go">${st === "furnace" ? "Furnace" : "Alloy"} tab</button> in the crafting panel</div>`;
   }
 
   function renderMachines() {
@@ -371,7 +374,9 @@
     seed: ([i, id]) => A.setSeed(UI.s, +i, id || null),
     fold: ([id]) => { UI.s.fold[id] = !UI.s.fold[id]; },
     filter: ([f]) => { UI.filter = f; },
-    tab: ([t], el, e) => { if (e) e.preventDefault(); UI.tab = t; UI.focus = null; },
+    // "go": clicked from elsewhere (the machines panel), so bring the crafting panel into view too
+    tab: ([t, go]) => { UI.tab = t; UI.focus = null; if (go) $("crafting").closest(".card").scrollIntoView({ behavior: "smooth", block: "start" }); },
+    drops: () => { const box = $("drops-box"); box.open = true; box.scrollIntoView({ behavior: "smooth", block: "nearest" }); },
     amt: ([n]) => { UI.amount = +n; $("craftn").value = n; },
     focus: ([id]) => { UI.focus = id; $("crafting").scrollTop = 0; $("crafting").closest(".card").scrollIntoView({ block: "nearest", behavior: "smooth" }); },
     unfocus: () => { UI.focus = null; },

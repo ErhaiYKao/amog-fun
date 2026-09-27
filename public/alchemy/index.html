@@ -103,6 +103,12 @@
   .ing.need { color: var(--g1); }
   .rec .btns { display: flex; gap: 4px; align-items: center; }
   .ing[data-act] { cursor: pointer; border-radius: 5px; }
+  .linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--g1); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  .act .linkish { font-family: var(--mono); font-size: 11.5px; align-self: flex-start; }
+  .quest .also { margin-top: 10px; font-size: 14px; color: var(--muted); }
+  .quest li.open { color: var(--g3); }
+  .quest li.locked { color: var(--faint); }
+  .quest li small { font-family: var(--mono); font-size: 10.5px; }
   .ing[data-act]:hover { color: var(--ink); background: var(--bg-3); }
   .rec.flash { animation: flash 1.2s ease-out; }
   @keyframes flash { 0% { border-color: var(--g1); box-shadow: 0 0 0 2px #4fd6e866; } 100% { } }
@@ -200,7 +206,7 @@
         <div class="tileinfo" id="tile"></div>
       </section>
       <section class="card" style="--o:3"><div class="card-h"><h2>Work</h2><span class="meta">keys 1–7</span></div><div class="actions" id="actions"></div>
-        <details class="drops" id="drops-box"><summary>sieve drop table</summary><div id="drops"></div></details></section>
+        <details class="drops" id="drops-box"><summary>sieve drop rates: what each mesh finds</summary><div id="drops"></div></details></section>
       <section class="card" id="machines-card" style="--o:6"><div class="card-h"><h2>Machines</h2></div><div id="machines"></div></section>
     </div>
     <div class="col">

@@ -14,8 +14,10 @@
  *          built. needTool: power from `per` alone isn't enough, you need the tool too. toolName: for messages.
  * Drop tables are lists of [item, chance, amount, gate]. gate is a minimum mesh tier (number)
  *          or a tool kind you must own (string, e.g. "crook").
- * QUESTS   the guided path, in order. need: { got: {id: n} } (ever obtained), { built: {id: n} },
- *          { anyBuilt: [ids] }, { land: tiles }. reward: {id: n}.
+ * QUESTS   an advancement tree. need: { got: {id: n} } (ever obtained), { built: {id: n} },
+ *          { anyBuilt: [ids] }, { gotAny: [ids] }, { land: tiles }. reward: {id: n}. after: quest ids that
+ *          must be done before it shows as open (set in QUEST_AFTER below). A quest completes whenever its need
+ *          is met, open or not. Array order = display order and tie-break for the "main" open quest.
  * CONFIG   timings and balance.
  */
 (function (root) {
@@ -103,7 +105,7 @@
     flintMesh: { name: "Flint Mesh", icon: ["mesh", "#55555e"] },
     ironMesh: { name: "Iron Mesh", icon: ["mesh", "#dcdcdc"] },
     diamondMesh: { name: "Diamond Mesh", icon: ["mesh", "#5ee0d8"] },
-    cHammer: { name: "Compressed Hammer", icon: ["hammer", "#6d747f"], desc: "Crushes compressed blocks: 9 at a time." },
+    cHammer: { name: "Compressed Hammer", icon: ["hammer", "#6d747f"], desc: "Smashes compressed blocks: 9 at a time." },
     diamondCHammer: { name: "Diamond Compressed Hammer", icon: ["hammer", "#3fb8b0"] },
     pstone: { name: "Philosopher's Stone", icon: ["gem", "#e0243f", "glow"], desc: "Enables transmutation. Not used up." },
     terminal: { name: "The Terminal Object", icon: ["terminal"], desc: "Every object has exactly one arrow to it." },
@@ -124,9 +126,9 @@
     autoHammer: { name: "Auto-Hammer", icon: ["autohammer"], place: true, desc: "Holds its own hammer: insert one under Machines. Better hammers work faster." },
     autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true, desc: "Holds its own mesh: insert one under Machines. The mesh decides the drops." },
     alloy: { name: "Alloy Smelter", icon: ["furnace", "#5a6270"], place: true, desc: "Fuses metals. Burns the furnace's coal. Recipes are in its own tab." },
-    heavySieve: { name: "Heavy Sieve", icon: ["sieve", "#7d8591"], place: true, desc: "Sifts compressed blocks: 7 sievings in one. Needs a mesh." },
-    autoCHammer: { name: "Auto Compressed Hammer", icon: ["autohammer", "#7d8591"], place: true, desc: "Holds its own compressed hammer." },
-    autoHeavySieve: { name: "Auto Heavy Sieve", icon: ["autosieve", "#7d8591"], place: true, desc: "Holds its own mesh and sifts compressed blocks." },
+    heavySieve: { name: "Heavy Sieve", icon: ["sieve", "#7d8591"], place: true, desc: "Sieves compressed blocks: 7 sievings in one. Needs a mesh." },
+    autoCHammer: { name: "Auto Compressed Hammer", icon: ["autohammer", "#7d8591"], place: true, desc: "Holds its own compressed hammer. Upgrade an auto-hammer or a compressed hammer into one." },
+    autoHeavySieve: { name: "Auto Heavy Sieve", icon: ["autosieve", "#7d8591"], place: true, desc: "Holds its own mesh and sieves compressed blocks. Upgrade an auto-sieve or a heavy sieve into one." },
     farmland: { name: "Farmland", icon: ["farm"], place: true, desc: "Pick a seed under Machines. It stays planted and keeps growing." },
   };
 
@@ -154,10 +156,10 @@
       inputs: { cobble: [["gravel", 1, 1]], gravel: [["sand", 1, 1]], sand: [["dust", 1, 1]] },
     },
     chammer: {
-      name: "Compressed hammer", verb: "Crush", key: "6", work: 6, tool: "chammer", toolName: "compressed hammer", needTool: true,
+      name: "Compressed hammer", verb: "Heavy smash", key: "6", work: 6, tool: "chammer", toolName: "compressed hammer", needTool: true,
       inputs: { cCobble: [["gravel", 1, 9]], cGravel: [["sand", 1, 9]], cSand: [["dust", 1, 9]] },
     },
-    hsieve: { name: "Heavy sieve", verb: "Heavy sift", key: "7", work: 8, per: "heavySieve", mesh: true, inputs: HEAVY_SIEVE },
+    hsieve: { name: "Heavy sieve", verb: "Heavy sieve", key: "7", work: 8, per: "heavySieve", mesh: true, inputs: HEAVY_SIEVE },
     mine: {
       name: "Mine the generators", verb: "Mine", key: "5", work: 4, tool: "pick", per: "cobblegen", requires: "cobblegen", needTool: true,
       drops: [["cobble", 1, 1]],
@@ -252,13 +254,16 @@
       { in: { [b]: 9 }, out: { [c]: 1 } },
       { name: "Uncompress", in: { [c]: 1 }, out: { [b]: 9 } },
     ]),
-    // heavy machinery (steel comes from the alloy smelter)
+    // heavy machinery: the manual ones are iron-age, the automatic ones need steel (as in SF3)
+    { in: { cCobble: 3, iron: 2, twine: 2 }, out: { cHammer: 1 }, at: "table" },
+    { in: { diamond: 3, cHammer: 1, twine: 2 }, out: { diamondCHammer: 1 }, at: "table" },
+    { in: { sieve: 1, cCobble: 2, iron: 2 }, out: { heavySieve: 1 }, at: "table" },
     { in: { furnace: 1, iron: 6, gear: 2 }, out: { alloy: 1 }, at: "table" },
-    { in: { steel: 3, stick: 2, twine: 2 }, out: { cHammer: 1 }, at: "table" },
-    { in: { diamond: 3, steel: 2, twine: 2 }, out: { diamondCHammer: 1 }, at: "table" },
-    { in: { sieve: 1, steel: 3 }, out: { heavySieve: 1 }, at: "table" },
+    // auto versions: upgrade either the auto machine or the manual heavy one (a compressed hammer goes in as its tool)
     { in: { autoHammer: 1, steel: 4, redAlloy: 4 }, out: { autoCHammer: 1 }, at: "table" },
+    { in: { cHammer: 1, gear: 2, steel: 4, redAlloy: 4 }, out: { autoCHammer: 1 }, at: "table" },
     { in: { autoSieve: 1, steel: 4, redAlloy: 4 }, out: { autoHeavySieve: 1 }, at: "table" },
+    { in: { heavySieve: 1, gear: 2, steel: 4, redAlloy: 4 }, out: { autoHeavySieve: 1 }, at: "table" },
     // farming
     { in: { dirt: 4, waterBucket: 1 }, out: { farmland: 1, bucket: 1 }, at: "table" },
     { in: { seeds: 1, coal: 16 }, out: { coalSeeds: 1 }, at: "table" },
@@ -299,13 +304,25 @@
     { id: "ironpick", title: "Iron Pickaxe", text: "Cast an iron pickaxe. Every swing at the generators mines far more.", need: { got: { ironPick: 1 } } },
     { id: "auto", title: "Automation", text: "Build an auto-hammer or an auto-sieve. Redstone comes from sieving dust. Each one can be set to its own input, so you can chain them.", need: { anyBuilt: ["autoHammer", "autoSieve"] } },
     { id: "autogen", title: "Hands-Free Stone", text: "Upgrade a cobblestone generator into an auto-generator. It mines itself, and has its own upgrades.", need: { anyBuilt: ["autoGen", "autoGen2", "autoGen3"] } },
+    { id: "heavy", title: "Heavy Machinery", text: "Compress blocks 9 to 1, then build a heavy sieve or a compressed hammer to work them all at once.", need: { gotAny: ["heavySieve", "cHammer"] } },
     { id: "diamond", title: "Diamonds", text: "An iron mesh finds diamonds in gravel.", need: { got: { diamond: 1 } } },
     { id: "alloy", title: "Alloy Smelter", text: "Build an alloy smelter from a furnace, iron and gears. It has its own recipe tab.", need: { built: { alloy: 1 } } },
-    { id: "steel", title: "Steel", text: "Alloy iron with coal. Steel is what heavy machinery is made of.", need: { got: { steel: 1 } } },
-    { id: "heavy", title: "Heavy Machinery", text: "Build a heavy sieve or a compressed hammer. Compress blocks 9 to 1 and work them all at once.", need: { gotAny: ["heavySieve", "cHammer"] } },
+    { id: "steel", title: "Steel", text: "Alloy iron with coal. Steel is what the automatic heavy machines are made of.", need: { got: { steel: 1 } } },
     { id: "pstone", title: "The Philosopher's Stone", text: "Redstone, glowstone and a diamond. Then transmute.", need: { got: { pstone: 1 } } },
     { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. Build it to finish.", need: { got: { terminal: 1 } } },
   ];
+
+  // the advancement tree: which quests open up which
+  const QUEST_AFTER = {
+    planks: ["wood"], table: ["planks"], leaves: ["wood"], crook: ["table", "leaves"], barrel: ["table"], dirt: ["barrel"],
+    grow: ["leaves"], land: ["dirt"], silk: ["crook"], infest: ["silk"], string: ["infest"], sieve: ["string", "dirt"],
+    cobble: ["sieve"], twine: ["string"], hammer: ["cobble", "twine"], furnace: ["cobble"], charcoal: ["furnace"],
+    clay: ["hammer"], crucible: ["clay", "charcoal"], gen: ["crucible"], coal: ["hammer"], iron: ["coal", "furnace"],
+    farm: ["clay", "charcoal"], cast: ["clay", "charcoal"], ironpick: ["cast", "iron"], auto: ["iron"],
+    autogen: ["auto", "gen"], heavy: ["iron"], diamond: ["iron"], alloy: ["iron"], steel: ["alloy"],
+    pstone: ["diamond"], terminal: ["pstone", "steel"],
+  };
+  QUESTS.forEach(q => (q.after = QUEST_AFTER[q.id] || []));
 
   const CONFIG = {
     start: { land: 6 },

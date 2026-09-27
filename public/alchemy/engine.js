@@ -54,18 +54,22 @@
   const free = s => s.island.filter(t => !t).length;
   const emit = (s, type, text, data) => { if (s.ev) s.ev.push({ type, text, ...data }); };
 
+  // returns the island indices of any machines it placed
   function give(s, id, n = 1) {
-    if (n <= 0) return;
+    const placed = [];
+    if (n <= 0) return placed;
     if (isPlace(id)) {
       for (let k = 0; k < n; k++) {
         const i = s.island.indexOf(null);
-        if (i < 0) return;
+        if (i < 0) break;
         s.island[i] = { id, ...(TILE[id] ? TILE[id]() : {}) };
         if (AUTO.includes(id)) s.island[i].sel = s.sel[id]; // new machines start on the last input you picked
+        placed.push(i);
       }
     } else s.inv[id] = (s.inv[id] || 0) + n;
     s.got[id] = (s.got[id] || 0) + n;
     if (!s.seen[id]) { s.seen[id] = 1; emit(s, "new", ITEMS[id].name, { id }); }
+    return placed;
   }
 
   function take(s, id, n = 1) {
@@ -167,7 +171,18 @@
     if (times <= 0) return 0;
     const need = cost(s, r, times);
     for (const id in need) take(s, id, need[id]);
-    for (const id in r.out) give(s, id, r.out[id] * times);
+    for (const id in r.out) {
+      const placed = give(s, id, r.out[id] * times), auto = D.AUTO[id];
+      if (!auto) continue;
+      // a tool that went into the recipe (a compressed hammer) becomes the machine's tool;
+      // otherwise the new machine takes your best matching tool, so it works straight away
+      const inherited = Object.keys(r.in).find(k => (toolKind(k) || [])[0] === auto.kind);
+      for (const i of placed) {
+        if (inherited && !s.island[i].tool) { s.island[i].tool = inherited; continue; }
+        const best = tool(s, auto.kind);
+        if (best) { take(s, best[0], 1); s.island[i].tool = best[0]; }
+      }
+    }
     return times;
   }
 
@@ -423,7 +438,9 @@
       if (q.id === "terminal" && !s.won) s.won = s.t;
     }
   }
-  const currentQuest = s => QUESTS.find(q => !s.quests[q.id]) || null;
+  // advancement tree: open = not done yet, and everything it comes after is done
+  const openQuests = s => QUESTS.filter(q => !s.quests[q.id] && (q.after || []).every(a => s.quests[a]));
+  const currentQuest = s => openQuests(s)[0] || QUESTS.find(q => !s.quests[q.id]) || null;
 
   // ---------- saving ----------
   const KEY = "amog.alchemy.v1";
@@ -474,7 +491,7 @@
     DATA: D, KEY, create, count, built, free, grownTrees, give, take, tool, toolValue, actionState, act,
     cost, recipeState, maxCraft, craft, visible, hidden, toolKind, expandCost, expand, demolish, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
-    insertTool, pullTool, autoPeriod, setSeed, currentQuest, serialize, revive, catchUp,
+    insertTool, pullTool, autoPeriod, setSeed, currentQuest, openQuests, serialize, revive, catchUp,
   };
   root.Alchemy = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
