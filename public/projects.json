@@ -1,5 +1,16 @@
 [
   {
+    "slug": "alchemy",
+    "title": "Alchemy",
+    "signature": "alchemy : Void → Everything",
+    "blurb": "A skyblock in the void, after SkyFactory 3. One tree, then compost, sieves, furnaces, crucibles and cobblestone generators, all the way to the Philosopher's Stone.",
+    "tags": [
+      "game",
+      "idle",
+      "crafting"
+    ]
+  },
+  {
     "slug": "blog",
     "title": "The Blog",
     "signature": "blog : Coffee → Theorems",
@@ -28,17 +39,6 @@
       "games",
       "vs AI",
       "math"
-    ]
-  },
-  {
-    "slug": "alchemy",
-    "title": "Alchemy",
-    "signature": "alchemy : Void → Everything",
-    "blurb": "A skyblock in the void, after SkyFactory 3. One tree, then compost, sieves, furnaces, crucibles and cobblestone generators, all the way to the Philosopher's Stone.",
-    "tags": [
-      "game",
-      "idle",
-      "crafting"
     ]
   },
   {
