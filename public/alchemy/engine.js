@@ -2,11 +2,11 @@
 (function (root) {
   "use strict";
   const D = root.ALCHEMY_DATA || require("./data.js");
-  const { ITEMS, RECIPES, SMELT, ACTIONS, QUESTS, CONFIG: C } = D;
+  const { ITEMS, RECIPES, SMELT, ALLOY, CROPS, ACTIONS, QUESTS, CONFIG: C } = D;
   RECIPES.forEach((r, i) => (r.id = r.id || "r" + i));
   // stable across data.js edits (ids shift when recipes are inserted), used for hidden-recipe prefs
   RECIPES.forEach(r => (r.key = r.key || Object.keys(r.out).join("+") + "<" + Object.keys(r.in).join("+")));
-  const AUTO = ["autoHammer", "autoSieve"]; // machines with their own input setting
+  const AUTO = Object.keys(D.AUTO); // machines with their own input and their own tool
   const AUTOGEN = C.autoGen;
 
   // per-tile state for machines that need it
@@ -19,17 +19,26 @@
     autoGen: () => ({ acc: 0 }),
     autoGen2: () => ({ acc: 0 }),
     autoGen3: () => ({ acc: 0 }),
-    autoHammer: () => ({ t: 0 }),
-    autoSieve: () => ({ t: 0 }),
+    autoHammer: () => ({ t: 0, tool: null }),
+    autoSieve: () => ({ t: 0, tool: null }),
+    autoCHammer: () => ({ t: 0, tool: null }),
+    autoHeavySieve: () => ({ t: 0, tool: null }),
+    farmland: () => ({ seed: null, sel: "seeds", g: 0 }),
+  };
+
+  // furnace-like machines: a queue of jobs, one slot per machine, burning the shared fuel
+  const STATIONS = {
+    furnace: { q: "queue", sl: "slots", rec: id => SMELT[id] && { in: { [id]: 1 }, out: SMELT[id].out, n: 1, time: SMELT[id].time, heat: SMELT[id].heat } },
+    alloy: { q: "aqueue", sl: "aslots", rec: id => ALLOY[id] && { ...ALLOY[id], out: id } },
   };
 
   function create(now = Date.now()) {
     const s = {
-      v: 2, t: now, start: now, won: 0, clicks: 0,
+      v: 3, t: now, start: now, won: 0, clicks: 0,
       inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {}, hide: {},
-      sel: { sieve: "dirt", hammer: "cobble", autoHammer: "cobble", autoSieve: "gravel" },
+      sel: { sieve: "dirt", hammer: "cobble", chammer: "cCobble", hsieve: "cGravel", autoHammer: "cobble", autoSieve: "gravel", autoCHammer: "cCobble", autoHeavySieve: "cGravel" },
       opt: { feedBarrels: true, compostSaplings: false, feedCrucible: true },
-      fuel: [0, 0, 0, 0], queue: [], slots: [], ev: [],
+      fuel: [0, 0, 0, 0], queue: [], slots: [], aqueue: [], aslots: [], fold: {}, ev: [],
     };
     for (let i = 0; i < C.start.land; i++) s.island.push(null);
     s.island[0] = { id: "tree", grow: 1, t: 0 };
@@ -91,11 +100,12 @@
     const a = ACTIONS[id];
     if (a.tree && !grownTrees(s)) return { ok: false, reason: "needs a grown tree" };
     if (a.requires && !built(s, a.requires)) return { ok: false, reason: `build a ${ITEMS[a.requires].name.toLowerCase()}` };
-    if (a.needTool && !tool(s, a.tool)) return { ok: false, reason: `needs a ${a.tool === "pick" ? "pickaxe" : a.tool}` };
+    const toolName = a.toolName || (a.tool === "pick" ? "pickaxe" : a.tool);
+    if (a.needTool && !tool(s, a.tool)) return { ok: false, reason: `needs a ${toolName}` };
     let power = a.base || 0;
     if (a.tool) power += toolValue(s, a.tool);
     if (a.per) power += count(s, a.per);
-    if (power <= 0) return { ok: false, reason: a.per ? `build a ${ITEMS[a.per].name.toLowerCase()}` : `needs a ${a.tool}` };
+    if (power <= 0) return { ok: false, reason: a.per ? `build a ${ITEMS[a.per].name.toLowerCase()}` : `needs a ${toolName}` };
     const mesh = a.mesh ? toolValue(s, "mesh") : 0;
     if (a.mesh && !mesh) return { ok: false, reason: "needs a mesh", power };
     const input = a.inputs ? s.sel[id] : null;
@@ -190,6 +200,8 @@
     if (!t) return false;
     if (t.id === "tree") { if (t.grow >= 1) give(s, "log", 2); give(s, "sapling", 1); }
     if (t.id === "crucible" && t.cobble) give(s, "cobble", t.cobble);
+    if (t.tool) s.inv[t.tool] = (s.inv[t.tool] || 0) + 1; // auto machines hand their tool back
+    if (t.seed) s.inv[t.seed] = (s.inv[t.seed] || 0) + 1; // farmland hands its seed back
     s.island[i] = null;
     return true;
   }
@@ -228,18 +240,28 @@
     return true;
   }
 
-  function queueSmelt(s, id, n) {
-    n = Math.min(n, count(s, id));
-    if (n <= 0 || !SMELT[id] || !built(s, "furnace")) return 0;
-    take(s, id, n);
-    const last = s.queue[s.queue.length - 1];
-    if (last && last.id === id) last.n += n; else s.queue.push({ id, n });
+  // how many jobs of `id` you could queue at a station right now
+  function stationMax(s, st, id) {
+    const rec = STATIONS[st].rec(id);
+    if (!rec || !built(s, st)) return 0;
+    return Math.min(...Object.entries(rec.in).map(([k, n]) => Math.floor(count(s, k) / n)));
+  }
+  function queueAt(s, st, id, n) {
+    n = Math.min(n, stationMax(s, st, id));
+    if (n <= 0) return 0;
+    const rec = STATIONS[st].rec(id), q = s[STATIONS[st].q];
+    for (const k in rec.in) take(s, k, rec.in[k] * n);
+    const last = q[q.length - 1];
+    if (last && last.id === id) last.n += n; else q.push({ id, n });
     return n;
   }
-  function clearQueue(s) {
-    for (const q of s.queue) s.inv[q.id] = (s.inv[q.id] || 0) + q.n;
-    s.queue = [];
+  const refund = (s, st, id, n) => { const rec = STATIONS[st].rec(id); for (const k in rec.in) s.inv[k] = (s.inv[k] || 0) + rec.in[k] * n; };
+  function clearAt(s, st) {
+    for (const q of s[STATIONS[st].q]) refund(s, st, q.id, q.n);
+    s[STATIONS[st].q] = [];
   }
+  const queueSmelt = (s, id, n) => queueAt(s, "furnace", id, n);
+  const clearQueue = s => clearAt(s, "furnace");
   function addFuel(s, id, n) {
     const f = ITEMS[id] && ITEMS[id].fuel;
     n = Math.min(n, count(s, id));
@@ -249,21 +271,21 @@
     return n;
   }
 
-  function tickFurnaces(s, dt) {
-    const slots = built(s, "furnace");
-    while (s.slots.length > slots) {
-      const job = s.slots.pop();
-      if (job) s.inv[job.id] = (s.inv[job.id] || 0) + 1;
+  function tickStation(s, st, dt) {
+    const S = STATIONS[st], queue = s[S.q], slotList = s[S.sl], slots = built(s, st);
+    while (slotList.length > slots) {
+      const job = slotList.pop();
+      if (job) refund(s, st, job.id, 1);
     }
     for (let i = 0; i < slots; i++) {
-      if (!s.slots[i] && s.queue.length) {
-        const q = s.queue[0];
-        s.slots[i] = { id: q.id, p: 0 };
-        if (--q.n <= 0) s.queue.shift();
+      if (!slotList[i] && queue.length) {
+        const q = queue[0];
+        slotList[i] = { id: q.id, p: 0 };
+        if (--q.n <= 0) queue.shift();
       }
-      const job = s.slots[i];
+      const job = slotList[i];
       if (!job) continue;
-      const rec = SMELT[job.id];
+      const rec = S.rec(job.id);
       let t = dt;
       while (t > 1e-9) {
         let lvl = 0;
@@ -274,21 +296,55 @@
         s.fuel[lvl] -= use;
         t -= use;
         job.p += use / rec.time;
-        if (job.p >= 1 - 1e-6) { give(s, rec.out, 1); s.slots[i] = null; break; }
+        if (job.p >= 1 - 1e-6) { give(s, rec.out, rec.n); slotList[i] = null; break; }
       }
     }
   }
 
-  function autoRun(s, tile, dt, period, table, input, mesh) {
-    if (!table[input]) input = tile.sel = Object.keys(table).find(k => k !== "mesh");
+  // ---------- auto machines: each holds its own tool ----------
+  const toolTier = id => (toolKind(id) || [null, 0])[1];
+  // seconds per operation: hammers speed up with tier, sieves always take the base time
+  function autoPeriod(tile) {
+    const A = D.AUTO[tile.id];
+    return A.kind === "mesh" || !tile.tool ? A.time : (A.time * 2) / (1 + toolTier(tile.tool));
+  }
+  function autoRun(s, tile, dt) {
+    const A = D.AUTO[tile.id], table = ACTIONS[A.action].inputs;
+    let input = tile.sel || s.sel[tile.id];
+    if (!table[input]) input = tile.sel = Object.keys(table)[0];
+    const period = autoPeriod(tile), mesh = A.kind === "mesh" && tile.tool ? toolTier(tile.tool) : 0;
     tile.t += dt;
     tile.idle = false;
     while (tile.t >= period) {
-      if (count(s, input) <= (C.reserve[input] || 0) || (table.mesh && !mesh)) { tile.t = period; tile.idle = true; return; }
+      if (!tile.tool || count(s, input) <= (C.reserve[input] || 0)) { tile.t = period; tile.idle = true; return; }
       tile.t -= period;
       take(s, input, 1);
       roll(s, table[input], mesh);
     }
+  }
+  function insertTool(s, i, id) {
+    const t = s.island[i], A = t && D.AUTO[t.id], tk = toolKind(id);
+    if (!A || !tk || tk[0] !== A.kind || count(s, id) < 1) return false;
+    pullTool(s, i);
+    take(s, id, 1);
+    t.tool = id;
+    return true;
+  }
+  function pullTool(s, i) {
+    const t = s.island[i];
+    if (!t || !t.tool) return false;
+    s.inv[t.tool] = (s.inv[t.tool] || 0) + 1;
+    t.tool = null;
+    return true;
+  }
+
+  // ---------- farmland ----------
+  function setSeed(s, i, id) {
+    const t = s.island[i];
+    if (!t || t.id !== "farmland" || (id && !CROPS[id])) return false;
+    t.sel = id || null;
+    if (t.seed && t.seed !== id) { s.inv[t.seed] = (s.inv[t.seed] || 0) + 1; t.seed = null; t.g = 0; }
+    return true;
   }
 
   function tick(s, dt) {
@@ -332,15 +388,20 @@
           if (n > 0) { tile.acc -= n; give(s, "cobble", n); }
           break;
         }
-        case "autoHammer":
-          autoRun(s, tile, dt, C.autoHammer.time, ACTIONS.hammer.inputs, tile.sel || s.sel.autoHammer, 0);
+        case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve":
+          autoRun(s, tile, dt);
           break;
-        case "autoSieve":
-          autoRun(s, tile, dt, C.autoSieve.time, Object.assign({ mesh: true }, ACTIONS.sieve.inputs), tile.sel || s.sel.autoSieve, toolValue(s, "mesh"));
+        case "farmland":
+          if (!tile.seed && tile.sel && count(s, tile.sel) > 0) { take(s, tile.sel, 1); tile.seed = tile.sel; tile.g = 0; }
+          if (tile.seed) {
+            tile.g += dt / CROPS[tile.seed].grow;
+            while (tile.g >= 1) { tile.g -= 1; roll(s, CROPS[tile.seed].drops); }
+          }
           break;
       }
     }
-    tickFurnaces(s, dt);
+    tickStation(s, "furnace", dt);
+    tickStation(s, "alloy", dt);
     checkQuests(s);
   }
 
@@ -349,6 +410,7 @@
     for (const id in need.got || {}) if ((s.got[id] || 0) < need.got[id]) return false;
     for (const id in need.built || {}) if (built(s, id) < need.built[id]) return false;
     if (need.anyBuilt && !need.anyBuilt.some(id => built(s, id) > 0)) return false;
+    if (need.gotAny && !need.gotAny.some(id => (s.got[id] || 0) > 0)) return false;
     if (need.land && s.island.length < need.land) return false;
     return true;
   }
@@ -382,6 +444,16 @@
       s.island.forEach(t => { if (t && AUTO.includes(t.id) && !t.sel) t.sel = s.sel[t.id]; });
       s.v = 2;
     }
+    if (s.v < 3) {
+      // v3: auto machines hold their own tool. Auto-hammers were built with a stone hammer, so they keep one;
+      // auto-sieves used your best mesh, so they get a copy of it.
+      const mesh = tool(s, "mesh");
+      s.island.forEach(t => {
+        if (t && t.id === "autoHammer" && t.tool === undefined) t.tool = "stoneHammer";
+        if (t && t.id === "autoSieve" && t.tool === undefined) t.tool = mesh ? mesh[0] : null;
+      });
+      s.v = 3;
+    }
     s.ev = [];
     return s;
   }
@@ -401,7 +473,8 @@
   const api = {
     DATA: D, KEY, create, count, built, free, grownTrees, give, take, tool, toolValue, actionState, act,
     cost, recipeState, maxCraft, craft, visible, hidden, toolKind, expandCost, expand, demolish, feedBarrels, fullRain, lavaCrucible,
-    mixClay, fillBucket, queueSmelt, clearQueue, addFuel, tick, currentQuest, serialize, revive, catchUp,
+    mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
+    insertTool, pullTool, autoPeriod, setSeed, currentQuest, serialize, revive, catchUp,
   };
   root.Alchemy = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

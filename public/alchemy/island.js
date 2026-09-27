@@ -36,7 +36,8 @@
       case "rainBarrel": return [t.water, "#3f76e4"];
       case "crucible": return [t.lava / C.crucible.lava, "#ff7a1a"];
       case "infested": return [t.t / C.infested.time, "#f2efe6"];
-      case "autoHammer": case "autoSieve": return t.idle ? null : [t.t / C[t.id].time, "#4fd6e8"];
+      case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve": return t.idle ? null : [t.t / A.autoPeriod(t), "#4fd6e8"];
+      case "farmland": return t.seed ? [t.g, "#a7c957"] : null;
       case "autoGen": case "autoGen2": case "autoGen3": return [t.acc, "#9a9aa2"];
       default: return null;
     }
@@ -117,8 +118,11 @@
       case "crucible": return `${t.cobble} cobblestone waiting · ${t.lava} mB lava`;
       case "cobblegen": { const p = A.tool(s, "pick"); return p ? `mine it from the Work panel (${UI.name(p[0]).toLowerCase()})` : "needs a pickaxe to mine"; }
       case "autoGen": case "autoGen2": case "autoGen3": return `${C.autoGen[t.id]} cobblestone/s, no pickaxe needed`;
-      case "autoHammer": case "autoSieve": return `${t.idle ? "waiting for" : "working on"} ${UI.name(t.sel || s.sel[t.id]).toLowerCase()} · input set under Machines`;
-      case "furnace": return "fuel and smelting are under Machines";
+      case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve":
+        return t.tool ? `${UI.name(t.tool).toLowerCase()} · ${t.idle ? "waiting for" : "working on"} ${UI.name(t.sel || s.sel[t.id]).toLowerCase()} · set up under Machines` : "empty: insert a tool under Machines";
+      case "farmland": return t.seed ? `${UI.name(t.seed).toLowerCase()} · ${Math.floor(t.g * 100)}%` : "pick a seed under Machines";
+      case "alloy": return "recipes are in the Alloy tab of the crafting panel";
+      case "furnace": return "fuel is under Machines, recipes in the Furnace tab";
       default: return D.ITEMS[t.id].desc || "";
     }
   }

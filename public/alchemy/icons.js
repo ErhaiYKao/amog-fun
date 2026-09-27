@@ -52,6 +52,7 @@
         if (v === "sand") f += (rnd(x, y, 3) - 0.5) * 0.1;
         if (v === "dust") f = (rnd(x, y) - 0.5) * 0.08;
         if (v === "clay") f += y % 5 === 0 ? -0.06 : 0;
+        if (v === "compressed") { f += (rnd(x, y, 3) - 0.5) * 0.25; if (x === 2 || y === 2 || x === 13 || y === 13) f -= 0.4; if (x < 2 || y < 2 || x > 13 || y > 13) f -= 0.15; }
         if (y === 15 || x === 15) f -= 0.12;
         P(x, y, shade(c, f));
       }
@@ -237,13 +238,14 @@
         P(x, y, col);
       }
     },
-    sieve(P, _, __, rnd) {
-      for (let y = 8; y < 16; y++) { P(2, y, WOOD); P(13, y, shade(WOOD, -0.3)); }
-      for (let y = 5; y < 9; y++) for (let x = 1; x < 15; x++) P(x, y, shade("#b08850", (rnd(x, y) - 0.5) * 0.12 + (y === 8 ? -0.3 : 0)));
+    sieve(P, c, __, rnd) {
+      const frame = c === "#888888" ? "#b08850" : c, leg = c === "#888888" ? WOOD : shade(c, -0.2);
+      for (let y = 8; y < 16; y++) { P(2, y, leg); P(13, y, shade(leg, -0.3)); }
+      for (let y = 5; y < 9; y++) for (let x = 1; x < 15; x++) P(x, y, shade(frame, (rnd(x, y) - 0.5) * 0.12 + (y === 8 ? -0.3 : 0)));
       for (let y = 2; y < 5; y++) for (let x = 2; x < 14; x++) P(x, y, (x + y) % 2 ? "#f2efe6" : "#9c9181");
     },
-    furnace(P, _, __, rnd) {
-      SHAPES.block(P, "#7b7b7b", "cobble", rnd);
+    furnace(P, c, __, rnd) {
+      SHAPES.block(P, c === "#888888" ? "#7b7b7b" : c, "cobble", rnd);
       for (let y = 8; y < 14; y++) for (let x = 4; x < 12; x++) P(x, y, y > 10 ? (rnd(x, y, 7) < 0.5 ? "#ff8c1a" : "#ffd23f") : "#1c1c1f");
       for (let x = 4; x < 12; x += 2) P(x, 3, "#2a2a2e");
     },
@@ -255,15 +257,17 @@
       SHAPES.block(P, "#7b7b7b", "cobble", rnd);
       for (let y = 0; y < 16; y++) for (let x = 0; x < 4; x++) { P(x, y, shade("#ff7a1a", (rnd(x, y, 3) - 0.5) * 0.4)); P(15 - x, y, shade("#3f76e4", (rnd(x, y, 4) - 0.5) * 0.3)); }
     },
-    autohammer(P, _, __, rnd) {
+    autohammer(P, c, __, rnd) {
+      const edge = c === "#888888" ? "#5c5c62" : c;
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++)
-        P(x, y, x === 0 || y === 0 || x === 15 || y === 15 ? "#5c5c62" : shade("#b9b9bf", (rnd(x, y) - 0.5) * 0.1));
+        P(x, y, x === 0 || y === 0 || x === 15 || y === 15 || (c !== "#888888" && (x === 1 || y === 1 || x === 14 || y === 14)) ? edge : shade("#b9b9bf", (rnd(x, y) - 0.5) * 0.1));
       SHAPES.hammer((x, y, col) => { if (x > 1 && y > 1 && x < 14 && y < 14) P(x, y, col); }, "#4c4c52");
       P(12, 12, "#d42a1f");
     },
-    autosieve(P, _, __, rnd) {
+    autosieve(P, c, __, rnd) {
+      const edge = c === "#888888" ? "#5c5c62" : c;
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++)
-        P(x, y, x === 0 || y === 0 || x === 15 || y === 15 ? "#5c5c62" : shade("#b9b9bf", (rnd(x, y) - 0.5) * 0.1));
+        P(x, y, x === 0 || y === 0 || x === 15 || y === 15 || (c !== "#888888" && (x === 1 || y === 1 || x === 14 || y === 14)) ? edge : shade("#b9b9bf", (rnd(x, y) - 0.5) * 0.1));
       for (let y = 3; y < 9; y++) for (let x = 3; x < 13; x++) P(x, y, (x + y) % 2 ? "#f2efe6" : "#7c7c84");
       P(12, 12, "#d42a1f");
     },
@@ -275,6 +279,18 @@
         P(x, y, x < 5 ? shade("#ff7a1a", (rnd(x, y, 3) - 0.5) * 0.4) : x > 10 ? shade("#3f76e4", (rnd(x, y, 4) - 0.5) * 0.3) : shade("#7b7b7b", ox === 0 || y % 3 === 0 ? -0.3 : 0));
       }
       P(12, 12, "#d42a1f"); P(3, 12, c); P(4, 12, c);
+    },
+    wheat(P, c) {
+      for (const x of [4, 7, 10]) {
+        for (let y = 7; y < 15; y++) P(x + (y > 11 ? 1 : 0), y, shade("#8a9a3a", -0.1));
+        for (let y = 2; y < 8; y++) { P(x - 1, y, shade(c, (y % 2) * -0.2)); P(x + 1, y, shade(c, ((y + 1) % 2) * -0.2)); P(x, y - 1, c); }
+      }
+    },
+    farm(P, _, __, rnd) {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++)
+        P(x, y, shade("#5a3a22", (rnd(x, y) - 0.5) * 0.2 + (y % 4 === 0 ? -0.3 : 0) + (x === 0 || x === 15 ? -0.2 : 0)));
+      for (const x of [3, 7, 11]) for (const y of [2, 6, 10]) { P(x, y + 1, "#6aa246"); P(x + 1, y, "#8fc25a"); P(x + 1, y + 1, "#6aa246"); }
+      for (let x = 1; x < 15; x++) P(x, 14, "#3f76e4");
     },
     terminal(P) {
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {

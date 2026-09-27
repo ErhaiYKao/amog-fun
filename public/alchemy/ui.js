@@ -65,7 +65,8 @@
     if (it.compost) bits.push(`compost · ${it.compost}`);
     if (it.place) bits.push("takes one island tile");
     for (const kind in D.CONFIG.tools) if (D.CONFIG.tools[kind].some(([t]) => t === id)) bits.push(`tool · ${kind}`);
-    return `<b>${UI.esc(it.name)}</b>${it.desc ? `<div>${UI.esc(it.desc)}</div>` : ""}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}`;
+    const src = UI.sources ? UI.sources(id).slice(0, 3) : [];
+    return `<b>${UI.esc(it.name)}</b>${it.desc ? `<div>${UI.esc(it.desc)}</div>` : ""}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}${src.length ? `<small>from ${UI.esc(src.join("; "))}</small>` : ""}`;
   }
   document.addEventListener("mouseover", e => {
     const el = e.target.closest("[data-tip]");

@@ -65,6 +65,14 @@ function need(id, n, d = 0) {
     if (!A.fillBucket(s, water ? "water" : "lava")) wait();
     return false;
   }
+  if (A.DATA.ALLOY[id]) {
+    if (!need("alloy", 1, d + 1)) return false;
+    const busy = s.aqueue.length || s.aslots.some(Boolean);
+    if (!busy) for (const [k, v] of Object.entries(A.DATA.ALLOY[id].in)) if (!need(k, v, d + 1)) return false;
+    if (s.fuel[3] < 20) { if (!need("coal", 2, d + 1)) return false; A.addFuel(s, "coal", 2); }
+    if (!busy) A.queueAt(s, "alloy", id, 1); else wait();
+    return false;
+  }
   if (SMELTED[id] && !(id === "gold" && A.count(s, "pstone"))) {
     const inp = SMELTED[id], heat = SMELT[inp].heat;
     if (!need("furnace", 1, d + 1)) return false;
@@ -98,6 +106,7 @@ function pursue(q) {
   }
   for (const [id, n] of Object.entries(nd.built || {})) if (A.built(s, id) < n) return need(id, n);
   if (nd.anyBuilt && !nd.anyBuilt.some(id => A.built(s, id))) return need(nd.anyBuilt[0], 1);
+  if (nd.gotAny && !nd.gotAny.some(id => s.got[id])) return need(nd.gotAny[0], 1);
   if (nd.land && s.island.length < nd.land) { if (need("dirt", A.expandCost(s))) A.expand(s); return; }
   wait();
 }

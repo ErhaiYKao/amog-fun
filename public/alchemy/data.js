@@ -6,8 +6,12 @@
  *          at: "table" requires a crafting table on the island. needs: items you must own, not used up.
  *          scale: inputs cost (1 + k * how many `per` you already have), rounded up. Used to stop barrel spam.
  * SMELT    furnace: input -> { out, time (s), heat }. Heat 1 = wood, 2 = charcoal, 3 = coal.
+ * ALLOY    alloy smelter: output -> { in: {id: n}, n (made per job), time, heat }. Shares the furnace fuel.
+ * CROPS    farmland: seed -> { grow (s), drops }. The seed stays planted and regrows forever.
+ * AUTO     auto machines: id -> { action, kind (tool it holds: hammer/mesh/chammer), time (s) }.
+ *          Each auto machine holds its own tool; insert/pull it under Machines. Manual work uses your best one.
  * ACTIONS  the things you click. inputs map what you put in -> drop table. requires: a machine that must be
- *          built. needTool: power from `per` alone isn't enough, you need the tool too.
+ *          built. needTool: power from `per` alone isn't enough, you need the tool too. toolName: for messages.
  * Drop tables are lists of [item, chance, amount, gate]. gate is a minimum mesh tier (number)
  *          or a tool kind you must own (string, e.g. "crook").
  * QUESTS   the guided path, in order. need: { got: {id: n} } (ever obtained), { built: {id: n} },
@@ -39,6 +43,12 @@
     clayBlock: { name: "Clay Block", icon: ["block", "#9aa6b5", "clay"] },
     clay: { name: "Clay Ball", icon: ["ball", "#a8b3c1"] },
     flint: { name: "Flint", icon: ["shard", "#3b3b42"] },
+    // compressed blocks: 9 in one, for the compressed hammer and the heavy sieve
+    cDirt: { name: "Compressed Dirt", icon: ["block", "#7a5534", "compressed"] },
+    cCobble: { name: "Compressed Cobblestone", icon: ["block", "#7b7b7b", "compressed"] },
+    cGravel: { name: "Compressed Gravel", icon: ["block", "#8a817c", "compressed"] },
+    cSand: { name: "Compressed Sand", icon: ["block", "#dccf9a", "compressed"] },
+    cDust: { name: "Compressed Dust", icon: ["block", "#ebe5d3", "compressed"] },
 
     // heat and ore
     charcoal: { name: "Charcoal", icon: ["lump", "#3d3129"], fuel: [2, 60], desc: "Hot enough to fire clay. Not hot enough for iron." },
@@ -54,6 +64,17 @@
     glowstone: { name: "Glowstone Dust", icon: ["pile", "#f2d25e"] },
     diamond: { name: "Diamond", icon: ["gem", "#5ee0d8"] },
     gear: { name: "Iron Gear", icon: ["gear", "#c9c9c9"] },
+    steel: { name: "Steel Ingot", icon: ["ingot", "#7d8591"], desc: "Iron and coal, alloyed. The stuff heavy machinery is made of." },
+    redAlloy: { name: "Redstone Alloy", icon: ["ingot", "#c0392b"], desc: "Iron soaked in redstone. Wires the heavy auto-machines." },
+
+    // farming (Mystical Agriculture, roughly)
+    wheat: { name: "Wheat", icon: ["wheat", "#e3c35a"], compost: 3, desc: "Rich compost: worth 3 leaves in a barrel." },
+    coalSeeds: { name: "Coal Seeds", icon: ["seeds", "#3a3a40"], desc: "Plant on farmland. Grows coal." },
+    ironSeeds: { name: "Iron Seeds", icon: ["seeds", "#d8af93"], desc: "Plant on farmland. Grows iron ore pieces." },
+    goldSeeds: { name: "Gold Seeds", icon: ["seeds", "#f5cc3b"], desc: "Plant on farmland. Grows gold ore pieces." },
+    redstoneSeeds: { name: "Redstone Seeds", icon: ["seeds", "#d42a1f"], desc: "Plant on farmland. Grows redstone." },
+    glowSeeds: { name: "Glowstone Seeds", icon: ["seeds", "#f2d25e"], desc: "Plant on farmland. Grows glowstone dust." },
+    diamondSeeds: { name: "Diamond Seeds", icon: ["seeds", "#5ee0d8"], desc: "Plant on farmland. Grows a diamond, very slowly." },
 
     // clay work
     castRaw: { name: "Unfired Pickaxe Cast", icon: ["cast", "#a8b3c1"], desc: "Fire it in a furnace (charcoal heat)." },
@@ -82,6 +103,8 @@
     flintMesh: { name: "Flint Mesh", icon: ["mesh", "#55555e"] },
     ironMesh: { name: "Iron Mesh", icon: ["mesh", "#dcdcdc"] },
     diamondMesh: { name: "Diamond Mesh", icon: ["mesh", "#5ee0d8"] },
+    cHammer: { name: "Compressed Hammer", icon: ["hammer", "#6d747f"], desc: "Crushes compressed blocks: 9 at a time." },
+    diamondCHammer: { name: "Diamond Compressed Hammer", icon: ["hammer", "#3fb8b0"] },
     pstone: { name: "Philosopher's Stone", icon: ["gem", "#e0243f", "glow"], desc: "Enables transmutation. Not used up." },
     terminal: { name: "The Terminal Object", icon: ["terminal"], desc: "Every object has exactly one arrow to it." },
 
@@ -98,8 +121,13 @@
     autoGen: { name: "Auto-Generator Mk I", icon: ["autogen", "#dcdcdc"], place: true, desc: "Mines itself: 0.5 cobblestone/s. No pickaxe needed." },
     autoGen2: { name: "Auto-Generator Mk II", icon: ["autogen", "#f5cc3b"], place: true, desc: "Mines itself: 1.5 cobblestone/s." },
     autoGen3: { name: "Auto-Generator Mk III", icon: ["autogen", "#5ee0d8"], place: true, desc: "Mines itself: 4 cobblestone/s." },
-    autoHammer: { name: "Auto-Hammer", icon: ["autohammer"], place: true },
-    autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true },
+    autoHammer: { name: "Auto-Hammer", icon: ["autohammer"], place: true, desc: "Holds its own hammer: insert one under Machines. Better hammers work faster." },
+    autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true, desc: "Holds its own mesh: insert one under Machines. The mesh decides the drops." },
+    alloy: { name: "Alloy Smelter", icon: ["furnace", "#5a6270"], place: true, desc: "Fuses metals. Burns the furnace's coal. Recipes are in its own tab." },
+    heavySieve: { name: "Heavy Sieve", icon: ["sieve", "#7d8591"], place: true, desc: "Sifts compressed blocks: 7 sievings in one. Needs a mesh." },
+    autoCHammer: { name: "Auto Compressed Hammer", icon: ["autohammer", "#7d8591"], place: true, desc: "Holds its own compressed hammer." },
+    autoHeavySieve: { name: "Auto Heavy Sieve", icon: ["autosieve", "#7d8591"], place: true, desc: "Holds its own mesh and sifts compressed blocks." },
+    farmland: { name: "Farmland", icon: ["farm"], place: true, desc: "Pick a seed under Machines. It stays planted and keeps growing." },
   };
 
   const SIEVE = {
@@ -109,6 +137,9 @@
     sand: [["ironPiece", 0.15, 1], ["goldPiece", 0.1, 1], ["glowstone", 0.03, 1, 2]],
     dust: [["redstone", 0.3, 1], ["glowstone", 0.12, 1, 2], ["redstone", 0.1, 1, 3]],
   };
+  // a heavy sieve rolls the normal table 7 times per compressed block (9 blocks' worth, a bit lossy, far fewer clicks)
+  const HEAVY = { cDirt: "dirt", cGravel: "gravel", cSand: "sand", cDust: "dust" };
+  const HEAVY_SIEVE = Object.fromEntries(Object.entries(HEAVY).map(([c, b]) => [c, Array(7).fill(SIEVE[b]).flat()]));
 
   const ACTIONS = {
     chop: { name: "Chop the tree", verb: "Chop", key: "1", work: 5, base: 1, tool: "axe", tree: true, drops: [["log", 1, 1]] },
@@ -122,6 +153,11 @@
       name: "Hammer", verb: "Smash", key: "4", work: 4, tool: "hammer",
       inputs: { cobble: [["gravel", 1, 1]], gravel: [["sand", 1, 1]], sand: [["dust", 1, 1]] },
     },
+    chammer: {
+      name: "Compressed hammer", verb: "Crush", key: "6", work: 6, tool: "chammer", toolName: "compressed hammer", needTool: true,
+      inputs: { cCobble: [["gravel", 1, 9]], cGravel: [["sand", 1, 9]], cSand: [["dust", 1, 9]] },
+    },
+    hsieve: { name: "Heavy sieve", verb: "Heavy sift", key: "7", work: 8, per: "heavySieve", mesh: true, inputs: HEAVY_SIEVE },
     mine: {
       name: "Mine the generators", verb: "Mine", key: "5", work: 4, tool: "pick", per: "cobblegen", requires: "cobblegen", needTool: true,
       drops: [["cobble", 1, 1]],
@@ -135,6 +171,28 @@
     crucibleRaw: { out: "crucibleFired", time: 20, heat: 2 },
     ironChunk: { out: "iron", time: 8, heat: 3 },
     goldChunk: { out: "gold", time: 8, heat: 3 },
+  };
+
+  const ALLOY = {
+    steel: { in: { iron: 1, coal: 2 }, n: 1, time: 12, heat: 3 },
+    redAlloy: { in: { iron: 1, redstone: 4 }, n: 1, time: 10, heat: 3 },
+  };
+
+  const CROPS = {
+    seeds: { grow: 30, drops: [["wheat", 1, 1], ["seeds", 0.1, 1]] },
+    coalSeeds: { grow: 60, drops: [["coal", 1, 1]] },
+    ironSeeds: { grow: 45, drops: [["ironPiece", 1, 2]] },
+    goldSeeds: { grow: 60, drops: [["goldPiece", 1, 2]] },
+    redstoneSeeds: { grow: 60, drops: [["redstone", 1, 2]] },
+    glowSeeds: { grow: 90, drops: [["glowstone", 1, 1]] },
+    diamondSeeds: { grow: 480, drops: [["diamond", 1, 1]] },
+  };
+
+  const AUTO = {
+    autoHammer: { action: "hammer", kind: "hammer", time: 2.5 },
+    autoSieve: { action: "sieve", kind: "mesh", time: 3 },
+    autoCHammer: { action: "chammer", kind: "chammer", time: 5 },
+    autoHeavySieve: { action: "hsieve", kind: "mesh", time: 6 },
   };
 
   const RECIPES = [
@@ -172,7 +230,7 @@
     { in: { iron: 3, stick: 2, twine: 1 }, out: { ironAxe: 1 }, at: "table" },
     { in: { iron: 4, flintMesh: 1 }, out: { ironMesh: 1 }, at: "table" },
     { in: { iron: 2 }, out: { gear: 1 }, at: "table" },
-    { in: { stoneHammer: 1, gear: 1, redstone: 2, cobble: 8 }, out: { autoHammer: 1 }, at: "table" },
+    { in: { gear: 1, redstone: 2, cobble: 8 }, out: { autoHammer: 1 }, at: "table" }, // insert any hammer afterwards
     { in: { sieve: 1, gear: 1, redstone: 2 }, out: { autoSieve: 1 }, at: "table" },
     // auto-generators: their own upgrade path, each tier is built from the one before
     { in: { cobblegen: 1, gear: 2, redstone: 4, cobble: 16 }, out: { autoGen: 1 }, at: "table" },
@@ -187,7 +245,27 @@
     { name: "Transmute", in: { cobble: 16 }, needs: { pstone: 1 }, out: { coal: 1 } },
     { name: "Transmute", in: { iron: 4 }, needs: { pstone: 1 }, out: { gold: 1 } },
     { name: "Transmute", in: { gold: 4 }, needs: { pstone: 1 }, out: { diamond: 1 } },
-    { in: { diamond: 4, gold: 8, redstone: 8, glowstone: 8 }, needs: { pstone: 1 }, out: { terminal: 1 }, at: "table" },
+    // compressed blocks, both ways
+    ...[["dirt", "cDirt"], ["cobble", "cCobble"], ["gravel", "cGravel"], ["sand", "cSand"], ["dust", "cDust"]].flatMap(([b, c]) => [
+      { in: { [b]: 9 }, out: { [c]: 1 } },
+      { name: "Uncompress", in: { [c]: 1 }, out: { [b]: 9 } },
+    ]),
+    // heavy machinery (steel comes from the alloy smelter)
+    { in: { furnace: 1, iron: 6, gear: 2 }, out: { alloy: 1 }, at: "table" },
+    { in: { steel: 3, stick: 2, twine: 2 }, out: { cHammer: 1 }, at: "table" },
+    { in: { diamond: 3, steel: 2, twine: 2 }, out: { diamondCHammer: 1 }, at: "table" },
+    { in: { sieve: 1, steel: 3 }, out: { heavySieve: 1 }, at: "table" },
+    { in: { autoHammer: 1, steel: 4, redAlloy: 4 }, out: { autoCHammer: 1 }, at: "table" },
+    { in: { autoSieve: 1, steel: 4, redAlloy: 4 }, out: { autoHeavySieve: 1 }, at: "table" },
+    // farming
+    { in: { dirt: 4, waterBucket: 1 }, out: { farmland: 1, bucket: 1 }, at: "table" },
+    { in: { seeds: 1, coal: 16 }, out: { coalSeeds: 1 }, at: "table" },
+    { in: { seeds: 1, iron: 8 }, out: { ironSeeds: 1 }, at: "table" },
+    { in: { seeds: 1, gold: 8 }, out: { goldSeeds: 1 }, at: "table" },
+    { in: { seeds: 1, redstone: 32 }, out: { redstoneSeeds: 1 }, at: "table" },
+    { in: { seeds: 1, glowstone: 16 }, out: { glowSeeds: 1 }, at: "table" },
+    { in: { seeds: 1, diamond: 8, steel: 4 }, out: { diamondSeeds: 1 }, at: "table" },
+    { in: { diamond: 4, gold: 8, redstone: 8, glowstone: 8, steel: 4 }, needs: { pstone: 1 }, out: { terminal: 1 }, at: "table" },
   ];
 
   const QUESTS = [
@@ -214,11 +292,15 @@
     { id: "gen", title: "Infinite Cobblestone", text: "A bucket of water and a bucket of lava make a generator (the buckets go with them). Mine it with a pickaxe from the Work panel.", need: { built: { cobblegen: 1 } } },
     { id: "coal", title: "Real Coal", text: "Sieve gravel for coal. Only coal burns hot enough for ore.", need: { got: { coal: 1 } } },
     { id: "iron", title: "Iron Age", text: "Four iron pieces make a chunk. Smelt it with coal.", need: { got: { iron: 1 } } },
+    { id: "farm", title: "Green Thumb", text: "Build farmland (dirt and a water bucket) and plant wheat seeds from sieving dirt. Wheat is rich compost; later, seeds can grow ore.", need: { built: { farmland: 1 } } },
     { id: "cast", title: "Pickaxe Cast", text: "Mould a pickaxe cast from clay and fire it.", need: { got: { cast: 1 } } },
     { id: "ironpick", title: "Iron Pickaxe", text: "Cast an iron pickaxe. Every swing at the generators mines far more.", need: { got: { ironPick: 1 } } },
     { id: "auto", title: "Automation", text: "Build an auto-hammer or an auto-sieve. Redstone comes from sieving dust. Each one can be set to its own input, so you can chain them.", need: { anyBuilt: ["autoHammer", "autoSieve"] } },
     { id: "autogen", title: "Hands-Free Stone", text: "Upgrade a cobblestone generator into an auto-generator. It mines itself, and has its own upgrades.", need: { anyBuilt: ["autoGen", "autoGen2", "autoGen3"] } },
     { id: "diamond", title: "Diamonds", text: "An iron mesh finds diamonds in gravel.", need: { got: { diamond: 1 } } },
+    { id: "alloy", title: "Alloy Smelter", text: "Build an alloy smelter from a furnace, iron and gears. It has its own recipe tab.", need: { built: { alloy: 1 } } },
+    { id: "steel", title: "Steel", text: "Alloy iron with coal. Steel is what heavy machinery is made of.", need: { got: { steel: 1 } } },
+    { id: "heavy", title: "Heavy Machinery", text: "Build a heavy sieve or a compressed hammer. Compress blocks 9 to 1 and work them all at once.", need: { gotAny: ["heavySieve", "cHammer"] } },
     { id: "pstone", title: "The Philosopher's Stone", text: "Redstone, glowstone and a diamond. Then transmute.", need: { got: { pstone: 1 } } },
     { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. Build it to finish.", need: { got: { terminal: 1 } } },
   ];
@@ -231,10 +313,8 @@
     rain: { time: 30 },
     infested: { time: 15, drops: [["string", 1, 1], ["silkworm", 0.03, 1]] },
     crucible: { cobble: 4, melt: 10, perCobble: 250, lava: 2000 }, // a bucket is 1000 mB
-    autoHammer: { time: 2.5 },
-    autoSieve: { time: 3 },
     autoGen: { autoGen: 0.5, autoGen2: 1.5, autoGen3: 4 }, // cobblestone per second
-    reserve: { cobble: 16, leaves: 6 }, // auto machines and barrels leave this much for crafting
+    reserve: { cobble: 16, leaves: 6, seeds: 4 }, // auto machines and barrels leave this much for crafting (and planting)
     offline: 7200, // seconds of progress credited while the tab is closed
     tools: {
       axe: [["woodAxe", 1], ["stoneAxe", 2], ["ironAxe", 4], ["diamondAxe", 7]], // extra chopping power
@@ -242,11 +322,12 @@
       hammer: [["woodHammer", 1], ["stoneHammer", 2], ["ironHammer", 4], ["diamondHammer", 8]],
       pick: [["stonePick", 1], ["ironPick", 3], ["diamondPick", 6]], // mining power per swing (plus 1 per generator)
       mesh: [["stringMesh", 1], ["flintMesh", 2], ["ironMesh", 3], ["diamondMesh", 4]],
+      chammer: [["cHammer", 3], ["diamondCHammer", 6]],
     },
     meshLuck: [0, 1, 1.25, 1.5, 1.8], // drop chance multiplier per mesh tier
   };
 
-  const DATA = { ITEMS, RECIPES, SMELT, SIEVE, ACTIONS, QUESTS, CONFIG };
+  const DATA = { ITEMS, RECIPES, SMELT, ALLOY, CROPS, AUTO, SIEVE, HEAVY_SIEVE, ACTIONS, QUESTS, CONFIG };
   root.ALCHEMY_DATA = DATA;
   if (typeof module !== "undefined" && module.exports) module.exports = DATA;
 })(typeof window !== "undefined" ? window : globalThis);

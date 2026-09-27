@@ -102,6 +102,31 @@
   .ing.lack { color: var(--g2); }
   .ing.need { color: var(--g1); }
   .rec .btns { display: flex; gap: 4px; align-items: center; }
+  .ing[data-act] { cursor: pointer; border-radius: 5px; }
+  .ing[data-act]:hover { color: var(--ink); background: var(--bg-3); }
+  .rec.flash { animation: flash 1.2s ease-out; }
+  @keyframes flash { 0% { border-color: var(--g1); box-shadow: 0 0 0 2px #4fd6e866; } 100% { } }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tabs button { font-family: var(--display); font-size: 24px; line-height: 1.1; background: none; border: 0; color: var(--faint); cursor: pointer; padding: 0 6px 0 0; }
+  .tabs button[aria-pressed="true"] { color: var(--ink); }
+  .tabs button:hover { color: var(--muted); }
+  .craftbar { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .craftbar input[type=search] { flex: 1; min-width: 140px; font-family: var(--mono); font-size: 12.5px; color: var(--ink); background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 6px 9px; }
+  .craftbar input:focus { outline: none; border-color: var(--g1); }
+  .amt { display: flex; align-items: center; gap: 6px; }
+  .amt .chip { padding: 2px 8px; }
+  .amt input { width: 52px; font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 6px; }
+  .focus:empty { display: none; }
+  .focus { font-size: 14px; color: #d3cfc5; background: var(--bg); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; display: grid; gap: 4px; }
+  .focus .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .focus ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+  .mach .row.mhead { cursor: pointer; user-select: none; flex-wrap: nowrap; min-width: 0; }
+  .mach .row.mhead b { white-space: nowrap; }
+  .mach .row.mhead .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .mach .row.mhead .fold { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .mach .row.mhead:hover .fold { color: var(--ink); }
+  .toolslot { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: 8px; padding: 2px 6px; }
+  .toolslot.full { border-style: solid; color: var(--ink); }
   .rec.hid { opacity: .32; }
   .rec.hid:hover { opacity: .6; }
   .rec .eye { background: none; border: 0; color: var(--faint); font-family: var(--mono); font-size: 11px; cursor: pointer; padding: 4px 2px; }
@@ -174,7 +199,7 @@
         <canvas class="island" id="island" width="180" height="146" aria-label="Your island"></canvas>
         <div class="tileinfo" id="tile"></div>
       </section>
-      <section class="card" style="--o:3"><div class="card-h"><h2>Work</h2><span class="meta">keys 1–5</span></div><div class="actions" id="actions"></div>
+      <section class="card" style="--o:3"><div class="card-h"><h2>Work</h2><span class="meta">keys 1–7</span></div><div class="actions" id="actions"></div>
         <details class="drops" id="drops-box"><summary>sieve drop table</summary><div id="drops"></div></details></section>
       <section class="card" id="machines-card" style="--o:6"><div class="card-h"><h2>Machines</h2></div><div id="machines"></div></section>
     </div>
@@ -182,7 +207,12 @@
       <section class="card quest" id="quest" style="--o:1"></section>
       <section class="card" style="--o:4"><div class="card-h"><h2>Inventory</h2><span class="meta" id="invmeta"></span></div><div class="inv" id="inventory"></div></section>
       <section class="card" style="--o:5">
-        <div class="card-h"><h2>Crafting</h2><div class="chips" id="craftfilter"></div></div>
+        <div class="card-h"><div class="tabs" id="crafttabs"></div><div class="chips" id="craftfilter"></div></div>
+        <div class="craftbar">
+          <input id="craftsearch" type="search" placeholder="search recipes…" autocomplete="off" spellcheck="false">
+          <div class="amt"><span class="meta">amount</span><span class="chips" id="craftamt"></span><input id="craftn" type="number" min="1" max="999" value="1" aria-label="amount to craft"></div>
+        </div>
+        <div class="focus" id="craftfocus"></div>
         <div class="recipes" id="crafting"></div>
       </section>
       <section class="card log" style="--o:7"><div class="card-h"><h2>Log</h2></div><ul id="log"></ul>
