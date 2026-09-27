@@ -222,6 +222,8 @@
     { in: { stick: 1, coal: 1 }, out: { torch: 4 } },
     { in: { crucibleFired: 1, torch: 2 }, out: { crucible: 1 }, at: "table" },
     { in: { waterBucket: 1, lavaBucket: 1, cobble: 4 }, out: { cobblegen: 1 }, at: "table" }, // the buckets go in with the fluids
+    { name: "Empty water bucket", in: { waterBucket: 1 }, out: { bucket: 1 } }, // pour it out
+    { name: "Empty lava bucket", in: { lavaBucket: 1 }, out: { bucket: 1 } },
     { in: { ironPiece: 4 }, out: { ironChunk: 1 } },
     { in: { goldPiece: 4 }, out: { goldChunk: 1 } },
     { in: { flint: 6, stringMesh: 1 }, out: { flintMesh: 1 }, at: "table" },
