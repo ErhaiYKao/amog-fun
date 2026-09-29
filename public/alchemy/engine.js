@@ -24,22 +24,28 @@
     autoCHammer: () => ({ t: 0, tool: null }),
     autoHeavySieve: () => ({ t: 0, tool: null }),
     farmland: () => ({ seed: null, sel: "seeds", g: 0 }),
+    fuelGenerator: () => ({ fuel: "charcoal", fuelJ: 0, enabled: true }),
+    treeHarvester: () => ({ p: 0, enabled: true }),
   };
 
-  // furnace-like machines: a queue of jobs, one slot per machine, burning the shared fuel
+  // Stations share a recipe queue with one job slot per machine; use shared fuel or electricity.
   const STATIONS = {
     furnace: { q: "queue", sl: "slots", rec: id => SMELT[id] && { in: { [id]: 1 }, out: SMELT[id].out, n: 1, time: SMELT[id].time, heat: SMELT[id].heat } },
     alloy: { q: "aqueue", sl: "aslots", rec: id => ALLOY[id] && { ...ALLOY[id], out: id } },
+    ...Object.fromEntries(Object.entries(D.ELECTRIC).map(([id, cfg]) =>
+      [id, { q: id + "Queue", sl: id + "Slots", watts: cfg.watts, recipes: cfg.recipes, rec: key => cfg.recipes[key] }])),
   };
 
   function create(now = Date.now()) {
     const s = {
-      v: 3, t: now, start: now, won: 0, clicks: 0,
+      v: 4, t: now, start: now, won: 0, clicks: 0,
       inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {}, hide: {},
       sel: { sieve: "dirt", hammer: "cobble", chammer: "cCobble", hsieve: "cGravel", autoHammer: "cobble", autoSieve: "gravel", autoCHammer: "cCobble", autoHeavySieve: "cGravel" },
       opt: { feedBarrels: true, compostSaplings: false, feedCrucible: true },
       fuel: [0, 0, 0, 0], queue: [], slots: [], aqueue: [], aslots: [], fold: {}, ev: [],
+      energy: 0, power: { generated: 0, used: 0 },
     };
+    for (const st of Object.values(STATIONS)) { s[st.q] = []; s[st.sl] = []; }
     for (let i = 0; i < C.start.land; i++) s.island.push(null);
     s.island[0] = { id: "tree", grow: 1, t: 0 };
     s.seen.tree = 1;
@@ -78,6 +84,7 @@
       const i = s.island.map(t => t && t.id).lastIndexOf(id);
       if (i >= 0) s.island[i] = null;
     }
+    s.energy = Math.min(s.energy, energyCapacity(s));
   }
 
   function tool(s, kind) {
@@ -218,6 +225,8 @@
     if (t.tool) s.inv[t.tool] = (s.inv[t.tool] || 0) + 1; // auto machines hand their tool back
     if (t.seed) s.inv[t.seed] = (s.inv[t.seed] || 0) + 1; // farmland hands its seed back
     s.island[i] = null;
+    s.energy = Math.min(s.energy, energyCapacity(s));
+    if (STATIONS[t.id]) trimStation(s, t.id);
     return true;
   }
 
@@ -288,10 +297,8 @@
 
   function tickStation(s, st, dt) {
     const S = STATIONS[st], queue = s[S.q], slotList = s[S.sl], slots = built(s, st);
-    while (slotList.length > slots) {
-      const job = slotList.pop();
-      if (job) refund(s, st, job.id, 1);
-    }
+    trimStation(s, st);
+    if (S.watts) { tickElectric(s, st, dt); return; }
     for (let i = 0; i < slots; i++) {
       if (!slotList[i] && queue.length) {
         const q = queue[0];
@@ -312,6 +319,93 @@
         t -= use;
         job.p += use / rec.time;
         if (job.p >= 1 - 1e-6) { give(s, rec.out, rec.n); slotList[i] = null; break; }
+      }
+    }
+  }
+
+  // ---------- electricity: a shared island grid, joules stored and watts drawn ----------
+  const energyCapacity = s => s.island.reduce((n, t) => n + (t && D.POWER[t.id] ? D.POWER[t.id].capacity : 0), 0);
+  function generatePower(s, dt) {
+    const capacity = energyCapacity(s);
+    s.energy = Math.max(0, Math.min(s.energy, capacity));
+    s.power = { generated: 0, used: 0 };
+    // Free generation first, then burn only as much fuel as the buffer can accept.
+    const generators = s.island.filter(t => t && D.POWER[t.id]?.watts).sort((a, b) => !!D.POWER[a.id].fuels - !!D.POWER[b.id].fuels);
+    for (const t of generators) {
+      const cfg = D.POWER[t.id];
+      t.output = 0;
+      if (t.enabled === false) continue;
+      let budget = Math.min(cfg.watts * dt, capacity - s.energy);
+      while (budget > 1e-9) {
+        if (cfg.fuels && t.fuelJ <= 1e-9) {
+          if (!cfg.fuels[t.fuel] || count(s, t.fuel) < 1) break;
+          take(s, t.fuel, 1);
+          t.fuelJ = cfg.fuels[t.fuel];
+        }
+        const made = cfg.fuels ? Math.min(budget, t.fuelJ) : budget;
+        if (cfg.fuels) t.fuelJ -= made;
+        budget -= made;
+        s.energy += made;
+        t.output += made / dt;
+        s.power.generated += made / dt;
+      }
+    }
+  }
+  function usePower(s, watts, seconds) {
+    const used = Math.min(s.energy, watts * seconds);
+    s.energy = Math.max(0, s.energy - used);
+    s.power.used += used; // joules until the end of this tick
+    return used / watts;
+  }
+  function trimStation(s, st) {
+    const S = STATIONS[st], slots = built(s, st);
+    while (s[S.sl].length > slots) {
+      const job = s[S.sl].pop();
+      if (job) refund(s, st, job.id, 1);
+    }
+    if (!slots) clearAt(s, st);
+  }
+  function tickElectric(s, st, dt) {
+    const S = STATIONS[st], queue = s[S.q], slots = s[S.sl];
+    for (let i = 0; i < built(s, st); i++) {
+      let left = dt;
+      while (left > 1e-9) {
+        if (!slots[i] && queue.length) {
+          const q = queue[0];
+          slots[i] = { id: q.id, p: 0 };
+          if (--q.n <= 0) queue.shift();
+        }
+        const job = slots[i];
+        if (!job) break;
+        const rec = S.rec(job.id), wanted = Math.min(left, (1 - job.p) * rec.time);
+        const ran = usePower(s, S.watts, wanted);
+        job.stalled = ran + 1e-9 < wanted;
+        job.p += ran / rec.time;
+        left -= ran;
+        if (job.p >= 1 - 1e-9) { give(s, rec.out, rec.n); slots[i] = null; }
+        if (ran + 1e-9 < wanted) break;
+      }
+    }
+  }
+  function harvestTrees(s, dt) {
+    const cfg = C.harvester;
+    for (const t of s.island) {
+      if (!t || t.id !== "treeHarvester") continue;
+      let left = dt;
+      t.status = t.enabled ? "waiting for a grown tree" : "paused";
+      while (t.enabled && left > 1e-9) {
+        const tree = s.island.find(x => x && x.id === "tree" && x.grow >= 1);
+        if (!tree) break;
+        const wanted = Math.min(left, (1 - t.p) * cfg.time), ran = usePower(s, cfg.watts, wanted);
+        t.p += ran / cfg.time;
+        left -= ran;
+        t.status = ran + 1e-9 < wanted ? "waiting for energy" : "harvesting";
+        if (t.p >= 1 - 1e-9) {
+          t.p = 0;
+          tree.grow = 0; tree.t = 0;
+          for (const [id, n] of Object.entries(cfg.drops)) give(s, id, n);
+        }
+        if (ran + 1e-9 < wanted) break;
       }
     }
   }
@@ -363,6 +457,8 @@
   }
 
   function tick(s, dt) {
+    if (!Number.isFinite(dt) || dt <= 0) return;
+    generatePower(s, dt);
     for (const tile of s.island) {
       if (!tile) continue;
       switch (tile.id) {
@@ -415,8 +511,9 @@
           break;
       }
     }
-    tickStation(s, "furnace", dt);
-    tickStation(s, "alloy", dt);
+    for (const st in STATIONS) tickStation(s, st, dt);
+    harvestTrees(s, dt);
+    s.power.used /= dt;
     checkQuests(s);
   }
 
@@ -471,6 +568,7 @@
       });
       s.v = 3;
     }
+    if (s.v < 4) s.v = 4; // new grid/queue fields were filled from create(); legacy machines stay fuel-free
     s.ev = [];
     return s;
   }
@@ -491,7 +589,7 @@
     DATA: D, KEY, create, count, built, free, grownTrees, give, take, tool, toolValue, actionState, act,
     cost, recipeState, maxCraft, craft, visible, hidden, toolKind, expandCost, expand, demolish, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
-    insertTool, pullTool, autoPeriod, setSeed, currentQuest, openQuests, serialize, revive, catchUp,
+    insertTool, pullTool, autoPeriod, setSeed, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
   };
   root.Alchemy = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

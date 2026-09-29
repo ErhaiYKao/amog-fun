@@ -10,26 +10,19 @@
   // ---------- where does an item come from (besides crafting)? ----------
   const MESH = C.tools.mesh; // [[id, tier]]
   const num = x => (x >= 1 ? x.toFixed(1) : x >= 0.1 ? x.toFixed(2) : x.toFixed(3));
-  const meshName = tier => name(MESH[tier - 1][0]).toLowerCase();
   function sources(id) {
     const out = [];
     const add = t => { if (!out.includes(t)) out.push(t); };
     for (const k of ["chop", "leaves", "mine"]) if (ACTIONS[k].drops.some(d => d[0] === id)) add(ACTIONS[k].name.toLowerCase());
-    for (const [inp, table] of Object.entries(D.SIEVE)) {
-      const e = table.filter(d => d[0] === id);
-      if (!e.length) continue;
-      const gate = Math.min(...e.map(d => (typeof d[3] === "number" ? d[3] : 1)));
-      // with your best mesh (or the first one you can use), how many per sieve on average
-      const tier = Math.max(gate, A.toolValue(UI.s, "mesh") || 1);
-      const ev = e.reduce((a, [, p, n = 1, g]) => a + (typeof g === "number" && tier < g ? 0 : Math.min(1, p * C.meshLuck[tier]) * n), 0);
-      add(`sieving ${name(inp).toLowerCase()}${gate > 1 ? ` (${meshName(gate)} or better)` : ""}: ${num(ev)} per sieve with a ${meshName(tier)}`);
-    }
-    for (const [c, b] of Object.entries({ cDirt: "dirt", cGravel: "gravel", cSand: "sand", cDust: "dust" }))
-      if (D.SIEVE[b].some(d => d[0] === id)) add(`heavy-sieving ${name(c).toLowerCase()} (7× the rate above)`);
+    const sieved = Object.entries(D.SIEVE).filter(([, table]) => table.some(d => d[0] === id)).map(([inp]) => name(inp).toLowerCase());
+    if (sieved.length) add(`sieving ${sieved.join(", ")}`);
     for (const [inp, t] of Object.entries(ACTIONS.hammer.inputs)) if (t.some(d => d[0] === id)) add(`hammering ${name(inp).toLowerCase()}`);
     for (const [inp, t] of Object.entries(ACTIONS.chammer.inputs)) if (t.some(d => d[0] === id)) add(`heavy-smashing ${name(inp).toLowerCase()} with a compressed hammer (9 at once)`);
     for (const [inp, r] of Object.entries(SMELT)) if (r.out === id) add(`smelting ${name(inp).toLowerCase()} (Furnace tab)`);
     if (ALLOY[id]) add(`the alloy smelter (Alloy tab)`);
+    for (const [st, cfg] of Object.entries(D.ELECTRIC))
+      if (Object.values(cfg.recipes).some(r => r.out === id)) add(`the ${name(st).toLowerCase()} (${name(st)} tab)`);
+    if (C.harvester.drops[id]) add("a powered tree harvester");
     for (const [seed, c] of Object.entries(CROPS)) if (c.drops.some(d => d[0] === id)) add(`farmland planted with ${name(seed).toLowerCase()}`);
     if (C.tree.drops.some(d => d[0] === id)) add("grown trees drop it");
     if (C.infested.drops.some(d => d[0] === id)) add("infested leaves spin it");
@@ -142,7 +135,7 @@
   UI.search = "";
   UI.focus = null; // item id: show only the recipes that make it, plus where else it comes from
   UI.amount = 1;
-  const TABS = [["craft", "Crafting"], ["furnace", "Furnace"], ["alloy", "Alloy"]];
+  const TABS = [["craft", "Crafting"], ["furnace", "Furnace"], ["alloy", "Alloy"], ...Object.keys(D.ELECTRIC).map(id => [id, name(id)])];
   const tabOpen = (s, t) => t === "craft" || !!s.seen[t];
 
   function craftRow(s, r) {
@@ -164,12 +157,12 @@
       key, station: st, id, outId: rec.out, outN: rec.n, title: name(rec.out), place: false, ok: max > 0, max,
       why: A.built(s, st) ? "" : `build a ${name(st).toLowerCase()}`,
       hid: s.hide[key] === 1 ? "user" : null, extra: "", ings: Object.entries(rec.in), needs: [],
-      note: `heat ${rec.heat} (${HEAT[rec.heat]}) · ${rec.time} s`,
+      note: A.STATIONS[st].watts ? `${A.STATIONS[st].watts} W · ${rec.time} s · ${A.STATIONS[st].watts * rec.time} J/job` : `heat ${rec.heat} (${HEAT[rec.heat]}) · ${rec.time} s`,
     };
   }
   function rowsFor(s, tab) {
     if (tab === "craft") return RECIPES.filter(r => A.visible(s, r)).map(r => craftRow(s, r));
-    const list = tab === "furnace" ? Object.keys(SMELT) : Object.keys(ALLOY);
+    const list = Object.keys(tab === "furnace" ? SMELT : tab === "alloy" ? ALLOY : D.ELECTRIC[tab].recipes);
     return list.filter(id => Object.keys(A.STATIONS[tab].rec(id).in).some(k => s.seen[k])).map(id => stationRow(s, tab, id));
   }
   const matches = (row, q) => [row.title, name(row.outId), ...row.ings.map(([k]) => name(k))].some(t => t.toLowerCase().includes(q));
@@ -200,7 +193,8 @@
       const id = UI.focus;
       rows = [...RECIPES.filter(r => r.out[id]).map(r => craftRow(s, r)),
         ...Object.keys(SMELT).filter(k => SMELT[k].out === id).map(k => stationRow(s, "furnace", k)),
-        ...(ALLOY[id] ? [stationRow(s, "alloy", id)] : [])];
+        ...(ALLOY[id] ? [stationRow(s, "alloy", id)] : []),
+        ...Object.entries(D.ELECTRIC).flatMap(([st, cfg]) => Object.keys(cfg.recipes).filter(k => cfg.recipes[k].out === id).map(k => stationRow(s, st, k)))];
       const src = sources(id), uses = RECIPES.filter(r => r.in[id]).length;
       focusHTML = `<div class="top">${img(id, "sm")}<b>${esc(name(id))}</b><span class="meta">${rows.length ? `${rows.length} recipe${rows.length === 1 ? "" : "s"} make it` : "no recipe makes it"}</span>
         ${uses ? `<button class="mini" data-act="usedin:${id}">used in ${uses}</button>` : ""}<button class="mini" data-act="unfocus">× back to all</button></div>
@@ -240,17 +234,46 @@
     for (let i = 0; i < n; i++) {
       const job = s[S.sl][i], rec = job && S.rec(job.id);
       UI.v(`${st}w:${i}`, job ? job.p : 0);
-      h += `<div class="unit" style="grid-column: span 2"><span>${job ? (job.stalled ? `needs ${HEAT[rec.heat]} heat` : esc(st === "furnace" ? `${name(job.id)} → ${name(rec.out)}` : `→ ${name(rec.out)}`)) : "idle"}</span><div class="bar warm"><i data-w="${st}w:${i}"></i></div></div>`;
+      h += `<div class="unit" style="grid-column: span 2"><span>${job ? (job.stalled ? (S.watts ? "waiting for energy" : `needs ${HEAT[rec.heat]} heat`) : esc(st === "furnace" ? `${name(job.id)} → ${name(rec.out)}` : `→ ${name(rec.out)}`)) : "idle"}</span><div class="bar warm"><i data-w="${st}w:${i}"></i></div></div>`;
     }
     return `<div class="units">${h}</div>` +
       (q.length ? `<div class="row meta">queued: ${esc(q.map(j => `${j.n} × ${name(S.rec(j.id).out)}`).join(", "))} <button class="mini" data-act="clearq:${st}">clear</button></div>` : "") +
-      `<div class="row meta">queue jobs from the <button class="linkish" data-act="tab:${st}:go">${st === "furnace" ? "Furnace" : "Alloy"} tab</button> in the crafting panel</div>`;
+      `<div class="row meta">queue jobs from the <button class="linkish" data-act="tab:${st}:go">${st === "alloy" ? "Alloy" : name(st)} tab</button> in the crafting panel</div>`;
   }
 
   function renderMachines() {
     const s = UI.s;
     const tiles = id => s.island.filter(t => t && t.id === id);
     const parts = [];
+
+    const capacity = A.energyCapacity(s);
+    if (capacity || Object.keys(D.ELECTRIC).some(id => A.built(s, id)) || A.built(s, "treeHarvester")) {
+      UI.v("energy:stored", `${Math.floor(s.energy).toLocaleString()} / ${capacity.toLocaleString()} J`);
+      UI.v("energy:bar", capacity ? s.energy / capacity : 0);
+      UI.v("energy:flow", `${s.power.generated.toFixed(1)} W generated · ${s.power.used.toFixed(1)} W used`);
+      const generators = s.island.map((t, i) => [t, i]).filter(([t]) => t && D.POWER[t.id]?.watts);
+      const controls = generators.map(([t, i]) => {
+        const cfg = D.POWER[t.id];
+        UI.v(`power:${i}`, `${(t.output || 0).toFixed(1)} / ${cfg.watts} W${cfg.fuels ? ` · ${Math.ceil(t.fuelJ)} J of loaded fuel left` : ""}`);
+        const fuel = cfg.fuels ? Object.entries(cfg.fuels).map(([id, joules]) => `<button class="chip" data-act="genfuel:${i}:${id}" aria-pressed="${t.fuel === id}" data-tip="${id}">${img(id, "sm")}${name(id)} · ${joules.toLocaleString()} J</button>`).join("") : "";
+        return `<div class="unitrow"><b>${esc(name(t.id))} #${i + 1}</b><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled !== false}">${t.enabled === false ? "Resume" : "Pause"}</button><span class="meta" data-v="power:${i}"></span></div>${fuel ? `<div class="chips">${fuel}</div>` : ""}`;
+      }).join("");
+      parts.push(sec(s, "energy", "battery", "Energy grid", "1 W = 1 J/s",
+        `<div class="row"><b data-v="energy:stored"></b><span class="meta" data-v="energy:flow"></span></div><div class="bar"><i data-w="energy:bar"></i></div>` +
+        `<p class="meta">All machines connect automatically. Generators pause at full storage; fuel generators auto-feed the selected fuel from inventory. Switching fuel finishes the loaded item first. More generators increase supply; energy cells increase storage. Queued machines draw first, then harvesters.</p>` +
+        (capacity ? "" : `<p class="meta">Build a fuel or solar generator to supply energy.</p>`) + controls));
+    }
+    for (const id of Object.keys(D.ELECTRIC)) {
+      const n = A.built(s, id);
+      if (n) parts.push(sec(s, id, id, `${name(id)} ×${n}`, `${D.ELECTRIC[id].watts} W each`, stationSlots(s, id)));
+    }
+    const harvesters = s.island.map((t, i) => [t, i]).filter(([t]) => t && t.id === "treeHarvester");
+    if (harvesters.length) parts.push(sec(s, "treeHarvester", "treeHarvester", `Tree Harvesters ×${harvesters.length}`, `${C.harvester.watts} W each`,
+      `<p class="meta">Each harvest uses ${C.harvester.watts * C.harvester.time} J for 4 logs, 4 leaves and a sapling. Trees are replanted and regrow in ${C.tree.grow} s.</p>` + harvesters.map(([t, i], k) => {
+        UI.v(`harvest:${i}`, t.p);
+        UI.v(`harvest:status:${i}`, t.status || "waiting for a grown tree");
+        return `<div class="unitrow"><span>#${k + 1}</span><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled}">${t.enabled ? "Pause" : "Resume"}</button><span class="meta" data-v="harvest:status:${i}"></span><div class="bar green"><i data-w="harvest:${i}"></i></div></div>`;
+      }).join("")));
 
     const trees = tiles("tree");
     if (trees.length) {
@@ -366,6 +389,8 @@
   }
 
   Object.assign(UI.handlers, {
+    power: ([i]) => { const t = UI.s.island[+i]; if (t && (D.POWER[t.id]?.watts || t.id === "treeHarvester")) t.enabled = t.enabled === false; },
+    genfuel: ([i, id]) => { const t = UI.s.island[+i]; if (t && D.POWER[t.id]?.fuels?.[id]) t.fuel = id; },
     sel: ([act, k]) => { UI.s.sel[act] = k; },
     auto: ([id, k]) => { UI.s.sel[id] = k; UI.s.island.forEach(t => { if (t && t.id === id) t.sel = k; }); },
     autot: ([i, k]) => { const t = UI.s.island[+i]; if (t) { t.sel = k; UI.s.sel[t.id] = k; } },

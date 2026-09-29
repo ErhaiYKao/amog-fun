@@ -40,6 +40,36 @@
   }
 
   const SHAPES = {
+    paperclip(P, c) {
+      for (let y = 3; y <= 12; y++) { P(4, y, c); P(11, y, c); }
+      for (let x = 5; x <= 10; x++) { P(x, 2, c); P(x, 13, c); }
+      for (let y = 5; y <= 10; y++) { P(7, y, c); P(9, y, c); }
+      P(8, 4, c); P(10, 11, c); P(11, 11, c);
+    },
+    power(P, c, _, rnd) {
+      SHAPES.block(P, "#56606d", "cobble", rnd);
+      for (let y = 3; y < 13; y++) {
+        const x = y < 8 ? 9 - Math.floor((y - 3) / 2) : 10 - Math.floor((y - 8) / 2);
+        P(x, y, c); P(x - 1, y, c); P(x - 2, y, c);
+      }
+    },
+    solar(P, c) {
+      for (let y = 2; y < 12; y++) for (let x = 1; x < 15; x++)
+        P(x, y, x % 4 === 1 || y % 3 === 2 ? "#abc3de" : c);
+      for (let y = 12; y < 16; y++) { P(4, y, "#727c87"); P(11, y, "#727c87"); }
+    },
+    battery(P, c) {
+      for (let x = 6; x < 10; x++) P(x, 1, "#d0d8de");
+      for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++)
+        P(x, y, x === 3 || x === 12 || y === 2 || y === 14 ? "#737f8b" : c);
+      for (let x = 6; x < 10; x++) P(x, 6, "#263d3a");
+      for (let y = 4; y < 9; y++) P(8, y, "#263d3a");
+    },
+    harvester(P, c, _, rnd) {
+      SHAPES.block(P, c, "cobble", rnd);
+      SHAPES.axe(P, "#d0d8de");
+      P(12, 13, "#4fd6e8");
+    },
     block(P, c, v, rnd) {
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         let f = (rnd(x, y) - 0.5) * 0.16;

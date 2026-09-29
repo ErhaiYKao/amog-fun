@@ -39,6 +39,8 @@
       case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve": return t.idle ? null : [t.t / A.autoPeriod(t), "#4fd6e8"];
       case "farmland": return t.seed ? [t.g, "#a7c957"] : null;
       case "autoGen": case "autoGen2": case "autoGen3": return [t.acc, "#9a9aa2"];
+      case "treeHarvester": return [t.p, "#a7c957"];
+      case "battery": case "fuelGenerator": case "solarGenerator": return [UI.s.energy / (A.energyCapacity(UI.s) || 1), "#4fd6e8"];
       default: return null;
     }
   }
@@ -123,6 +125,10 @@
       case "farmland": return t.seed ? `${UI.name(t.seed).toLowerCase()} · ${Math.floor(t.g * 100)}%` : "pick a seed under Machines";
       case "alloy": return "recipes are in the Alloy tab of the crafting panel";
       case "furnace": return "fuel is under Machines, recipes in the Furnace tab";
+      case "crusher": case "energizedSmelter": case "infuser": return `${D.ELECTRIC[t.id].watts} W · queue recipes in the ${UI.name(t.id)} tab`;
+      case "treeHarvester": return `${t.status || "waiting"} · ${Math.floor(t.p * 100)}% · configure under Machines`;
+      case "fuelGenerator": case "solarGenerator": return `${(t.output || 0).toFixed(1)} W · configure under Machines`;
+      case "battery": return `${Math.floor(s.energy).toLocaleString()} / ${A.energyCapacity(s).toLocaleString()} J on the grid`;
       default: return D.ITEMS[t.id].desc || "";
     }
   }

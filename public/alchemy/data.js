@@ -10,6 +10,8 @@
  * CROPS    farmland: seed -> { grow (s), drops }. The seed stays planted and regrows forever.
  * AUTO     auto machines: id -> { action, kind (tool it holds: hammer/mesh/chammer), time (s) }.
  *          Each auto machine holds its own tool; insert/pull it under Machines. Manual work uses your best one.
+ * POWER    generators/storage: capacity (J), watts (J/s), optional fuel -> joules per item.
+ * ELECTRIC powered stations: watts plus recipes { in, out, n, time }; all share the island's energy.
  * ACTIONS  the things you click. inputs map what you put in -> drop table. requires: a machine that must be
  *          built. needTool: power from `per` alone isn't enough, you need the tool too. toolName: for messages.
  * Drop tables are lists of [item, chance, amount, gate]. gate is a minimum mesh tier (number)
@@ -68,6 +70,9 @@
     gear: { name: "Iron Gear", icon: ["gear", "#c9c9c9"] },
     steel: { name: "Steel Ingot", icon: ["ingot", "#7d8591"], desc: "Iron and coal, alloyed. The stuff heavy machinery is made of." },
     redAlloy: { name: "Redstone Alloy", icon: ["ingot", "#c0392b"], desc: "Iron soaked in redstone. Wires the heavy auto-machines." },
+    paperclip: { name: "Paperclip", icon: ["paperclip", "#c9cdd4"], desc: "Eight per steel ingot. Does absolutely nothing. How many is enough?" },
+    ironDust: { name: "Iron Dust", icon: ["pile", "#d8af93"], desc: "Crush an ore chunk into two dust, then smelt each into an ingot." },
+    goldDust: { name: "Gold Dust", icon: ["pile", "#f5cc3b"], desc: "Crush an ore chunk into two dust, then smelt each into an ingot." },
 
     // farming (Mystical Agriculture, roughly)
     wheat: { name: "Wheat", icon: ["wheat", "#e3c35a"], compost: 3, desc: "Rich compost: worth 3 leaves in a barrel." },
@@ -130,14 +135,22 @@
     autoCHammer: { name: "Auto Compressed Hammer", icon: ["autohammer", "#7d8591"], place: true, desc: "Holds its own compressed hammer. Upgrade an auto-hammer or a compressed hammer into one." },
     autoHeavySieve: { name: "Auto Heavy Sieve", icon: ["autosieve", "#7d8591"], place: true, desc: "Holds its own mesh and sieves compressed blocks. Upgrade an auto-sieve or a heavy sieve into one." },
     farmland: { name: "Farmland", icon: ["farm"], place: true, desc: "Pick a seed under Machines. It stays planted and keeps growing." },
+    fuelGenerator: { name: "Fuel Generator", icon: ["power", "#df963b"], place: true, desc: "40 W; stores 4,000 J. Auto-feeds your chosen coal or charcoal only when the grid has room. Configure under Machines." },
+    solarGenerator: { name: "Solar Generator", icon: ["solar", "#4678bb"], place: true, desc: "10 W forever under the void's eternal sun. Stores 2,000 J; no fuel required." },
+    battery: { name: "Energy Cell", icon: ["battery", "#76cfb3"], place: true, desc: "Adds 20,000 J of shared storage. Every powered machine connects automatically." },
+    crusher: { name: "Crusher", icon: ["autohammer", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Queue jobs in its crafting tab." },
+    energizedSmelter: { name: "Energized Smelter", icon: ["furnace", "#4fd6e8"], place: true, desc: "20 W. Smelts with electricity, twice as fast as a furnace. No heat or fuel requirement." },
+    infuser: { name: "Metallurgic Infuser", icon: ["power", "#b98be3"], place: true, desc: "40 W. Makes steel and redstone alloy with half the coal or redstone. Queue jobs in its crafting tab." },
+    treeHarvester: { name: "Tree Harvester", icon: ["harvester", "#73aa56"], place: true, desc: "60 W for 10 s per tree: 4 logs, 4 leaves and a sapling. Automatically replants; trees take 45 s to regrow. Toggle under Machines." },
   };
 
   const SIEVE = {
     dirt: [["pebble", 1, 2], ["pebble", 0.6, 1], ["pebble", 0.3, 1], ["seeds", 0.1, 1], ["sapling", 0.03, 1]],
     gravel: [["flint", 0.25, 1], ["coal", 0.12, 1], ["ironPiece", 0.3, 1], ["ironPiece", 0.15, 1],
       ["goldPiece", 0.08, 1, 2], ["diamond", 0.012, 1, 3]],
-    sand: [["ironPiece", 0.15, 1], ["goldPiece", 0.1, 1], ["glowstone", 0.03, 1, 2]],
-    dust: [["redstone", 0.3, 1], ["glowstone", 0.12, 1, 2], ["redstone", 0.1, 1, 3]],
+    sand: [["ironPiece", 0.5, 1], ["ironPiece", 0.25, 1], ["goldPiece", 0.25, 1], ["glowstone", 0.06, 1, 2]],
+    dust: [["redstone", 0.3, 1], ["glowstone", 0.12, 1, 2], ["redstone", 0.1, 1, 3],
+      ["clay", 0.15, 1], ["goldPiece", 0.12, 1, 2]],
   };
   // a heavy sieve rolls the normal table 7 times per compressed block (9 blocks' worth, a bit lossy, far fewer clicks)
   const HEAVY = { cDirt: "dirt", cGravel: "gravel", cSand: "sand", cDust: "dust" };
@@ -180,6 +193,30 @@
     redAlloy: { in: { iron: 1, redstone: 4 }, n: 1, time: 10, heat: 3 },
   };
 
+  const POWER = {
+    fuelGenerator: { watts: 40, capacity: 4000, fuels: { coal: 3200, charcoal: 1600 } },
+    solarGenerator: { watts: 10, capacity: 2000 },
+    battery: { watts: 0, capacity: 20000 },
+  };
+  const ELECTRIC = {
+    crusher: { watts: 30, recipes: {
+      ...Object.fromEntries([["cobble", "gravel"], ["gravel", "sand"], ["sand", "dust"]].map(([a, b]) =>
+        [a, { in: { [a]: 1 }, out: b, n: 1, time: 2 }])),
+      ironChunk: { in: { ironChunk: 1 }, out: "ironDust", n: 2, time: 3 },
+      goldChunk: { in: { goldChunk: 1 }, out: "goldDust", n: 2, time: 3 },
+    } },
+    energizedSmelter: { watts: 20, recipes: {
+      ...Object.fromEntries(Object.entries(SMELT).map(([id, r]) =>
+        [id, { in: { [id]: 1 }, out: r.out, n: 1, time: r.time / 2 }])),
+      ironDust: { in: { ironDust: 1 }, out: "iron", n: 1, time: 4 },
+      goldDust: { in: { goldDust: 1 }, out: "gold", n: 1, time: 4 },
+    } },
+    infuser: { watts: 40, recipes: {
+      steel: { in: { iron: 1, coal: 1 }, out: "steel", n: 1, time: 6 },
+      redAlloy: { in: { iron: 1, redstone: 2 }, out: "redAlloy", n: 1, time: 5 },
+    } },
+  };
+
   const CROPS = {
     seeds: { grow: 30, drops: [["wheat", 1, 1], ["seeds", 0.1, 1]] },
     coalSeeds: { grow: 60, drops: [["coal", 1, 1]] },
@@ -198,6 +235,14 @@
   };
 
   const RECIPES = [
+    { in: { steel: 1 }, out: { paperclip: 8 }, at: "table" },
+    { in: { steel: 4, gear: 2, redAlloy: 2 }, out: { fuelGenerator: 1 }, at: "table" },
+    { in: { steel: 2, gold: 4, redAlloy: 4, glowstone: 8 }, out: { solarGenerator: 1 }, at: "table" },
+    { in: { steel: 4, gold: 2, redAlloy: 4 }, out: { battery: 1 }, at: "table" },
+    { in: { steel: 4, gear: 2, redAlloy: 2, cobble: 8 }, out: { crusher: 1 }, at: "table" },
+    { in: { steel: 4, redAlloy: 2, cobble: 8 }, out: { energizedSmelter: 1 }, at: "table" },
+    { in: { steel: 4, gear: 2, redAlloy: 4 }, out: { infuser: 1 }, at: "table" },
+    { in: { steel: 4, gear: 2, redAlloy: 4, ironAxe: 1 }, out: { treeHarvester: 1 }, at: "table" },
     { in: { log: 1 }, out: { planks: 4 } },
     { in: { planks: 2 }, out: { stick: 4 } },
     { in: { planks: 4 }, out: { table: 1 } },
@@ -310,6 +355,12 @@
     { id: "steel", title: "Steel", text: "Alloy iron with coal. Steel is what the automatic heavy machines are made of.", need: { got: { steel: 1 } } },
     { id: "pstone", title: "The Philosopher's Stone", text: "Redstone, glowstone and a diamond. Then transmute.", need: { got: { pstone: 1 } } },
     { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. Build it to finish.", need: { got: { terminal: 1 } } },
+    { id: "power", title: "Watt Now?", text: "Build a fuel or solar generator. All powered machines share one grid: 1 watt supplies 1 joule each second. Configure generators under Machines.", need: { anyBuilt: ["fuelGenerator", "solarGenerator"] } },
+    { id: "orepower", title: "Double or Nothing", text: "Build a crusher and an energized smelter. Crush one ore chunk into two dust, then smelt them into two ingots.", need: { built: { crusher: 1, energizedSmelter: 1 } } },
+    { id: "infusion", title: "Applied Metallurgy", text: "Build a metallurgic infuser to make alloys faster with less coal and redstone.", need: { built: { infuser: 1 } } },
+    { id: "forestry", title: "The Forest Works for You", text: "Build a tree harvester. It uses 600 J per harvest and replants automatically; plant more trees to keep it busy.", need: { built: { treeHarvester: 1 } } },
+    { id: "storage", title: "Potential Energy", text: "Build an energy cell to store 20,000 more joules for later.", need: { built: { battery: 1 } } },
+    { id: "clips", title: "A Perfectly Harmless Objective", text: "Turn a steel ingot into eight paperclips. They do nothing. Maximizing them is entirely your decision.", need: { got: { paperclip: 8 } } },
   ];
 
   // the advancement tree: which quests open up which
@@ -321,6 +372,7 @@
     farm: ["clay", "charcoal"], cast: ["clay", "charcoal"], ironpick: ["cast", "iron"], auto: ["iron"],
     autogen: ["auto", "gen"], heavy: ["iron"], diamond: ["iron"], alloy: ["iron"], steel: ["alloy"],
     pstone: ["diamond"], terminal: ["pstone", "steel"],
+    power: ["steel"], orepower: ["power"], infusion: ["power"], forestry: ["power"], storage: ["power"], clips: ["steel"],
   };
   QUESTS.forEach(q => (q.after = QUEST_AFTER[q.id] || []));
 
@@ -333,6 +385,7 @@
     infested: { time: 15, drops: [["string", 1, 1], ["silkworm", 0.03, 1]] },
     crucible: { cobble: 4, melt: 10, perCobble: 250, lava: 2000 }, // a bucket is 1000 mB
     autoGen: { autoGen: 0.5, autoGen2: 1.5, autoGen3: 4 }, // cobblestone per second
+    harvester: { watts: 60, time: 10, drops: { log: 4, leaves: 4, sapling: 1 } },
     reserve: { cobble: 16, leaves: 6, seeds: 4 }, // auto machines and barrels leave this much for crafting (and planting)
     offline: 7200, // seconds of progress credited while the tab is closed
     tools: {
@@ -346,7 +399,7 @@
     meshLuck: [0, 1, 1.25, 1.5, 1.8], // drop chance multiplier per mesh tier
   };
 
-  const DATA = { ITEMS, RECIPES, SMELT, ALLOY, CROPS, AUTO, SIEVE, HEAVY_SIEVE, ACTIONS, QUESTS, CONFIG };
+  const DATA = { ITEMS, RECIPES, SMELT, ALLOY, POWER, ELECTRIC, CROPS, AUTO, SIEVE, HEAVY_SIEVE, ACTIONS, QUESTS, CONFIG };
   root.ALCHEMY_DATA = DATA;
   if (typeof module !== "undefined" && module.exports) module.exports = DATA;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -28,3 +28,11 @@ npx wrangler deploy   # ship to amog.fun
 
 Anything that needs a backend (APIs, D1, KV, etc.) can be added later by giving the Worker a `main` script.
 Static files keep working exactly the same.
+
+## Alchemy checks
+
+`node tools/alchemy/bot.mjs` plays from a fresh island through the Terminal Object and the optional advancements.
+`node --test tools/alchemy/energy.test.mjs` checks electricity, powered processing, refunds, save migration and offline progress.
+
+Alchemy balance lives in `public/alchemy/data.js`: `POWER` defines generator watts and storage joules,
+`ELECTRIC` defines powered station recipes, and `CONFIG.harvester` defines automatic forestry.
