@@ -36,8 +36,12 @@
         // flight, the autopilot keeps its hands off the throttle entirely.
         var spent = f.stageIndex >= f.cfg.stages.length;
         if (spent && !G.warpTouched) {
-          if (!f._warpBump1) { f._warpBump1 = true; if (G.warp < 16) G.warp = 16; }
-          if (!f._warpBump2 && f.alt() > 150e3) { f._warpBump2 = true; if (G.warp < 64) G.warp = 64; }
+          if (!f._warpBump1) { f._warpBump1 = true; if (G.warp < 16) G.setWarp(16); }
+          if (!f._warpBump2 && f.alt() > 150e3) {
+            f._warpBump2 = true;
+            var w = Math.min(64, G.maxWarp());
+            if (G.warp < w) G.setWarp(w);
+          }
         }
         f.advance(dt * G.warp);
         if (f.status !== 'flying') G.endFlight();
