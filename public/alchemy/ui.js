@@ -73,10 +73,10 @@
     const bits = [];
     if (it.fuel) bits.push(`fuel · heat ${it.fuel[0]} · ${it.fuel[1]} s`);
     if (it.compost) bits.push(`compost · ${it.compost}`);
-    if (it.place) bits.push("takes one island tile");
-    for (const kind in D.CONFIG.tools) if (D.CONFIG.tools[kind].some(([t]) => t === id)) bits.push(`tool · ${kind}`);
-    const src = UI.sources ? UI.sources(id).slice(0, 3) : [];
-    return `<b>${UI.esc(it.name)}</b>${it.desc ? `<div>${UI.esc(it.desc)}</div>` : ""}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}${src.length ? `<small>from ${UI.esc(src.join("; "))}</small>` : ""}`;
+    if (it.place) bits.push("building · takes one tile");
+    for (const kind in D.CONFIG.tools) if (D.CONFIG.tools[kind].some(([t]) => t === id)) bits.push(`tool · ${kind === "chammer" ? "compressed hammer" : kind}`);
+    // where it comes from is shown when you click the item (crafting panel), not on hover
+    return `<b>${UI.esc(it.name)}</b>${it.desc ? `<div>${UI.esc(it.desc)}</div>` : ""}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}`;
   }
   document.addEventListener("mouseover", e => {
     const el = e.target.closest("[data-tip]");

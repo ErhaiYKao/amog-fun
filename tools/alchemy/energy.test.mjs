@@ -7,7 +7,7 @@ const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-7, `${a} != ${b}`);
 function island(...ids) {
   const s = A.create(0);
   s.island = Array(36).fill(null);
-  for (const id of ids) A.give(s, id);
+  for (const id of ids) { A.give(s, id); A.place(s, id, s.island.indexOf(null)); } // crafted buildings go to the inventory first
   return s;
 }
 function run(s, seconds, step = 0.1) {
@@ -157,7 +157,7 @@ test('old saves migrate without changing legacy machines, inventory or recipe pr
   delete s.energy; delete s.power;
   for (const st of Object.keys(D.ELECTRIC)) { delete s[A.STATIONS[st].q]; delete s[A.STATIONS[st].sl]; }
   const saved = A.serialize(s), revived = A.revive(saved);
-  assert.equal(revived.v, 4);
+  assert.equal(revived.v, 5);
   assert.equal(revived.energy, 0);
   assert.deepEqual(revived.island, s.island);
   assert.deepEqual(revived.inv, s.inv);
@@ -186,4 +186,48 @@ test('electric operation is independent of tick size with a charged buffer', () 
   close(s.energy, fine.energy);
   assert.equal(s.inv.ironDust, fine.inv.ironDust);
   close(s.crusherSlots[0].p, fine.crusherSlots[0].p);
+});
+
+test('crafted buildings go to the inventory; place, move and pick up keep their contents', () => {
+  const s = island('table');
+  A.give(s, 'planks', 7);
+  assert.equal(A.craft(s, D.RECIPES.find(r => r.out.barrel), 1), 1);
+  assert.equal(s.inv.barrel, 1);
+  assert.equal(A.built(s, 'barrel'), 0);
+  assert.ok(A.place(s, 'barrel', 1));
+  assert.equal(s.inv.barrel, 0);
+  assert.equal(A.built(s, 'barrel'), 1);
+  assert.ok(!A.place(s, 'barrel', 2), 'nothing left to place');
+  // auto machines take the best tool when placed and hand it back when picked up
+  A.give(s, 'woodHammer'); A.give(s, 'ironHammer'); A.give(s, 'autoHammer');
+  assert.ok(A.place(s, 'autoHammer', 2));
+  assert.equal(s.island[2].tool, 'ironHammer');
+  s.island[2].sel = 'gravel';
+  assert.ok(A.move(s, 2, 5));
+  assert.equal(s.island[2], null);
+  assert.equal(s.island[5].tool, 'ironHammer');
+  assert.equal(s.island[5].sel, 'gravel');
+  assert.ok(A.move(s, 5, 1)); // swap with the barrel
+  assert.equal(s.island[1].id, 'autoHammer');
+  assert.equal(s.island[5].id, 'barrel');
+  assert.ok(A.pickUp(s, 1));
+  assert.equal(s.inv.autoHammer, 1);
+  assert.equal(s.inv.ironHammer, 1);
+  // a sapling plants a tree; picking up a grown tree gives the sapling and logs back
+  A.give(s, 'sapling');
+  assert.ok(A.place(s, 'sapling', 3));
+  assert.equal(s.island[3].id, 'tree');
+  s.island[3].grow = 1;
+  const logs = s.inv.log || 0;
+  assert.ok(A.pickUp(s, 3));
+  assert.equal(s.inv.sapling, 1);
+  assert.equal(s.inv.log, logs + 2);
+});
+test('recipes can consume a building from the inventory or straight off the island', () => {
+  const s = island('table', 'autoGen');
+  A.give(s, 'gear', 4); A.give(s, 'gold', 8); A.give(s, 'redstone', 16);
+  const up = D.RECIPES.find(r => r.out.autoGen2);
+  assert.equal(A.craft(s, up, 1), 1); // takes the placed Mk I
+  assert.equal(A.built(s, 'autoGen'), 0);
+  assert.equal(s.inv.autoGen2, 1);
 });

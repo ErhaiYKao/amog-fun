@@ -1,7 +1,9 @@
 /* Alchemy — game data. Edit this file to add or change recipes; the engine reads everything from here.
  *
- * ITEMS    id -> { name, icon: [shape, color, extra], desc, fuel: [heat, seconds], compost: units, place: true }
- *          place: true means it is a machine that sits on a tile of the island (trees, barrels, sieves...).
+ * ITEMS    id -> { name, icon: [shape, color, extra], desc, fuel: [heat, seconds], compost: units, place: true, plants }
+ *          place: true means it is a building that sits on a tile of the island (barrels, sieves...). Crafted
+ *          buildings go into the inventory; drag them onto the island. plants: placing this item puts that
+ *          building down instead (a sapling plants a tree).
  * RECIPES  crafting: { in: {id: n}, out: {id: n}, at: "table", needs: {id: n}, name, scale: {per, k} }
  *          at: "table" requires a crafting table on the island. needs: items you must own, not used up.
  *          scale: inputs cost (1 + k * how many `per` you already have), rounded up. Used to stop barrel spam.
@@ -9,7 +11,8 @@
  * ALLOY    alloy smelter: output -> { in: {id: n}, n (made per job), time, heat }. Shares the furnace fuel.
  * CROPS    farmland: seed -> { grow (s), drops }. The seed stays planted and regrows forever.
  * AUTO     auto machines: id -> { action, kind (tool it holds: hammer/mesh/chammer), time (s) }.
- *          Each auto machine holds its own tool; insert/pull it under Machines. Manual work uses your best one.
+ *          Each auto machine holds its own tool (best one taken when placed; swap it in the machine panel).
+ *          Manual work uses your best one.
  * POWER    generators/storage: capacity (J), watts (J/s), optional fuel -> joules per item.
  * ELECTRIC powered stations: watts plus recipes { in, out, n, time }; all share the island's energy.
  * ACTIONS  the things you click. inputs map what you put in -> drop table. requires: a machine that must be
@@ -31,7 +34,7 @@
     planks: { name: "Oak Planks", icon: ["planks", "#b08850"], fuel: [1, 7] },
     stick: { name: "Stick", icon: ["stick", "#8a6236"], fuel: [1, 2] },
     leaves: { name: "Oak Leaves", icon: ["leaves", "#3f7a2e"], compost: 1, desc: "Compost for barrels." },
-    sapling: { name: "Oak Sapling", icon: ["sapling", "#4f8f35"], compost: 1, desc: "Plant it on a free tile to grow another tree." },
+    sapling: { name: "Oak Sapling", icon: ["sapling", "#4f8f35"], compost: 1, plants: "tree", desc: "Drag it onto an empty tile to plant another tree." },
     silkworm: { name: "Silkworm", icon: ["worm", "#ece6cc"], desc: "Shaken loose from leaves with a crook. Put it on leaves to farm string." },
     string: { name: "String", icon: ["string", "#f2efe6"] },
     twine: { name: "Twine", icon: ["twine", "#c9b27a"], desc: "Every proper tool needs a binding." },
@@ -71,8 +74,8 @@
     steel: { name: "Steel Ingot", icon: ["ingot", "#7d8591"], desc: "Iron and coal, alloyed. The stuff heavy machinery is made of." },
     redAlloy: { name: "Redstone Alloy", icon: ["ingot", "#c0392b"], desc: "Iron soaked in redstone. Wires the heavy auto-machines." },
     paperclip: { name: "Paperclip", icon: ["paperclip", "#c9cdd4"], desc: "Eight per steel ingot. Does absolutely nothing. How many is enough?" },
-    ironDust: { name: "Iron Dust", icon: ["pile", "#d8af93"], desc: "Crush an ore chunk into two dust, then smelt each into an ingot." },
-    goldDust: { name: "Gold Dust", icon: ["pile", "#f5cc3b"], desc: "Crush an ore chunk into two dust, then smelt each into an ingot." },
+    ironDust: { name: "Iron Dust", icon: ["pile", "#d8af93"], desc: "Smelts into an iron ingot. A crusher turns one ore chunk into two of these." },
+    goldDust: { name: "Gold Dust", icon: ["pile", "#f5cc3b"], desc: "Smelts into a gold ingot. A crusher turns one ore chunk into two of these." },
 
     // farming (Mystical Agriculture, roughly)
     wheat: { name: "Wheat", icon: ["wheat", "#e3c35a"], compost: 3, desc: "Rich compost: worth 3 leaves in a barrel." },
@@ -91,7 +94,7 @@
     waterBucket: { name: "Water Bucket", icon: ["bucket", "#b8643f", "#3f76e4"] },
     lavaBucket: { name: "Lava Bucket", icon: ["bucket", "#b8643f", "#ff7a1a"] },
     crucibleRaw: { name: "Unfired Crucible", icon: ["pot", "#a8b3c1"] },
-    crucibleFired: { name: "Fired Crucible", icon: ["pot", "#b8643f"], desc: "Place it over torches to melt cobblestone." },
+    crucibleFired: { name: "Fired Crucible", icon: ["pot", "#b8643f"], desc: "Craft it with two torches into a crucible, which melts cobblestone into lava." },
 
     // tools (the best one you own is used; none are used up by clicking)
     crook: { name: "Crook", icon: ["crook", "#8a6236"] },
@@ -124,24 +127,24 @@
     sieve: { name: "Sieve", icon: ["sieve"], place: true, desc: "Each sieve adds sieving power. Needs a mesh." },
     furnace: { name: "Furnace", icon: ["furnace"], place: true },
     crucible: { name: "Crucible", icon: ["crucible"], place: true, desc: "Melts cobblestone into lava." },
-    cobblegen: { name: "Cobblestone Generator", icon: ["gen"], place: true, desc: "Water meets lava. Mine it with a pickaxe (Work panel); more generators, more cobblestone per swing." },
+    cobblegen: { name: "Cobblestone Generator", icon: ["gen"], place: true, desc: "Water meets lava. Mine it with a pickaxe from the Work panel; every extra generator adds power to each swing." },
     autoGen: { name: "Auto-Generator Mk I", icon: ["autogen", "#dcdcdc"], place: true, desc: "Mines itself: 0.5 cobblestone/s. No pickaxe needed." },
     autoGen2: { name: "Auto-Generator Mk II", icon: ["autogen", "#f5cc3b"], place: true, desc: "Mines itself: 1.5 cobblestone/s." },
     autoGen3: { name: "Auto-Generator Mk III", icon: ["autogen", "#5ee0d8"], place: true, desc: "Mines itself: 4 cobblestone/s." },
-    autoHammer: { name: "Auto-Hammer", icon: ["autohammer"], place: true, desc: "Holds its own hammer: insert one under Machines. Better hammers work faster." },
-    autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true, desc: "Holds its own mesh: insert one under Machines. The mesh decides the drops." },
-    alloy: { name: "Alloy Smelter", icon: ["furnace", "#5a6270"], place: true, desc: "Fuses metals. Burns the furnace's coal. Recipes are in its own tab." },
+    autoHammer: { name: "Auto-Hammer", icon: ["autohammer"], place: true, desc: "Holds its own hammer and takes your best one when placed. Better hammers work faster." },
+    autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true, desc: "Holds its own mesh and takes your best one when placed. The mesh decides the drops." },
+    alloy: { name: "Alloy Smelter", icon: ["furnace", "#5a6270"], place: true, desc: "Fuses metals into alloys, burning coal from the shared fuel store. Click it to queue recipes." },
     heavySieve: { name: "Heavy Sieve", icon: ["sieve", "#7d8591"], place: true, desc: "Sieves compressed blocks: 7 sievings in one. Needs a mesh." },
     autoCHammer: { name: "Auto Compressed Hammer", icon: ["autohammer", "#7d8591"], place: true, desc: "Holds its own compressed hammer. Upgrade an auto-hammer or a compressed hammer into one." },
     autoHeavySieve: { name: "Auto Heavy Sieve", icon: ["autosieve", "#7d8591"], place: true, desc: "Holds its own mesh and sieves compressed blocks. Upgrade an auto-sieve or a heavy sieve into one." },
-    farmland: { name: "Farmland", icon: ["farm"], place: true, desc: "Pick a seed under Machines. It stays planted and keeps growing." },
-    fuelGenerator: { name: "Fuel Generator", icon: ["power", "#df963b"], place: true, desc: "40 W; stores 4,000 J. Auto-feeds your chosen coal or charcoal only when the grid has room. Configure under Machines." },
+    farmland: { name: "Farmland", icon: ["farm"], place: true, desc: "Click it to pick a seed. A planted seed stays and keeps growing." },
+    fuelGenerator: { name: "Fuel Generator", icon: ["power", "#df963b"], place: true, desc: "40 W; stores 4,000 J. Burns your chosen coal or charcoal only when the grid has room. Click it to pick the fuel." },
     solarGenerator: { name: "Solar Generator", icon: ["solar", "#4678bb"], place: true, desc: "10 W forever under the void's eternal sun. Stores 2,000 J; no fuel required." },
     battery: { name: "Energy Cell", icon: ["battery", "#76cfb3"], place: true, desc: "Adds 20,000 J of shared storage. Every powered machine connects automatically." },
-    crusher: { name: "Crusher", icon: ["autohammer", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Queue jobs in its crafting tab." },
+    crusher: { name: "Crusher", icon: ["autohammer", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Click it to queue jobs." },
     energizedSmelter: { name: "Energized Smelter", icon: ["furnace", "#4fd6e8"], place: true, desc: "20 W. Smelts with electricity, twice as fast as a furnace. No heat or fuel requirement." },
-    infuser: { name: "Metallurgic Infuser", icon: ["power", "#b98be3"], place: true, desc: "40 W. Makes steel and redstone alloy with half the coal or redstone. Queue jobs in its crafting tab." },
-    treeHarvester: { name: "Tree Harvester", icon: ["harvester", "#73aa56"], place: true, desc: "60 W for 10 s per tree: 4 logs, 4 leaves and a sapling. Automatically replants; trees take 45 s to regrow. Toggle under Machines." },
+    infuser: { name: "Metallurgic Infuser", icon: ["power", "#b98be3"], place: true, desc: "40 W. Makes steel and redstone alloy with half the coal or redstone. Click it to queue jobs." },
+    treeHarvester: { name: "Tree Harvester", icon: ["harvester", "#73aa56"], place: true, desc: "60 W for 10 s per tree: 4 logs, 4 leaves and a sapling. Replants by itself; trees take 45 s to regrow. Click it to pause or resume." },
   };
 
   const SIEVE = {
@@ -246,7 +249,6 @@
     { in: { log: 1 }, out: { planks: 4 } },
     { in: { planks: 2 }, out: { stick: 4 } },
     { in: { planks: 4 }, out: { table: 1 } },
-    { name: "Plant a sapling", in: { sapling: 1 }, out: { tree: 1 } },
     { in: { stick: 5 }, out: { crook: 1 }, at: "table" },
     { in: { planks: 7 }, out: { barrel: 1 }, at: "table", scale: { per: "barrel", k: 1 } }, // 7, 14, 21, ... planks
     { in: { silkworm: 1, leaves: 6 }, out: { infested: 1 } },
@@ -323,12 +325,12 @@
   const QUESTS = [
     { id: "wood", title: "Punch the Tree", text: "Click Chop until you have 3 oak logs.", need: { got: { log: 3 } } },
     { id: "planks", title: "Planks", text: "Turn a log into planks in the crafting list.", need: { got: { planks: 4 } } },
-    { id: "table", title: "A Table in the Void", text: "Build a crafting table. Machines take up a tile of the island each.", need: { built: { table: 1 } } },
+    { id: "table", title: "A Table in the Void", text: "Craft a crafting table, then drag it from your inventory onto the island. Every building takes one tile.", need: { built: { table: 1 } } },
     { id: "leaves", title: "Leaf Peeping", text: "Shake the leaves. Leaves rot into dirt and saplings grow into trees.", need: { got: { leaves: 6 } }, reward: { sapling: 1 } },
     { id: "crook", title: "By Hook or by Crook", text: "Make a crook: faster shaking, more saplings, and the odd silkworm.", need: { got: { crook: 1 } } },
-    { id: "barrel", title: "Barrel", text: "Build an oak barrel. It pulls leaves from your inventory and composts them.", need: { built: { barrel: 1 } } },
+    { id: "barrel", title: "Barrel", text: "Craft an oak barrel and place it on the island. It pulls leaves from your inventory and composts them.", need: { built: { barrel: 1 } } },
     { id: "dirt", title: "Dirt From Nothing", text: "Six compost in a barrel rot into a block of dirt.", need: { got: { dirt: 1 } } },
-    { id: "grow", title: "Another Tree", text: "Plant a sapling. Grown trees drop leaves by themselves.", need: { built: { tree: 2 } } },
+    { id: "grow", title: "Another Tree", text: "Drag a sapling from your inventory onto an empty tile to plant it. Grown trees drop leaves by themselves.", need: { built: { tree: 2 } } },
     { id: "land", title: "More Land", text: "Spend dirt to add a tile to the island.", need: { land: 7 } },
     { id: "silk", title: "Silkworm", text: "Keep shaking leaves with the crook until a silkworm falls out.", need: { got: { silkworm: 1 } } },
     { id: "infest", title: "Infested Leaves", text: "Put the silkworm on leaves. The colony spins string forever.", need: { built: { infested: 1 } } },
@@ -351,11 +353,11 @@
     { id: "autogen", title: "Hands-Free Stone", text: "Upgrade a cobblestone generator into an auto-generator. It mines itself, and has its own upgrades.", need: { anyBuilt: ["autoGen", "autoGen2", "autoGen3"] } },
     { id: "heavy", title: "Heavy Machinery", text: "Compress blocks 9 to 1, then build a heavy sieve or a compressed hammer to work them all at once.", need: { gotAny: ["heavySieve", "cHammer"] } },
     { id: "diamond", title: "Diamonds", text: "An iron mesh finds diamonds in gravel.", need: { got: { diamond: 1 } } },
-    { id: "alloy", title: "Alloy Smelter", text: "Build an alloy smelter from a furnace, iron and gears. It has its own recipe tab.", need: { built: { alloy: 1 } } },
+    { id: "alloy", title: "Alloy Smelter", text: "Build an alloy smelter from a furnace, iron and gears. Click it on the island to queue recipes.", need: { built: { alloy: 1 } } },
     { id: "steel", title: "Steel", text: "Alloy iron with coal. Steel is what the automatic heavy machines are made of.", need: { got: { steel: 1 } } },
     { id: "pstone", title: "The Philosopher's Stone", text: "Redstone, glowstone and a diamond. Then transmute.", need: { got: { pstone: 1 } } },
     { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. Build it to finish.", need: { got: { terminal: 1 } } },
-    { id: "power", title: "Watt Now?", text: "Build a fuel or solar generator. All powered machines share one grid: 1 watt supplies 1 joule each second. Configure generators under Machines.", need: { anyBuilt: ["fuelGenerator", "solarGenerator"] } },
+    { id: "power", title: "Watt Now?", text: "Build a fuel or solar generator. All powered machines share one grid: 1 watt supplies 1 joule each second. Click a generator to configure it.", need: { anyBuilt: ["fuelGenerator", "solarGenerator"] } },
     { id: "orepower", title: "Double or Nothing", text: "Build a crusher and an energized smelter. Crush one ore chunk into two dust, then smelt them into two ingots.", need: { built: { crusher: 1, energizedSmelter: 1 } } },
     { id: "infusion", title: "Applied Metallurgy", text: "Build a metallurgic infuser to make alloys faster with less coal and redstone.", need: { built: { infuser: 1 } } },
     { id: "forestry", title: "The Forest Works for You", text: "Build a tree harvester. It uses 600 J per harvest and replants automatically; plant more trees to keep it busy.", need: { built: { treeHarvester: 1 } } },

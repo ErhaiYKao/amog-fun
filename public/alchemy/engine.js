@@ -38,7 +38,7 @@
 
   function create(now = Date.now()) {
     const s = {
-      v: 4, t: now, start: now, won: 0, clicks: 0,
+      v: 5, t: now, start: now, won: 0, clicks: 0,
       inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {}, hide: {},
       sel: { sieve: "dirt", hammer: "cobble", chammer: "cCobble", hsieve: "cGravel", autoHammer: "cobble", autoSieve: "gravel", autoCHammer: "cCobble", autoHeavySieve: "cGravel" },
       opt: { feedBarrels: true, compostSaplings: false, feedCrucible: true },
@@ -53,38 +53,32 @@
   }
 
   // ---------- inventory ----------
+  // Buildings (place: true) are items too: crafted ones go into the inventory and you place them on a tile.
+  // count() is everything you own (inventory + placed); built() is only what's on the island.
   const isPlace = id => !!(ITEMS[id] && ITEMS[id].place);
+  const placesAs = id => (ITEMS[id] && ITEMS[id].plants) || (isPlace(id) ? id : null); // a sapling places a tree
   const built = (s, id) => s.island.reduce((n, t) => n + (t && t.id === id ? 1 : 0), 0);
   const grownTrees = s => s.island.filter(t => t && t.id === "tree" && t.grow >= 1).length;
-  const count = (s, id) => (isPlace(id) ? built(s, id) : s.inv[id] || 0);
+  const count = (s, id) => (s.inv[id] || 0) + (isPlace(id) ? built(s, id) : 0);
   const free = s => s.island.filter(t => !t).length;
   const emit = (s, type, text, data) => { if (s.ev) s.ev.push({ type, text, ...data }); };
 
-  // returns the island indices of any machines it placed
   function give(s, id, n = 1) {
-    const placed = [];
-    if (n <= 0) return placed;
-    if (isPlace(id)) {
-      for (let k = 0; k < n; k++) {
-        const i = s.island.indexOf(null);
-        if (i < 0) break;
-        s.island[i] = { id, ...(TILE[id] ? TILE[id]() : {}) };
-        if (AUTO.includes(id)) s.island[i].sel = s.sel[id]; // new machines start on the last input you picked
-        placed.push(i);
-      }
-    } else s.inv[id] = (s.inv[id] || 0) + n;
+    if (n <= 0) return;
+    s.inv[id] = (s.inv[id] || 0) + n;
     s.got[id] = (s.got[id] || 0) + n;
     if (!s.seen[id]) { s.seen[id] = 1; emit(s, "new", ITEMS[id].name, { id }); }
-    return placed;
   }
 
+  // buildings are taken from the inventory first, then picked up off the island
   function take(s, id, n = 1) {
-    if (!isPlace(id)) { s.inv[id] = (s.inv[id] || 0) - n; return; }
-    for (let k = 0; k < n; k++) {
+    const fromInv = isPlace(id) ? Math.min(n, s.inv[id] || 0) : n;
+    s.inv[id] = (s.inv[id] || 0) - fromInv;
+    for (let k = fromInv; k < n; k++) {
       const i = s.island.map(t => t && t.id).lastIndexOf(id);
-      if (i >= 0) s.island[i] = null;
+      if (i < 0) break;
+      clearTile(s, i);
     }
-    s.energy = Math.min(s.energy, energyCapacity(s));
   }
 
   function tool(s, kind) {
@@ -115,7 +109,7 @@
     if (a.needTool && !tool(s, a.tool)) return { ok: false, reason: `needs a ${toolName}` };
     let power = a.base || 0;
     if (a.tool) power += toolValue(s, a.tool);
-    if (a.per) power += count(s, a.per);
+    if (a.per) power += built(s, a.per);
     if (power <= 0) return { ok: false, reason: a.per ? `build a ${ITEMS[a.per].name.toLowerCase()}` : `needs a ${toolName}` };
     const mesh = a.mesh ? toolValue(s, "mesh") : 0;
     if (a.mesh && !mesh) return { ok: false, reason: "needs a mesh", power };
@@ -159,11 +153,7 @@
     for (const id in r.needs || {}) if (count(s, id) < r.needs[id]) return { ok: false, reason: `needs ${ITEMS[id].name}` };
     const need = cost(s, r, times);
     for (const id in need) if (count(s, id) < need[id]) return { ok: false, reason: "missing ingredients" };
-    let place = 0, freed = 0;
-    for (const id in r.out) if (isPlace(id)) place += r.out[id] * times;
-    for (const id in r.in) if (isPlace(id)) freed += r.in[id] * times;
-    if (place > free(s) + freed) return { ok: false, reason: "no free land" };
-    return { ok: true };
+    return { ok: true }; // buildings go into the inventory, so crafting never needs free land
   }
 
   function maxCraft(s, r) {
@@ -179,16 +169,12 @@
     const need = cost(s, r, times);
     for (const id in need) take(s, id, need[id]);
     for (const id in r.out) {
-      const placed = give(s, id, r.out[id] * times), auto = D.AUTO[id];
-      if (!auto) continue;
-      // a tool that went into the recipe (a compressed hammer) becomes the machine's tool;
-      // otherwise the new machine takes your best matching tool, so it works straight away
-      const inherited = Object.keys(r.in).find(k => (toolKind(k) || [])[0] === auto.kind);
-      for (const i of placed) {
-        if (inherited && !s.island[i].tool) { s.island[i].tool = inherited; continue; }
-        const best = tool(s, auto.kind);
-        if (best) { take(s, best[0], 1); s.island[i].tool = best[0]; }
-      }
+      give(s, id, r.out[id] * times);
+      // a tool that went into an auto machine's recipe (a compressed hammer) comes back out, ready to be
+      // slotted in when you place the machine (placing takes your best matching tool)
+      const auto = D.AUTO[id];
+      const inherited = auto && Object.keys(r.in).find(k => (toolKind(k) || [])[0] === auto.kind);
+      if (inherited) s.inv[inherited] = (s.inv[inherited] || 0) + r.in[inherited] * times;
     }
     return times;
   }
@@ -217,18 +203,48 @@
     s.island.push(null);
     return true;
   }
-  function demolish(s, i) {
+  // empty a tile, handing back whatever was inside the machine (not the machine itself)
+  function clearTile(s, i) {
     const t = s.island[i];
-    if (!t) return false;
-    if (t.id === "tree") { if (t.grow >= 1) give(s, "log", 2); give(s, "sapling", 1); }
-    if (t.id === "crucible" && t.cobble) give(s, "cobble", t.cobble);
-    if (t.tool) s.inv[t.tool] = (s.inv[t.tool] || 0) + 1; // auto machines hand their tool back
-    if (t.seed) s.inv[t.seed] = (s.inv[t.seed] || 0) + 1; // farmland hands its seed back
+    if (!t) return null;
+    const back = (id, n = 1) => { s.inv[id] = (s.inv[id] || 0) + n; };
+    if (t.id === "crucible" && t.cobble) back("cobble", t.cobble);
+    if (t.tool) back(t.tool); // auto machines hand their tool back
+    if (t.seed) back(t.seed); // farmland hands its seed back
     s.island[i] = null;
     s.energy = Math.min(s.energy, energyCapacity(s));
     if (STATIONS[t.id]) trimStation(s, t.id);
+    return t;
+  }
+  // pick a building up into the inventory; a tree comes back as a sapling (plus logs if it was grown)
+  function pickUp(s, i) {
+    const t = clearTile(s, i);
+    if (!t) return false;
+    if (t.id === "tree") { if (t.grow >= 1) give(s, "log", 2); s.inv.sapling = (s.inv.sapling || 0) + 1; }
+    else s.inv[t.id] = (s.inv[t.id] || 0) + 1;
     return true;
   }
+  // place a building (or plant a sapling) from the inventory onto an empty tile
+  function place(s, id, i) {
+    const as = placesAs(id);
+    if (!as || (s.inv[id] || 0) < 1 || i < 0 || i >= s.island.length || s.island[i]) return false;
+    s.inv[id]--;
+    const t = (s.island[i] = { id: as, ...(TILE[as] ? TILE[as]() : {}) });
+    if (!s.seen[as]) { s.seen[as] = 1; emit(s, "new", ITEMS[as].name, { id: as }); }
+    if (D.AUTO[as]) {
+      t.sel = s.sel[as]; // new machines start on the last input you picked
+      const best = tool(s, D.AUTO[as].kind); // and take your best matching tool, so they work straight away
+      if (best) { s.inv[best[0]]--; t.tool = best[0]; }
+    }
+    return true;
+  }
+  // drag a building to another tile: swaps with whatever is there, keeping both machines' state
+  function move(s, from, to) {
+    if (from === to || !s.island[from] || to < 0 || to >= s.island.length) return false;
+    [s.island[from], s.island[to]] = [s.island[to], s.island[from]];
+    return true;
+  }
+  const demolish = pickUp; // old name
 
   // ---------- machines ----------
   // auto-feeding leaves C.reserve behind (so you keep leaves for crafting); loading by hand does not
@@ -569,6 +585,7 @@
       s.v = 3;
     }
     if (s.v < 4) s.v = 4; // new grid/queue fields were filled from create(); legacy machines stay fuel-free
+    if (s.v < 5) s.v = 5; // v5: buildings can sit in the inventory; nothing on the island changes
     s.ev = [];
     return s;
   }
@@ -587,7 +604,7 @@
 
   const api = {
     DATA: D, KEY, create, count, built, free, grownTrees, give, take, tool, toolValue, actionState, act,
-    cost, recipeState, maxCraft, craft, visible, hidden, toolKind, expandCost, expand, demolish, feedBarrels, fullRain, lavaCrucible,
+    cost, recipeState, maxCraft, craft, visible, hidden, toolKind, expandCost, expand, demolish, pickUp, place, move, placesAs, isPlace, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
     insertTool, pullTool, autoPeriod, setSeed, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
   };

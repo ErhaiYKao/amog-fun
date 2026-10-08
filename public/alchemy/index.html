@@ -69,6 +69,24 @@
   .float { position: absolute; pointer-events: none; font-family: var(--mono); font-size: 12.5px; color: var(--g3); white-space: nowrap; animation: rise .9s ease-out forwards; z-index: 5; }
   @keyframes rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-34px); opacity: 0; } }
 
+  /* island tools, placing, the machine panel */
+  .isl-tools { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; margin: -4px 0 8px; height: 28px; min-width: 0; }
+  .isl-tools > .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .isl-tools .zoom { margin-left: auto; display: inline-flex; gap: 4px; }
+  #placing { color: var(--g3); }
+  #placing:empty, #grid:empty { display: none; }
+  .island.drop { outline: 2px dashed var(--g3); outline-offset: 2px; }
+  .island.dragging { cursor: grabbing; }
+  .inv-card.drop { border-color: var(--g3); box-shadow: 0 0 0 1px var(--g3) inset; }
+  #buildings-box { margin-bottom: 12px; }
+  #buildings-box[hidden] { display: none; }
+  .slot.bld { cursor: grab; border-color: #c8f04a44; }
+  .slot.bld.on { border-color: var(--g3); box-shadow: 0 0 0 2px var(--g3); }
+  .machine:empty { display: none; }
+  .machine { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; display: grid; gap: 8px; }
+  .machine .recipes { max-height: 320px; }
+  .machine h3 { margin: 4px 0 0; }
+  .machine p.meta { margin: 0; }
   /* machines */
   .mach { border-top: 1px solid var(--line); padding: 12px 0; display: grid; gap: 8px; }
   .mach:first-of-type { border-top: 0; padding-top: 0; }
@@ -202,20 +220,24 @@
     <div class="col">
       <section class="card island-card" style="--o:2">
         <div class="card-h"><h2>The Island</h2><span class="meta" id="land"></span></div>
+        <div class="isl-tools"><span class="meta" id="placing"></span><span class="meta" id="grid"></span>
+          <span class="zoom"><button class="mini" data-act="zoom:-1" title="zoom out">−</button><button class="mini" data-act="zoom:0" title="fit the island">fit</button><button class="mini" data-act="zoom:1" title="zoom in (or ctrl/⌘ + scroll)">+</button></span></div>
         <canvas class="island" id="island" width="180" height="146" aria-label="Your island"></canvas>
         <div class="tileinfo" id="tile"></div>
+        <div class="machine" id="machine"></div>
       </section>
       <section class="card" style="--o:3"><div class="card-h"><h2>Work</h2><span class="meta">keys 1–7</span></div><div class="actions" id="actions"></div>
         <details class="drops" id="drops-box"><summary>sieve drop rates: what each mesh finds</summary><div id="drops"></div></details></section>
-      <section class="card" id="machines-card" style="--o:6"><div class="card-h"><h2>Machines</h2></div><div id="machines"></div></section>
     </div>
     <div class="col">
       <section class="card quest" id="quest" style="--o:1"></section>
-      <section class="card" style="--o:4"><div class="card-h"><h2>Inventory</h2><span class="meta" id="invmeta"></span></div><div class="inv" id="inventory"></div></section>
+      <section class="card inv-card" id="inv-card" style="--o:4"><div class="card-h"><h2>Inventory</h2><span class="meta" id="invmeta"></span></div>
+        <div id="buildings-box"><h3>Buildings · drag onto the island</h3><div class="inv" id="buildings"></div></div>
+        <div class="inv" id="inventory"></div></section>
       <section class="card" style="--o:5">
-        <div class="card-h"><div class="tabs" id="crafttabs"></div><div class="chips" id="craftfilter"></div></div>
+        <div class="card-h"><h2>Crafting</h2><div class="chips" id="craftfilter"></div></div>
         <div class="craftbar">
-          <input id="craftsearch" type="search" placeholder="search recipes…" autocomplete="off" spellcheck="false">
+          <input id="craftsearch" type="search" placeholder="search every recipe (table, furnace, machines)…" autocomplete="off" spellcheck="false">
           <div class="amt"><span class="meta">amount</span><span class="chips" id="craftamt"></span><input id="craftn" type="number" min="1" max="999" value="1" aria-label="amount to craft"></div>
         </div>
         <div class="focus" id="craftfocus"></div>

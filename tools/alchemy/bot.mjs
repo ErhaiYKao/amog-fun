@@ -30,6 +30,15 @@ function land(d) {
 }
 
 // make one unit of progress towards having n of id; true once we have it
+// buildings count once they're on the island: craft one into the inventory, then place it
+function needBuilt(id, n, d) {
+  if (A.built(s, id) >= n) return true;
+  const item = id === "tree" ? "sapling" : id;
+  if ((s.inv[item] || 0) > 0) { if (land(d)) A.place(s, item, s.island.indexOf(null)); return false; }
+  if (id === "tree") return need("sapling", 1, d + 1) && false;
+  return need(id, A.count(s, id) + 1, d + 1) && false;
+}
+
 function need(id, n, d = 0) {
   if (A.count(s, id) >= n) return true;
   if (d > 14) { wait(); return false; }
@@ -37,8 +46,8 @@ function need(id, n, d = 0) {
   if (id === "log") { if (A.grownTrees(s)) click("chop"); else wait(); return act(); }
   if (id === "leaves" || id === "sapling") { if (A.grownTrees(s)) click("leaves"); else wait(); return act(); }
   if (id === "silkworm") { if (!need("crook", 1, d + 1)) return false; click("leaves"); return act(); }
-  if (id === "string") { if (need("infested", 1, d + 1)) wait(); return false; }
-  if (id === "dirt") { if (need("barrel", A.free(s) ? Math.min(3, 1 + Math.floor(s.island.length / 8)) : 1, d + 1)) { if (A.grownTrees(s)) click("leaves"); else wait(); } return false; }
+  if (id === "string") { if (needBuilt("infested", 1, d + 1)) wait(); return false; }
+  if (id === "dirt") { if (needBuilt("barrel", A.free(s) ? Math.min(3, 1 + Math.floor(s.island.length / 8)) : 1, d + 1)) { if (A.grownTrees(s)) click("leaves"); else wait(); } return false; }
   if (id === "cobble" && A.built(s, "cobblegen") && A.tool(s, "pick")) { click("mine"); return false; }
   if (id === "cobble" && s.island.some(t => t && A.DATA.CONFIG.autoGen[t.id])) { wait(); return false; }
   if (HAMMERED[id]) {
@@ -48,25 +57,25 @@ function need(id, n, d = 0) {
   }
   if (SIEVED[id]) {
     const [inp, tier] = SIEVED[id];
-    if (!need("sieve", 1, d + 1)) return false;
+    if (!needBuilt("sieve", 1, d + 1)) return false;
     if (A.toolValue(s, "mesh") < tier && !need(MESHES[tier - 1], 1, d + 1)) return false;
     if (!need(inp, 1, d + 1)) return false;
     click("sieve", inp); return false;
   }
   if (id === "clayBlock") {
-    if (!need("rainBarrel", 1, d + 1) || !need("dust", 1, d + 1)) return false;
+    if (!needBuilt("rainBarrel", 1, d + 1) || !need("dust", 1, d + 1)) return false;
     if (!A.mixClay(s)) wait();
     return false;
   }
   if (id === "waterBucket" || id === "lavaBucket") {
     const water = id === "waterBucket";
-    if (!need("bucket", 1, d + 1) || !need(water ? "rainBarrel" : "crucible", 1, d + 1)) return false;
+    if (!need("bucket", 1, d + 1) || !needBuilt(water ? "rainBarrel" : "crucible", 1, d + 1)) return false;
     if (!water && !A.lavaCrucible(s) && !need("cobble", 4, d + 1)) return false;
     if (!A.fillBucket(s, water ? "water" : "lava")) wait();
     return false;
   }
   if (A.DATA.ALLOY[id]) {
-    if (!need("alloy", 1, d + 1)) return false;
+    if (!needBuilt("alloy", 1, d + 1)) return false;
     const busy = s.aqueue.length || s.aslots.some(Boolean);
     if (!busy) for (const [k, v] of Object.entries(A.DATA.ALLOY[id].in)) if (!need(k, v, d + 1)) return false;
     if (s.fuel[3] < 20) { if (!need("coal", 2, d + 1)) return false; A.addFuel(s, "coal", 2); }
@@ -75,7 +84,7 @@ function need(id, n, d = 0) {
   }
   if (SMELTED[id] && !(id === "gold" && A.count(s, "pstone"))) {
     const inp = SMELTED[id], heat = SMELT[inp].heat;
-    if (!need("furnace", 1, d + 1)) return false;
+    if (!needBuilt("furnace", 1, d + 1)) return false;
     const busy = s.queue.length || s.slots.some(Boolean);
     if (!busy && !need(inp, 1, d + 1)) return false;
     const fuel = s.fuel.slice(heat).reduce((a, b) => a + b, 0);
@@ -91,7 +100,7 @@ function need(id, n, d = 0) {
   if (!r) throw new Error("no way to make " + id);
   const st = A.recipeState(s, r);
   if (st.ok) { A.craft(s, r, 1); return false; }
-  if (r.at === "table" && !A.built(s, "table")) return need("table", 1, d + 1) && false;
+  if (r.at === "table" && !A.built(s, "table")) return needBuilt("table", 1, d + 1) && false;
   for (const k in r.needs || {}) if (!need(k, r.needs[k], d + 1)) return false;
   for (const [k, v] of Object.entries(A.cost(s, r))) if (!need(k, v, d + 1)) return false;
   if (st.reason === "no free land") land(d);
@@ -104,8 +113,8 @@ function pursue(q) {
     const target = A.count(s, id) + Math.max(0, n - (s.got[id] || 0));
     if ((s.got[id] || 0) < n) return need(id, target);
   }
-  for (const [id, n] of Object.entries(nd.built || {})) if (A.built(s, id) < n) return need(id, n);
-  if (nd.anyBuilt && !nd.anyBuilt.some(id => A.built(s, id))) return need(nd.anyBuilt[0], 1);
+  for (const [id, n] of Object.entries(nd.built || {})) if (A.built(s, id) < n) return needBuilt(id, n, 0);
+  if (nd.anyBuilt && !nd.anyBuilt.some(id => A.built(s, id))) return needBuilt(nd.anyBuilt[0], 1, 0);
   if (nd.gotAny && !nd.gotAny.some(id => s.got[id])) return need(nd.gotAny[0], 1);
   if (nd.land && s.island.length < nd.land) { if (need("dirt", A.expandCost(s))) A.expand(s); return; }
   wait();
