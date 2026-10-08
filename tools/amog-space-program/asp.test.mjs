@@ -427,7 +427,7 @@ test('spamming cheap probes cannot farm money (shipyard slots + no repeat funds)
   for (let i = 0; i < 400; i++) {
     G.tick(5);
     if (!st.ships.length) {
-      spent += G.shipCost('sail', 1, 'flyby');
+      spent += G.shipCost('sail', 1, 'flyby', 'heliopause');
       G.launchShip('sail', 1, 'flyby', 'heliopause');
     }
   }
@@ -436,11 +436,24 @@ test('spamming cheap probes cannot farm money (shipyard slots + no repeat funds)
   assert.ok(st.funds - f0 <= firstVisit + 1, `net ${st.funds - f0} vs first ${firstVisit}`);
 });
 
-test('precursor targets cannot be colonized; colonies need a brake', () => {
-  phase3State();
+test('precursor targets cannot be colonized; colonies need a brake; stars unlock in order', () => {
+  const st = phase3State();
   assert.match(G.shipBlocker('orion', 20, 'colonize', 'heliopause'), /flyby only/);
-  G.state.research.magsail = false;
+  // a cheap sail can't skip ahead to the far, valuable stars
+  assert.match(G.shipBlocker('sail', 1, 'flyby', 'kepler'), /nav data/);
+  for (const s of D.STARS) if (s.id !== 'kepler' && D.STARS.indexOf(s) < D.STARS.findIndex((x) => x.id === 'kepler')) st.flybys[s.id] = 1;
+  assert.equal(G.shipBlocker('sail', 1, 'flyby', 'kepler'), '');
+  st.research.magsail = false;
   assert.match(G.shipBlocker('sail', 1, 'colonize', 'alphacen'), /brake/);
+  // colony ships carry settlers: they cost a share of the star's value
+  const ac = G.starById('alphacen');
+  assert.ok(G.shipCost('orion', 20, 'colonize', 'alphacen') >= ac.funds * D.COLONY.settlers);
+  const rw = G.starReward(ac, 'colonize');
+  assert.ok(rw.colony && rw.funds > 0 && rw.funds < G.shipCost('sail', 1, 'colonize', 'alphacen'),
+    'a colony repays part of its settlers; the ×2 income is the real prize');
+  // and star rewards ignore income multipliers (that was the old runaway)
+  st.colonies = { barnard: true, sirius: true };
+  assert.equal(G.starReward(ac, 'colonize').funds, rw.funds);
 });
 
 test('long idle with every automation on stays linear (no runaway loop)', () => {

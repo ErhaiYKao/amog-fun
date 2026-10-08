@@ -323,5 +323,10 @@ ul.changes li { margin-bottom: 4px; }
 #hud-obj { color: var(--accent); }
 @media (max-width: 900px) {
   .btnrow button.tiny { min-height: 36px; }
-  #warpbar { flex-wrap: wrap; justify-content: center; max-width: 96%; }
+  /* mirrored in the panel strip on small screens */
+  #currencies .cur { display: none; }
+  #warpbar { flex-wrap: wrap; justify-content: center; max-width: 96%; padding: 4px 6px; gap: 4px; bottom: 6px; }
+  #warpbar .wlabel, #warp-more { display: none; }
+  #warpbar button[data-warp] { padding: 6px 7px; font-size: 12px; min-height: 0; min-width: 0; }
+  #warpbar #end-flight { padding: 6px 10px; min-height: 0; }
 }

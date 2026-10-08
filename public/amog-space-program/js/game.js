@@ -1078,6 +1078,15 @@
 
   G.starById = function (id) { return findBy(D.STARS, id); };
   G.starVisited = function (id) { return !!(G.state.flybys[id] || G.state.colonies[id]); };
+  // Sequential navigation: the previous destination must be visited first.
+  G.starPrev = function (star) {
+    var i = D.STARS.indexOf(star);
+    return i > 0 ? D.STARS[i - 1] : null;
+  };
+  G.starUnlocked = function (star) {
+    var prev = G.starPrev(star);
+    return !prev || G.starVisited(prev.id);
+  };
 
   G.shipCruise = function (engineId, ratio, mode) {
     // returns cruise speed as fraction of c, or -1 if impossible
@@ -1093,11 +1102,17 @@
     return Math.min(cruise, 0.99);
   };
 
-  G.shipCost = function (engineId, ratio, mode) {
+  // Drive (bigger mass ratio = more fuel = more money) plus, for colony
+  // ships, the settlers: a fixed share of the destination's value.
+  G.shipCost = function (engineId, ratio, mode, starId) {
     var e = D.STAR_ENGINES[engineId];
     if (!e) return Infinity;
     var c = e.sail ? e.base : e.base * Math.pow(ratio, 0.8);
-    if (mode === 'colonize') c *= 3;
+    if (mode === 'colonize') {
+      c *= 2;
+      var star = findBy(D.STARS, starId);
+      if (star) c += star.funds * D.COLONY.settlers;
+    }
     return c;
   };
 
@@ -1106,15 +1121,17 @@
     return { orion: !!r.orion, fusion: !!r.fusionEng, antimatter: !!r.antimatterEng, sail: !!r.sailTech }[engineId] || false;
   };
 
-  // What the next arrival at this star would pay.
+  // What the next arrival at this star would pay. Flat: no multipliers.
   G.starReward = function (star, mode) {
-    var st = G.state, mult = G.globalMult(), F = D.FLYBY;
+    var st = G.state, F = D.FLYBY;
     if (mode === 'colonize' && !st.colonies[star.id]) {
-      return { funds: star.funds * mult, sci: star.sci * mult, colony: true };
+      return { funds: star.funds * D.COLONY.payback, sci: star.sci, colony: true };
     }
     var k = st.flybys[star.id] || 0;
-    if (!k && !st.colonies[star.id]) return { funds: star.funds * F.first * mult, sci: star.sci * F.first * mult };
-    return { funds: 0, sci: star.sci * F.repeat * Math.pow(F.decay, Math.max(0, k - 1)) * mult };
+    if (!k && !st.colonies[star.id]) {
+      return { funds: star.funds * (star.precursor ? F.precursorFunds : F.funds), sci: star.sci * F.sci };
+    }
+    return { funds: 0, sci: star.sci * F.repeat * Math.pow(F.decay, Math.max(0, k - 1)) };
   };
 
   G.shipBlocker = function (engineId, ratio, mode, starId) {
@@ -1122,11 +1139,12 @@
     if (!star) return 'Pick a target.';
     if (!G.shipEngineUnlocked(engineId)) return 'Research a starship drive first.';
     if (st.ships.length >= G.shipSlots()) return 'Shipyard busy (' + st.ships.length + '/' + G.shipSlots() + ' ships in flight).';
+    if (!G.starUnlocked(star)) return 'No nav data yet — visit ' + G.starPrev(star).name + ' first.';
     if (mode === 'colonize' && star.precursor) return 'Nothing to colonize out there — flyby only.';
     if (mode === 'colonize' && st.colonies[star.id]) return 'Already colonized.';
     if (star.intergalactic && !G.colonyCount()) return 'Found a colony among the stars first.';
     if (G.shipCruise(engineId, ratio, mode) <= 0) return 'Sails can’t brake — research the magnetic sail to colonize with one.';
-    if (st.funds < G.shipCost(engineId, ratio, mode)) return 'Can’t afford it.';
+    if (st.funds < G.shipCost(engineId, ratio, mode, starId)) return 'Can’t afford it.';
     return '';
   };
 
@@ -1134,8 +1152,9 @@
     if (G.shipBlocker(engineId, ratio, mode, starId)) return false;
     var st = G.state, star = findBy(D.STARS, starId);
     var cruise = G.shipCruise(engineId, ratio, mode);
-    st.funds -= G.shipCost(engineId, ratio, mode);
-    earn('starships', -G.shipCost(engineId, ratio, mode), 0);
+    var cost = G.shipCost(engineId, ratio, mode, starId);
+    st.funds -= cost;
+    earn('starships', -cost, 0);
     st.ships.push({
       uid: ++st.uid, engine: engineId, ratio: ratio, mode: mode, star: starId,
       progressLy: 0, cruiseC: cruise, name: D.STAR_ENGINES[engineId].name
@@ -1147,7 +1166,7 @@
   };
 
   G.warpRate = function () { return 2 * Math.pow(4, G.state.warpLevel); }; // sim-years per real second
-  G.warpUpCost = function () { return 5e4 * Math.pow(8, G.state.warpLevel); };
+  G.warpUpCost = function () { return 2e5 * Math.pow(6, G.state.warpLevel); };
   G.buyWarp = function () {
     var st = G.state;
     if (st.warpLevel >= 14) return false;

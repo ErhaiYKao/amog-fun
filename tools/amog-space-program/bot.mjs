@@ -113,7 +113,19 @@ function valid(d) {
 
 const bestMemo = new Map(); // objective name -> last best design (warm start)
 
+const resultMemo = new Map(); // same objective + same tech/caps -> same answer
 function optimize(name, payload, score, extraSeeds = []) {
+  const fundsDependent = name === 'alt' || name === 'income' || name.startsWith('c:');
+  const memoKey = [name, payload, techSig(), G.maxTanks(), G.maxEngines(), G.maxStages(),
+    Object.keys(D.ENGINES).filter((e) => G.engineUnlocked(e)).join('/'),
+    fundsDependent ? Math.floor(Math.log2(G.state.funds + 2)) : ''].join('|');
+  if (resultMemo.has(memoKey)) return resultMemo.get(memoKey);
+  const out = optimizeRaw(name, payload, score, extraSeeds);
+  if (resultMemo.size > 5000) resultMemo.clear();
+  resultMemo.set(memoKey, out);
+  return out;
+}
+function optimizeRaw(name, payload, score, extraSeeds = []) {
   const seeds = [];
   if (bestMemo.has(name)) seeds.push(bestMemo.get(name));
   seeds.push(...extraSeeds);
@@ -121,12 +133,18 @@ function optimize(name, payload, score, extraSeeds = []) {
   seeds.push({ stages: [{ engine: 'fizz', count: 1, tanks: 1 }], turnStart: 1000, turnEnd: 30000, guidanceOn: false });
   let best = null;
   const seen = new Set();
+  // score every seed, then climb only the three most promising
+  const starts = [];
   for (let seed of seeds) {
     seed = G.clampDesign(clone(seed));
     const sk = JSON.stringify(seed);
     if (seen.has(sk)) continue;
     seen.add(sk);
-    let cur = seed, cs = score(sim(cur, payload), cur);
+    starts.push({ d: seed, s: score(sim(seed, payload), seed) });
+  }
+  starts.sort((a, b) => b.s - a.s);
+  for (const start of starts.slice(0, 3)) {
+    let cur = start.d, cs = start.s;
     for (let it = 0; it < 80; it++) {
       let bn = null, bs = cs;
       for (const n of neighbors(cur)) {
@@ -206,7 +224,7 @@ export const TIERS = [
 export function capabilityTable(opts = {}) {
   const payloads = opts.payloads || [...new Set(D.MISSIONS.map((m) => m.payload))].sort((a, b) => a - b);
   const say = opts.log || (() => {});
-  simCache.clear(); bestMemo.clear();
+  simCache.clear(); bestMemo.clear(); resultMemo.clear();
   G.state = G.freshState();
   const s = G.state;
   P1_RESEARCH.forEach((id) => { s.research[id] = true; });
@@ -218,9 +236,10 @@ export function capabilityTable(opts = {}) {
     tier.research.forEach((id) => { s.research[id] = true; });
     s.structure.tanks = tier.tanks - D.STRUCTURE.tanks.start;
     const cap = {}, capIon = {};
+    const ionPayloads = new Set(D.MISSIONS.filter((m) => m.ionOk).map((m) => m.payload));
     for (const p of payloads) {
       cap[p] = bestBudget(p, false);
-      capIon[p] = s.research.engIon ? bestBudget(p, true) : cap[p];
+      capIon[p] = s.research.engIon && ionPayloads.has(p) ? bestBudget(p, true) : cap[p];
     }
     const feasible = new Set();
     for (const m of D.MISSIONS) {
@@ -254,13 +273,13 @@ export function runBot(opts = {}) {
   const overhead = opts.overhead ?? 4;
   const grind = opts.grind || 'smart'; // 'smart': grind by hand only until the ground crew exists
   const say = opts.log || (() => {});
-  simCache.clear(); bestMemo.clear();
-  G.state = G.freshState();
+  simCache.clear(); bestMemo.clear(); resultMemo.clear();
+  G.state = opts.state ? G.sanitizeState(clone(opts.state)) : G.freshState();
   G.rng = seeded(opts.seed || 1);
   G.log = []; G.flight = null; G.flightMeta = null; G._autoT = 0; G.missionHold = false;
   G.listeners = {}; G.ledger = {};
   const statusEvery = opts.statusEvery || 0;
-  let nextStatus = statusEvery;
+  let nextStatus = (opts.state && opts.state.clock || 0) + statusEvery;
   const status = () => {
     const s = st(), r = G.incomeRates();
     const led = Object.entries(G.ledger).map(([k, v]) => k + ' $' + D.fmt(v.funds) + '/' + D.fmt(v.sci) + '⚗').join(', ');
@@ -360,8 +379,10 @@ export function runBot(opts = {}) {
   }
 
   const ALT_MARKS = [1e3, 5e3, 10e3, 20e3, 50e3, 100e3, 200e3];
+  const startedAt = opts.state ? (opts.state.clock || 0) : -1;
   function checkMarks() {
     const s = st();
+    if (s.clock <= startedAt) return; // resumed from a save: only log what's new
     for (const a of ALT_MARKS) if (s.bestAlt >= a) mark('alt' + a, 'reached ' + D.fmtDist(a));
     if (s.gotOrbit) mark('orbit', 'FIRST ORBIT');
     const ph = G.phase();
@@ -481,32 +502,46 @@ export function runBot(opts = {}) {
     return false;
   }
 
+  // Phase 3 policy: found colonies where we can (nearest first), otherwise
+  // push the frontier with a flyby of the next unvisited destination.
   function shipStep() {
     const s = st();
     if (G.phase() < 3) return false;
     if (s.ships.length >= G.shipSlots()) return false;
-    let best = null;
     const engines = Object.keys(D.STAR_ENGINES).filter(G.shipEngineUnlocked);
-    for (const star of D.STARS) {
-      const modes = star.precursor ? ['flyby'] : ['colonize', 'flyby'];
-      for (const mode of modes) {
-        if (s.ships.some((sh) => sh.star === star.id)) continue;
-        const rw = G.starReward(star, mode);
-        if (!rw.colony && rw.funds <= 0) continue;
-        for (const e of engines) {
-          for (const ratio of (e === 'sail' ? [1] : [3, 5, 10, 20, 50, 100, 200, 500, 1000])) {
-            if (G.shipBlocker(e, ratio, mode, star.id)) continue;
-            const cost = G.shipCost(e, ratio, mode);
-            const time = star.ly / G.shipCruise(e, ratio, mode) / G.warpRate();
-            if (time > 4 * 3600) continue;
-            const value = rw.colony ? Math.max(rw.funds, cost * 3) + (G.colonyFundsRate() + G.satRate() + 1e6) * 600 : rw.funds;
-            const score = (value - cost) / (time + 120);
-            if (value > cost && (!best || score > best.score)) best = { score, e, ratio, mode, star: star.id };
+    const options = (star, mode, budget, maxTime) => {
+      let best = null;
+      for (const e of engines) {
+        for (const ratio of (e === 'sail' ? [1] : [3, 5, 10, 20, 50, 100, 200, 500, 1000])) {
+          if (G.shipBlocker(e, ratio, mode, star.id)) continue;
+          const cost = G.shipCost(e, ratio, mode, star.id);
+          const time = star.ly / G.shipCruise(e, ratio, mode) / G.warpRate();
+          if (cost > budget || time > maxTime) continue;
+          if (!best || time + cost / Math.max(1, G.incomeRates().funds) * 0.2 < best.time + best.cost / Math.max(1, G.incomeRates().funds) * 0.2) {
+            best = { e, ratio, mode, star: star.id, cost, time };
           }
         }
       }
+      return best;
+    };
+    let pick = null;
+    for (const star of D.STARS) {
+      if (!G.starUnlocked(star) || s.ships.some((sh) => sh.star === star.id)) continue;
+      if (!star.precursor && !s.colonies[star.id]) {
+        const o = options(star, 'colonize', s.funds, 3 * 3600);
+        if (o) { pick = o; break; }
+      }
+      if (!G.starVisited(star.id)) {
+        const o = options(star, 'flyby', s.funds * 0.5, 6 * 3600);
+        if (o) { pick = o; break; }
+      }
     }
-    if (best) { G.launchShip(best.e, best.ratio, best.mode, best.star); mark('ship:' + best.star + best.mode, 'starship → ' + best.star + ' (' + best.mode + ', ' + best.e + ')'); return true; }
+    if (pick) {
+      G.launchShip(pick.e, pick.ratio, pick.mode, pick.star);
+      mark('ship:' + pick.star + pick.mode, 'starship → ' + pick.star + ' (' + pick.mode + ', ' + pick.e +
+        (pick.e === 'sail' ? '' : ' R' + pick.ratio) + ', ETA ' + fmtClock(pick.time) + ')');
+      return true;
+    }
     return false;
   }
 

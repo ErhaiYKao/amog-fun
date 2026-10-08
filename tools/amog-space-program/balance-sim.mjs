@@ -12,17 +12,21 @@
 //      stops clicking LAUNCH once the ground crew exists; expect a casual
 //      player to take ~1.5-2x as long.
 //
-// Intended progression (bot time, seed 1):
-//   0-5 min    soda bottle -> Sundancer -> 5 km (science) -> ground crew
-//   ~10 min    Kestrel; the Kármán line falls (a satisfying burst)
-//   10-45 min  the long climb to orbit: staging, Merlin, telemetry, guidance,
-//              vacuum nozzles — one research every ~5 min, contracts between
-//   ~45-60 min FIRST ORBIT (phase 2)
-//   1-2 h      weather sat, MEO, hydrolox, Moon flyby, 4th stage, Moon orbit
-//   2-4 h      heavy-lift, Mars/Venus, aerobraking, ion, Moon landing
-//   4-6 h      NERVA, Jupiter, gravity assists, the outer planets
-//   ~6-8 h     heavy-lift III -> Voyager (phase 3)
-//   phase 3    precursor flybys -> Alpha Centauri -> colonies -> Andromeda
+// Intended progression (bot time, seed 1; measured — rerun after changing data.js):
+//   0:00-0:05  soda bottle -> 1 km (8 s) -> Sundancer (1:30) -> 5 km science
+//              (2:12) -> ground crew (4:11): the first minutes pay out often
+//   ~0:09      Kestrel; the Kármán line falls (a deliberate, satisfying burst)
+//   0:10-0:45  the long climb to orbit: staging, Merlin, telemetry, guidance,
+//              vacuum nozzles — one research every ~4-6 min, contracts between
+//   0:45       FIRST ORBIT (phase 2); weather sat and MEO right after
+//   1:20       hydrolox -> Moon flyby; 1:30-2:05 4th stage, heavy-lift I,
+//              aerobraking, ion, heavy-lift II open Moon orbit, Venus, Mars,
+//              L2, Mercury, Ceres, Moon landing one or two at a time
+//   2:20-3:40  Jupiter, NERVA, Mars landing, gravity assists, Saturn, Uranus
+//   ~4:10      heavy-lift III -> Voyager (phase 3)
+//   4:10-5:40  precursor flybys -> Alpha Centauri ... galactic core colonies
+//              -> Andromeda (~5h40). Expect a human at ~1.5-2x these times.
+// No tier of the capability table opens more than 3 missions; NERVA opens 1.
 
 import { runBot, capabilityTable, fmtClock, P, D, G } from './bot.mjs';
 
@@ -79,7 +83,7 @@ if (!args.quick) {
     `  (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
 }
 
-const until = args.until || 'voyager';
+const until = args.until || 'win';
 console.log(`\n=== 3. Progression bot (until ${until}) ===`);
 const t1 = Date.now();
 const r = runBot({ until, seed: +(args.seed || 1), maxTime: 30 * 3600, statusEvery: 1800, log: (s) => console.log(s) });

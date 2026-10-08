@@ -317,8 +317,13 @@
       box.appendChild(ob);
     }
     var shown = 0;
-    D.RESEARCH.forEach(function (r) {
+    // open research first, locked goals after (data order within each group)
+    var list = D.RESEARCH.slice().sort(function (a, b) {
+      return (G.researchGate(a) ? 1 : 0) - (G.researchGate(b) ? 1 : 0);
+    });
+    list.forEach(function (r) {
       if (st.research[r.id]) return;
+      if (r.requiresOrbit && !st.gotOrbit && st.bestAlt < 100e3) return;
       // hide entries whose research prerequisites are unmet (keeps the tree
       // tidy); altitude/orbit/mission gates show as visible locks with goals
       if (!G.researchPrereqsMet(r)) return;
@@ -608,8 +613,14 @@
 
   var shipSel = { engine: 'sail', ratio: 20, mode: 'flyby', star: 'heliopause' };
 
+  var shipTargetPicked = false;
   function renderStars() {
     var st = G.state;
+    // default to the nearest place we haven't been
+    if (!shipTargetPicked && G.starVisited(shipSel.star)) {
+      var next = D.STARS.filter(function (x) { return !G.starVisited(x.id) && G.starUnlocked(x); })[0];
+      if (next) shipSel.star = next.id;
+    }
     // never leave a locked engine selected
     if (!G.shipEngineUnlocked(shipSel.engine)) {
       var firstUnlocked = Object.keys(D.STAR_ENGINES).filter(G.shipEngineUnlocked)[0];
@@ -648,16 +659,18 @@
     D.STARS.forEach(function (s) {
       if (s.intergalactic && !G.colonyCount()) return;
       var visits = st.flybys[s.id] || 0;
-      html += '<option value="' + s.id + '"' + (shipSel.star === s.id ? ' selected' : '') + '>' +
+      var locked = !G.starUnlocked(s);
+      html += '<option value="' + s.id + '"' + (shipSel.star === s.id ? ' selected' : '') + (locked ? ' disabled' : '') + '>' +
         txt(s.name) + ' — ' + (s.ly >= 1000 ? D.fmt(s.ly) : s.ly < 0.1 ? (s.ly * 63241).toFixed(0) + ' AU' : s.ly) +
         (s.ly < 0.1 ? '' : ' ly') +
-        (st.colonies[s.id] ? ' (colonized)' : visits ? ' (visited' + (visits > 1 ? ' ×' + visits : '') + ')' : '') + '</option>';
+        (st.colonies[s.id] ? ' (colonized)' : visits ? ' (visited' + (visits > 1 ? ' ×' + visits : '') + ')' :
+          locked ? ' — 🔒 needs nav data' : '') + '</option>';
     });
     html += '</select>';
 
     var cruise = G.shipCruise(shipSel.engine, shipSel.ratio, shipSel.mode);
     var star = G.starById(shipSel.star);
-    var cost = G.shipCost(shipSel.engine, shipSel.ratio, shipSel.mode);
+    var cost = G.shipCost(shipSel.engine, shipSel.ratio, shipSel.mode, shipSel.star);
     if (star && cruise > 0) {
       var years = star.ly / cruise;
       var gamma = 1 / Math.sqrt(1 - cruise * cruise);
@@ -692,7 +705,7 @@
       rs.onchange = function () { renderStars(); };
     }
     var ss = $('ship-star');
-    if (ss) ss.onchange = function () { shipSel.star = ss.value; renderStars(); };
+    if (ss) ss.onchange = function () { shipSel.star = ss.value; shipTargetPicked = true; renderStars(); };
     var lb = $('ship-launch');
     if (lb) lb.onclick = function () {
       if (G.launchShip(shipSel.engine, shipSel.ratio, shipSel.mode, shipSel.star)) refresh();
@@ -720,8 +733,11 @@
     var names = D.STARS.filter(function (s) { return st.colonies[s.id]; }).map(function (s) { return s.name; });
     cl.innerHTML = names.length
       ? '<p>' + names.map(txt).join(' · ') + '</p><p class="hint">Each colony doubles all income and sends home $' +
-        D.fmt(D.COLONY.fundsRate) + '/s and ' + D.fmt(D.COLONY.sciRate) + '⚗/s (before the doubling).</p>'
-      : '<p class="hint">None yet. Send a colony ship (it must be able to slow down). Repeat flybys only pay a little science.</p>';
+        D.fmt(D.COLONY.fundsRate) + '/s and ' + D.fmt(D.COLONY.sciRate) + '⚗/s (before the doubling). Income multiplier now ×' +
+        D.fmt(G.globalMult()) + '.</p>'
+      : '<p class="hint">None yet. A colony ship must be able to slow down and carries settlers (' +
+        Math.round(D.COLONY.settlers * 100) + '% of the star’s value; the colony repays ' + Math.round(D.COLONY.payback * 100) +
+        '% on arrival — and doubles all income forever). Flybys bring home science; repeat flybys only a little.</p>';
   }
 
   // ---- Log ------------------------------------------------------------------

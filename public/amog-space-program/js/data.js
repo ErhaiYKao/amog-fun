@@ -48,11 +48,11 @@
   var STAR_ENGINES = {
     sail:       { id: 'sail',       name: 'Solar sail',          ve: 0, sail: true, base: 2e7,
                   blurb: 'No propellant at all — photon pressure from sunlight. Cheap, but it cannot slow down.' },
-    orion:      { id: 'orion',      name: 'Orion nuclear pulse', ve: 1.0e6, base: 6e7,
+    orion:      { id: 'orion',      name: 'Orion nuclear pulse', ve: 1.0e6, base: 1e7,
                   blurb: 'A series of nuclear explosions behind the ship. Genuinely a real 1958 design.' },
-    fusion:     { id: 'fusion',     name: 'Fusion torch',        ve: 8.0e6, base: 4e9,
+    fusion:     { id: 'fusion',     name: 'Fusion torch',        ve: 8.0e6, base: 5e7,
                   blurb: 'Continuous fusion exhaust at ~2.7% of lightspeed.' },
-    antimatter: { id: 'antimatter', name: 'Antimatter core',     ve: 1.0e8, base: 3e12,
+    antimatter: { id: 'antimatter', name: 'Antimatter core',     ve: 1.0e8, base: 5e8,
                   blurb: 've ≈ c/3. The rocket equation goes relativistic: Δv = c·tanh(ve/c · ln(m₀/m₁)).' }
   };
 
@@ -131,7 +131,7 @@
     { id: 'stage2',   name: 'Staging',           cost: { funds: 7500, sci: 90 }, requiresAlt: 10e3,
       desc: 'Drop empty tanks mid-flight. Each stage gets its own Δv = ve·ln(m₀/m₁). Unlocks “+ add stage”.' },
     { id: 'warp1',    name: 'Flight computer I', cost: { funds: 6000, sci: 75 }, requiresAlt: 10e3,
-      desc: 'Sim speed 32× and 64× (the ground crew flies faster too).' },
+      desc: 'Sim speed 32× and 64× for watching flights. Pure quality of life.' },
     { id: 'aero2',    name: 'Aerodynamics II',   cost: { funds: 12000, sci: 150 }, requires: ['aero1'], requiresAlt: 20e3,
       desc: 'Actual wind-tunnel time. Drag ×0.55 total.' },
     { id: 'crew2',    name: 'Ground crew II',    cost: { funds: 15000, sci: 180 }, requires: ['crew1'], requiresAlt: 20e3,
@@ -203,21 +203,21 @@
     // Phase 3: the stars
     { id: 'sailTech', name: 'Solar sails',       cost: { funds: 3e7, sci: 4e4 }, requiresMission: 'voyager',
       desc: 'Photon pressure. No fuel. Flyby only — you can’t brake with sunlight behind you.' },
-    { id: 'orion',    name: 'Project Orion',     cost: { funds: 1e8, sci: 8e4 }, requiresMission: 'voyager',
+    { id: 'orion',    name: 'Project Orion',     cost: { funds: 6e7, sci: 60000 }, requiresMission: 'voyager',
       desc: 'Nuclear pulse propulsion. Fastest thing we’ve ever seriously designed.' },
-    { id: 'yard2',    name: 'Orbital shipyard II', cost: { funds: 2e8, sci: 1.5e5 }, requiresMission: 'voyager', requiresStar: 'heliopause',
+    { id: 'yard2',    name: 'Orbital shipyard II', cost: { funds: 1.5e8, sci: 150000 }, requiresMission: 'voyager', requiresStar: 'heliopause',
       desc: '+1 starship in flight at once (2 total).' },
-    { id: 'magsail',  name: 'Magnetic sail brake', cost: { funds: 5e8, sci: 3e5 }, requires: ['sailTech'], requiresStar: 'focal',
+    { id: 'magsail',  name: 'Magnetic sail brake', cost: { funds: 2e8, sci: 250000 }, requires: ['sailTech'], requiresStar: 'focal',
       desc: 'Drag against the interstellar medium: sails can now stop and colonize.' },
-    { id: 'laser',    name: 'Launch laser array', cost: { funds: 3e9, sci: 1e6 }, requires: ['sailTech'], requiresStar: 'alphacen',
+    { id: 'laser',    name: 'Launch laser array', cost: { funds: 4e8, sci: 600000 }, requires: ['sailTech'], requiresStar: 'alphacen',
       desc: 'Push sails with a ground laser: cruise 0.02c → 0.12c.' },
-    { id: 'fusionEng',name: 'Fusion torch',      cost: { funds: 5e9, sci: 1.5e6 }, requires: ['orion'], requiresStar: 'alphacen',
+    { id: 'fusionEng',name: 'Fusion torch',      cost: { funds: 1e9, sci: 1.5e6 }, requires: ['orion'], requiresStar: 'alphacen',
       desc: 'Continuous 0.027c exhaust.' },
-    { id: 'yard3',    name: 'Orbital shipyard III', cost: { funds: 2e10, sci: 5e6 }, requires: ['yard2'], requiresStar: 'barnard',
+    { id: 'yard3',    name: 'Orbital shipyard III', cost: { funds: 3e9, sci: 4e6 }, requires: ['yard2'], requiresStar: 'barnard',
       desc: '+1 starship in flight at once (3 total).' },
-    { id: 'antimatterEng', name: 'Antimatter drive', cost: { funds: 1e12, sci: 1e8 }, requires: ['fusionEng'], requiresStar: 'tauceti',
+    { id: 'antimatterEng', name: 'Antimatter drive', cost: { funds: 2e10, sci: 3e7 }, requires: ['fusionEng'], requiresStar: 'tauceti',
       desc: 've ≈ c/3. Intergalactic candidate.' },
-    { id: 'yard4',    name: 'Orbital shipyard IV', cost: { funds: 1e13, sci: 1e9 }, requires: ['yard3'], requiresStar: 'trappist',
+    { id: 'yard4',    name: 'Orbital shipyard IV', cost: { funds: 5e10, sci: 1e8 }, requires: ['yard3'], requiresStar: 'trappist',
       desc: '+1 starship in flight at once (4 total).' }
   ];
 
@@ -278,33 +278,41 @@
   var CONTRACTS = { board: 3, every: 75, expire: 600, unlockAlt: 600 };
 
   // ---- Stars (phase 3) ------------------------------------------------------
+  // Navigation is sequential: every destination needs the one before it
+  // visited first (you need its nav data), so a cheap sail can't skip ahead.
   // precursor: flyby-only targets inside the Sun's neighbourhood.
   var STARS = [
-    { id: 'heliopause', name: 'Heliopause (120 AU)', ly: 0.0019, funds: 1.5e8, sci: 6e4, precursor: true,
+    { id: 'heliopause', name: 'Heliopause (120 AU)', ly: 0.0019, funds: 1e8, sci: 50000, precursor: true,
       note: 'Where the solar wind gives up. Voyager 1 crossed it in 2012.' },
-    { id: 'focal',    name: 'Solar gravitational lens (550 AU)', ly: 0.0087, funds: 4e8, sci: 1.5e5, precursor: true,
+    { id: 'focal',    name: 'Solar gravitational lens (550 AU)', ly: 0.0087, funds: 2e8, sci: 120000, precursor: true,
       note: 'Line up behind the Sun and it becomes a telescope lens the size of a star.' },
-    { id: 'oort',     name: 'Inner Oort cloud', ly: 0.1, funds: 1e9, sci: 4e5, precursor: true,
+    { id: 'oort',     name: 'Inner Oort cloud', ly: 0.1, funds: 4e8, sci: 300000, precursor: true,
       note: 'A trillion frozen comets, very far apart.' },
-    { id: 'alphacen', name: 'Alpha Centauri',  ly: 4.37,   funds: 5e9,   sci: 1.5e6,
+    { id: 'alphacen', name: 'Alpha Centauri',  ly: 4.37,  funds: 3e8,   sci: 1e6,
       note: 'Closest star system. Has planets!' },
-    { id: 'barnard',  name: "Barnard's Star",  ly: 5.96,   funds: 1e10,  sci: 3e6 },
-    { id: 'sirius',   name: 'Sirius',          ly: 8.61,   funds: 2.5e10, sci: 6e6,
+    { id: 'barnard',  name: "Barnard's Star",  ly: 5.96,  funds: 8e8, sci: 2e6 },
+    { id: 'sirius',   name: 'Sirius',          ly: 8.61,  funds: 2e9,   sci: 5e6,
       note: 'Brightest star in the sky, plus a white dwarf.' },
-    { id: 'tauceti',  name: 'Tau Ceti',        ly: 11.9,   funds: 6e10,  sci: 1.5e7 },
-    { id: 'trappist', name: 'TRAPPIST-1',      ly: 40.7,   funds: 3e11,  sci: 6e7,
+    { id: 'tauceti',  name: 'Tau Ceti',        ly: 11.9,  funds: 5e9, sci: 1.2e7 },
+    { id: 'trappist', name: 'TRAPPIST-1',      ly: 40.7,  funds: 1.5e10,  sci: 3e7,
       note: 'Seven rocky planets around one tiny red star.' },
-    { id: 'kepler',   name: 'Kepler-452',      ly: 1800,   funds: 5e12,  sci: 1e9 },
-    { id: 'core',     name: 'Galactic core',   ly: 26000,  funds: 1e14,  sci: 2e10,
+    { id: 'kepler',   name: 'Kepler-452',      ly: 1800,  funds: 5e10,  sci: 1e8,
+      note: 'Earth’s older cousin, 1,800 light-years out.' },
+    { id: 'core',     name: 'Galactic core',   ly: 26000, funds: 1.5e11,  sci: 3e8,
       note: 'Sagittarius A*. Do not get close.' },
-    { id: 'andromeda',name: 'ANDROMEDA',       ly: 2.5e6,  funds: 1e17,  sci: 1e13, intergalactic: true,
+    { id: 'andromeda',name: 'ANDROMEDA',       ly: 2.5e6, funds: 5e11,  sci: 1e9, intergalactic: true,
       note: 'A different galaxy. The final phase.' }
   ];
-  // Flybys: first visit pays FLYBY.first of the star's value; each repeat
-  // pays FLYBY.repeat × FLYBY.decay^k in science only. No funds for repeats:
-  // nobody pays twice for the same photos.
-  var FLYBY = { first: 0.35, repeat: 0.05, decay: 0.5 };
-  var COLONY = { fundsRate: 2e6, sciRate: 2e3 };   // per colony per second, before the ×2^n multiplier
+  // Star rewards are flat (no income multipliers — that's what made the old
+  // phase 3 run away). Flybys: the first pays FLYBY.funds (precursors:
+  // FLYBY.precursorFunds) and FLYBY.sci of the star's value; repeats pay a decaying sliver of science and no funds
+  // (nobody pays twice for the same photos).
+  var FLYBY = { funds: 0.03, precursorFunds: 0.25, sci: 0.5, repeat: 0.05, decay: 0.5 };
+  // Colonies: the ship carries settlers worth COLONY.settlers of the star's
+  // value (paid at launch); on arrival the colony repays COLONY.payback of it,
+  // doubles ALL income from then on, and sends home fundsRate $/s and
+  // sciRate ⚗/s (before the doubling). The doubling is the point.
+  var COLONY = { fundsRate: 1e5, sciRate: 500, settlers: 0.4, payback: 0.25 };
 
   // ---- Economy --------------------------------------------------------------
 
