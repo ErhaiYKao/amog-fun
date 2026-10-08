@@ -4,13 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Amog Space Program</title>
-<meta name="description" content="An incremental game about rockets: the real rocket equation, air resistance, orbits, ion drives, solar sails, and a slow climb to another galaxy.">
+<meta name="description" content="An incremental game about rockets: the real rocket equation, air resistance, orbits, launch windows, ion drives, solar sails, and a slow climb to another galaxy.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header id="topbar">
+<header id="topbar" class="topbar">
   <div id="brand">
+    <a class="brand" href="/" title="amog.fun home">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
     <span class="rocket">🚀</span>
     <div>
       <h1>AMOG SPACE PROGRAM</h1>
@@ -18,7 +20,7 @@
     </div>
   </div>
   <div id="currencies">
-    <div class="cur" id="cur-funds" title="Funds — from launches, milestones and missions">$<span id="funds">0</span><i id="funds-rate" class="rate hidden"></i></div>
+    <div class="cur" id="cur-funds" title="Funds — from launches, milestones, contracts and missions">$<span id="funds">0</span><i id="funds-rate" class="rate hidden"></i></div>
     <div class="cur hidden" id="cur-sci" title="Science — spend in R&amp;D">⚗ <span id="sci">0</span><i id="sci-rate" class="rate hidden"></i></div>
     <div class="cur hidden" id="cur-sats" title="Satellites deployed (passive income)">🛰 <span id="sats">0</span></div>
     <button id="feedback-top" class="ghost tiny" title="Help balance the game — opens a GitHub issue with your game state attached">🛠 feedback</button>
@@ -35,12 +37,14 @@
     <nav id="tabs">
       <button data-tab="rocket" class="tab active">Rocket</button>
       <button data-tab="rnd" class="tab hidden" id="tab-rnd">R&amp;D</button>
+      <button data-tab="contracts" class="tab hidden" id="tab-contracts">Jobs</button>
       <button data-tab="missions" class="tab hidden" id="tab-missions">Missions</button>
       <button data-tab="stars" class="tab hidden" id="tab-stars">Stars</button>
       <button data-tab="log" class="tab">Log</button>
     </nav>
 
     <section id="panel-rocket" class="panel active">
+      <div id="objective"></div>
       <div id="stages"></div>
       <button id="add-stage" class="ghost hidden">+ add stage</button>
       <div id="guidance" class="hidden">
@@ -56,32 +60,42 @@
       <div id="design-stats"></div>
       <div class="formula" title="The Tsiolkovsky rocket equation">Δv = v<sub>e</sub> · ln(m₀ / m₁)</div>
       <button id="launch-btn">LAUNCH 🚀</button>
-      <label id="auto-wrap" class="hidden"><input type="checkbox" id="auto-launch"> Auto-launch (repeats your last flight)</label>
+      <div id="launch-why" class="bad hidden"></div>
+      <div id="crew-box" class="hidden"></div>
       <div id="last-flight" class="hidden"></div>
       <div id="shop">
         <h3>Hardware</h3>
         <div id="structure-shop"></div>
-        <h3>Engines</h3>
-        <div id="engine-shop"></div>
+        <p class="hint" id="engine-hint"></p>
       </div>
     </section>
 
     <section id="panel-rnd" class="panel">
       <h3>Research</h3>
+      <p class="hint">Researching an engine is all it takes to fly it — its price is in the research.</p>
       <div id="research-list"></div>
+    </section>
+
+    <section id="panel-contracts" class="panel">
+      <h3>Job board</h3>
+      <p class="hint">Clients with their own payloads and targets. Accept one to make it your flight objective; finishing it pays on landing.
+        <span id="contract-next"></span></p>
+      <div id="contract-list"></div>
     </section>
 
     <section id="panel-missions" class="panel">
       <div id="budget-box"></div>
       <div id="active-mission"></div>
       <div id="mission-list"></div>
+      <h3>Fleet — proven vehicles</h3>
+      <div id="fleet-list"></div>
     </section>
 
     <section id="panel-stars" class="panel">
       <div id="warp-box"></div>
       <h3>Build a starship</h3>
       <div id="ship-builder"></div>
-      <h3>In flight</h3>
+      <h3 id="ships-head">In flight</h3>
       <div id="ship-list"></div>
       <h3>Colonies</h3>
       <div id="colony-list"></div>
@@ -101,6 +115,7 @@
         <button id="save-reset" class="ghost danger">Reset everything</button>
       </div>
       <p class="hint" id="stats-line"></p>
+      <p class="hint">Keys: Space = launch · E = abort · , and . = sim speed · shift-click ± = ±5</p>
     </section>
   </aside>
 
@@ -119,16 +134,16 @@
         <div class="hudrow small">
           <span id="hud-orbit"></span>
           <span id="hud-mode"></span>
+          <span id="hud-obj"></span>
         </div>
       </div>
       <div id="warpbar" class="hidden">
-        <span>warp</span>
-        <button data-warp="1">1×</button><button data-warp="4">4×</button>
-        <button data-warp="16">16×</button><button data-warp="64">64×</button>
-        <button data-warp="256">256×</button>
-        <button id="end-flight" class="danger" title="Score only what you've flown so far">abort ✕</button>
+        <span>sim speed</span>
+        <span id="warp-buttons"></span>
+        <span id="warp-more" class="hint hidden">+R&amp;D</span>
+        <button id="end-flight" class="danger" title="Score only what you've flown so far (E)">abort ✕</button>
       </div>
-      <div id="idle-hint">Assemble a rocket and hit LAUNCH.<br><span class="small">Like Learn to Fly, but with the actual rocket equation.<br>Space = launch · E = end flight</span></div>
+      <div id="idle-hint">Assemble a rocket and hit LAUNCH.<br><span class="small">Like Learn to Fly, but with the actual rocket equation.<br>Space = launch · E = abort</span></div>
     </div>
     <div id="toasts"></div>
   </section>
