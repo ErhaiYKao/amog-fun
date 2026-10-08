@@ -34,7 +34,9 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 
 function techSig() {
   const r = G.state.research;
-  return [G.dryFrac(), G.cdA(), !!r.vacNozzles, !!r.guidance].join(',');
+  // everything that changes how a given design flies
+  return [G.dryFrac(), G.cdA(), !!r.vacNozzles, !!r.guidance,
+    Object.keys(D.ENGINES).map(G.engineVe).join('/')].join(',');
 }
 
 const simCache = new Map();
@@ -324,6 +326,12 @@ export function runBot(opts = {}) {
       if (G.phase() >= 3 && s.warpLevel < 14 && G.warpUpCost() <= s.sci * 0.5) {
         G.buyWarp(); bought = true;
       }
+      // science-bound with money to spare: outsource a study
+      const sciShort = D.RESEARCH.some((r) => !s.research[r.id] && G.researchVisible(r) &&
+        s.funds >= G.researchCost(r).funds && s.sci < G.researchCost(r).sci);
+      if (sciShort && D.outsourceCost(s.outsourced) <= (s.funds - reserve) * 0.25) {
+        G.buyOutsource(); bought = true;
+      }
     }
   }
 
@@ -375,8 +383,8 @@ export function runBot(opts = {}) {
     const s = st();
     if (!s.gotOrbit) return false;
     let acted = false;
-    // turn on auto-dispatch for profitable repeats
-    if (s.research.dispatch) {
+    // turn on auto-dispatch for profitable repeats (once there's a spare slot)
+    if (s.research.dispatch && G.missionSlots() >= 2) {
       for (const m of D.MISSIONS) {
         if (!s.missionsDone[m.id]) continue;
         const traj = G.canAssist(m) ? 'assist' : 'direct';
@@ -393,6 +401,10 @@ export function runBot(opts = {}) {
       if (s.missions.some((a) => a.id === m.id)) continue;
       const traj = G.canAssist(m) ? 'assist' : 'direct';
       const win = G.missionWindow(m);
+      // keep the objective on the frontier so automation leaves a slot free
+      if (!s.objective || s.objective.kind !== 'mission' || s.missionsDone[s.objective.id]) {
+        s.objective = { kind: 'mission', id: m.id, traj };
+      }
       // a proven vehicle that can do it?
       const plan = G.dispatchPlan(m, traj);
       if (plan.vehicle && !plan.why) {
@@ -401,8 +413,10 @@ export function runBot(opts = {}) {
         }
       }
       // design one
-      const best = optimize('m:' + m.payload, m.payload, budgetScore(m.payload));
-      if (!best || best.res.status !== 'orbit') continue;
+      const useIon = !!(m.ionOk && s.research.engIon);
+      const bb = bestBudget(m.payload, useIon);
+      if (!bb.design || !bb.budget) continue;
+      const best = { design: bb.design, res: { status: 'orbit', budget: bb.budget, spaceDv: bb.spaceDv } };
       const avail = best.res.budget + (m.ionOk ? best.res.spaceDv : 0);
       const needNow = G.missionNeed(m, traj);
       const needWin = Math.round(needNow / (win.open ? 1 : D.WINDOW.offPenalty));
@@ -437,8 +451,14 @@ export function runBot(opts = {}) {
     for (const c of s.contracts.slice()) {
       if (c.kind === 'orbit') {
         if (!s.research.guidance) continue;
-        const best = optimize('m:' + c.payload, c.payload, budgetScore(c.payload));
-        if (best && best.res.status === 'orbit' && G.designCost(best.design) <= s.funds) {
+        // cheapest design that gets this payload to orbit, and only if it pays
+        const cheap = optimize('co:' + c.payload, c.payload, (res, d) => {
+          if (!res.ok) return -Infinity;
+          if (res.status === 'orbit') return 1e9 - G.designCost(d);
+          return res.maxSpeed + res.maxAlt * 1e-4;
+        }, capSeeds());
+        const best = cheap && cheap.res.status === 'orbit' ? { design: cheap.design } : null;
+        if (best && G.designCost(best.design) <= s.funds && G.designCost(best.design) < c.funds * G.globalMult()) {
           const r = fly(best.design, { kind: 'contract', id: c.id });
           if (r && r.contract) return true;
         }
@@ -452,7 +472,8 @@ export function runBot(opts = {}) {
         if (res[field] >= c.target) return 1e9 - cost;
         return res[field];
       });
-      if (best && best.res[field] >= c.target && G.designCost(best.design) <= s.funds) {
+      if (best && best.res[field] >= c.target && G.designCost(best.design) <= s.funds &&
+          G.designCost(best.design) < c.funds * G.globalMult()) {
         const r = fly(best.design, { kind: 'contract', id: c.id });
         if (r && r.contract) return true;
       }
@@ -503,8 +524,8 @@ export function runBot(opts = {}) {
     if (!s.gotOrbit) {
       const alt = optimize('alt', D.PAYLOAD_MASS, altScore);
       if (s.research.guidance) {
-        const orb = optimize('m:100', D.PAYLOAD_MASS, budgetScore(100));
-        if (orb && orb.res.status === 'orbit' && G.designCost(orb.design) <= s.funds) { fly(orb.design); continue; }
+        const orb = bestBudget(D.PAYLOAD_MASS, false);
+        if (orb.budget && G.designCost(orb.design) <= s.funds) { fly(orb.design); continue; }
       }
       if (alt && alt.res.maxAlt > s.bestAlt * 1.03 + 50 && G.designCost(alt.design) <= s.funds) {
         fly(alt.design); continue;

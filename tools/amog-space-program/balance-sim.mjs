@@ -1,92 +1,93 @@
 // Headless balance harness for Amog Space Program.
-// Run: node tools/balance-sim.mjs
-// Simulates representative rocket configs through the real flight physics and
-// prints apogee / max speed / payout so progression can be tuned numerically.
+// Run: node tools/amog-space-program/balance-sim.mjs [--quick] [--until=orbit|voyager|win] [--seed=N]
+//
+//   1. physics sanity: representative rockets through the real flight sim
+//   2. capability table (skipped with --quick, takes a few minutes): for each
+//      cumulative phase-2 tech tier, the best Δv left in orbit per payload,
+//      and which missions that tier newly makes possible. This is the check
+//      that no single tech (NERVA, gravity assists, ...) unlocks a pile of
+//      missions at once.
+//   3. progression bot: plays game.js from a fresh save (bot.mjs) and prints
+//      the timeline. Times are game-clock time for an efficient player who
+//      stops clicking LAUNCH once the ground crew exists; expect a casual
+//      player to take ~1.5-2x as long.
+//
+// Intended progression (bot time, seed 1):
+//   0-5 min    soda bottle -> Sundancer -> 5 km (science) -> ground crew
+//   ~10 min    Kestrel; the Kármán line falls (a satisfying burst)
+//   10-45 min  the long climb to orbit: staging, Merlin, telemetry, guidance,
+//              vacuum nozzles — one research every ~5 min, contracts between
+//   ~45-60 min FIRST ORBIT (phase 2)
+//   1-2 h      weather sat, MEO, hydrolox, Moon flyby, 4th stage, Moon orbit
+//   2-4 h      heavy-lift, Mars/Venus, aerobraking, ion, Moon landing
+//   4-6 h      NERVA, Jupiter, gravity assists, the outer planets
+//   ~6-8 h     heavy-lift III -> Voyager (phase 3)
+//   phase 3    precursor flybys -> Alpha Centauri -> colonies -> Andromeda
 
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const P = require('../../public/amog-space-program/js/physics.js');
-const D = require('../../public/amog-space-program/js/data.js');
+import { runBot, capabilityTable, fmtClock, P, D, G } from './bot.mjs';
 
-function stage(engineId, engineCount, tanks, opts = {}) {
+const args = Object.fromEntries(process.argv.slice(2).map((a) => {
+  const [k, v] = a.replace(/^--/, '').split('=');
+  return [k, v === undefined ? true : v];
+}));
+
+function stage(engineId, engineCount, tanks, dryFrac = D.TANK.dryFrac) {
   const e = D.ENGINES[engineId];
-  const dryFrac = opts.dryFrac ?? D.TANK.dryFrac;
-  return {
-    engine: e, engineCount, tanks,
-    tankFuel: D.TANK.fuel, tankDry: D.TANK.fuel * dryFrac
-  };
+  return { engine: e, engineCount, tanks, tankFuel: D.TANK.fuel, tankDry: D.TANK.fuel * dryFrac * (e.dryMult || 1) };
 }
 
 function fly(name, stages, opts = {}) {
-  const cfg = {
-    stages,
-    payload: D.PAYLOAD_MASS,
-    cdA: (opts.cdA ?? D.BASE_CDA),
-    turnStart: opts.turnStart ?? 0,
-    turnEnd: opts.turnEnd ?? 0
-  };
-  const stats = P.vehicleStats(stages, cfg.payload);
-  const f = new P.Flight(cfg);
-  const MAX_T = 3600 * 3;
-  while (f.status === 'flying' && f.t < MAX_T) f.advance(60);
-  const payout = D.launchPayout(f.maxAlt, f.maxSpeed, f.status === 'orbit', opts.telem ?? 1);
-  const orbitDv = f.status === 'orbit' ? f.remainingDv() : 0;
+  const payload = opts.payload ?? D.PAYLOAD_MASS;
+  const stats = P.vehicleStats(stages, payload);
+  const f = new P.Flight({ stages, payload, cdA: opts.cdA ?? D.BASE_CDA,
+    turnStart: opts.turnStart ?? 0, turnEnd: opts.turnEnd ?? 0 });
+  while (f.status === 'flying' && f.t < 3 * 3600) f.advance(60);
+  const payout = D.launchPayout(f.maxAlt, f.maxSpeed, f.status === 'orbit', 1);
   console.log(
-    name.padEnd(34),
-    ('dv=' + (stats.totalDv / 1000).toFixed(2) + 'km/s').padEnd(12),
-    ('twr=' + stats.liftoffTwr.toFixed(2)).padEnd(9),
-    ('apo=' + D.fmtDist(f.maxAlt)).padEnd(14),
-    ('vmax=' + D.fmtSpeed(f.maxSpeed)).padEnd(15),
+    name.padEnd(36),
+    ('dv=' + (stats.totalDv / 1000).toFixed(2) + 'km/s').padEnd(13),
+    ('twr=' + stats.liftoffTwr.toFixed(2)).padEnd(10),
+    ('apo=' + D.fmtDist(f.maxAlt)).padEnd(15),
     f.status.padEnd(8),
-    ('$' + D.fmt(payout)).padEnd(9),
-    orbitDv ? ('budget=' + (orbitDv / 1000).toFixed(2) + 'km/s') : ''
+    ('$' + D.fmt(payout)).padEnd(8),
+    f.status === 'orbit' ? 'left in orbit ' + D.fmtSpeed(f.remainingDv()) : ''
   );
-  return f;
 }
 
-console.log('=== Phase 1: straight up (no guidance) ===');
+console.log('=== 1. Physics sanity ===');
 fly('starter: 1 Fizz, 1 tank', [stage('fizz', 1, 1)]);
 fly('1 Fizz, 2 tanks', [stage('fizz', 1, 2)]);
-fly('2 Fizz, 3 tanks', [stage('fizz', 2, 3)]);
-fly('2 Fizz, 4 tanks + aero1', [stage('fizz', 2, 4)], { cdA: D.BASE_CDA * 0.72 });
 fly('1 Sundancer, 2 tanks', [stage('sundancer', 1, 2)]);
-fly('1 Sundancer, 4 tanks +aero1', [stage('sundancer', 1, 4)], { cdA: D.BASE_CDA * 0.72 });
-fly('2 Sundancer, 6 tanks +aero1', [stage('sundancer', 2, 6)], { cdA: D.BASE_CDA * 0.72 });
-fly('1 Kestrel, 4 tanks +aero1', [stage('kestrel', 1, 4)], { cdA: D.BASE_CDA * 0.72 });
-fly('1 Kestrel, 7 tanks +aero2', [stage('kestrel', 1, 7)], { cdA: D.BASE_CDA * 0.55 });
-fly('2stage Kestrel 6 + Sun 2, a2', [stage('kestrel', 1, 6), stage('sundancer', 1, 2)], { cdA: D.BASE_CDA * 0.55 });
-fly('2stage Kestrel 8+4, aero2', [stage('kestrel', 1, 8), stage('kestrel', 1, 4)], { cdA: D.BASE_CDA * 0.55 });
-fly('1 Merlin, 14 tanks, aero2', [stage('merlin', 1, 14)], { cdA: D.BASE_CDA * 0.55 });
-
-console.log('\n=== Phase 2: gravity turn (guidance) ===');
-fly('Merlin 14 + Kestrel 5, turn', [stage('merlin', 1, 14), stage('kestrel', 1, 5)],
-  { cdA: D.BASE_CDA * 0.55, turnStart: 2e3, turnEnd: 60e3 });
-fly('Merlin 18 + Kestrel 6, turn m1', [stage('merlin', 1, 18, { dryFrac: 0.08 }), stage('kestrel', 1, 6, { dryFrac: 0.08 })],
-  { cdA: D.BASE_CDA * 0.55, turnStart: 2e3, turnEnd: 60e3 });
-fly('Merlin 20 + Kestrel 8, a3 m2', [stage('merlin', 1, 20, { dryFrac: 0.065 }), stage('kestrel', 1, 8, { dryFrac: 0.065 })],
-  { cdA: D.BASE_CDA * 0.4, turnStart: 2e3, turnEnd: 55e3 });
-fly('Raptor 20 + Merlin 6, turn', [stage('raptor', 1, 20), stage('merlin', 1, 6)],
-  { cdA: D.BASE_CDA * 0.4, turnStart: 2e3, turnEnd: 55e3 });
-fly('Raptor 22 + Kestrel 8, turn', [stage('raptor', 1, 22), stage('kestrel', 1, 8)],
-  { cdA: D.BASE_CDA * 0.4, turnStart: 2e3, turnEnd: 55e3 });
-fly('Raptor24+Merlin8+Kestrel3', [stage('raptor', 1, 24), stage('merlin', 1, 8), stage('kestrel', 1, 3)],
-  { cdA: D.BASE_CDA * 0.4, turnStart: 2e3, turnEnd: 55e3 });
-for (const te of [18e3, 25e3, 35e3]) {
-  fly(`M20+K8 a3 m2 turn 0.5-${te / 1000}k`, [stage('merlin', 1, 20, { dryFrac: 0.065 }), stage('kestrel', 1, 8, { dryFrac: 0.065 })],
-    { cdA: D.BASE_CDA * 0.4, turnStart: 500, turnEnd: te });
-  fly(`R24+M12 a3 m2 turn 0.5-${te / 1000}k`, [stage('raptor', 1, 24, { dryFrac: 0.065 }), stage('merlin', 1, 12, { dryFrac: 0.065 })],
-    { cdA: D.BASE_CDA * 0.4, turnStart: 500, turnEnd: te });
-}
-fly('Merlin2x24+Merlin12 a3 m2', [stage('merlin', 2, 24, { dryFrac: 0.065 }), stage('merlin', 1, 12, { dryFrac: 0.065 })],
-  { cdA: D.BASE_CDA * 0.4, turnStart: 1.5e3, turnEnd: 42e3 });
-fly('Raptor24 + Merlin12, a3 m2', [stage('raptor', 1, 24, { dryFrac: 0.065 }), stage('merlin', 1, 12, { dryFrac: 0.065 })],
-  { cdA: D.BASE_CDA * 0.4, turnStart: 1.5e3, turnEnd: 42e3 });
-fly('Raptor24+Merlin12+Kestrel4 m3', [stage('raptor', 1, 24, { dryFrac: 0.05 }), stage('merlin', 1, 12, { dryFrac: 0.05 }), stage('kestrel', 1, 4, { dryFrac: 0.05 })],
-  { cdA: D.BASE_CDA * 0.4, turnStart: 1.5e3, turnEnd: 42e3 });
-fly('Raptor24+Nerva12+Ion6 (planner)', [stage('raptor', 2, 24, { dryFrac: 0.05 }), stage('nerva', 1, 12, { dryFrac: 0.05 }), stage('ion', 6, 8, { dryFrac: 0.05 })],
-  { cdA: D.BASE_CDA * 0.4, turnStart: 1.5e3, turnEnd: 42e3 });
-
-console.log('\n=== Rocket equation sanity ===');
-console.log('dv(ve=3600, R=4) =', (P.tsiolkovsky(3600, 4, 1) / 1000).toFixed(2), 'km/s (expect ~4.99)');
-console.log('rel dv(ve=1e8, R=20) =', (P.tsiolkovskyRel(1e8, 20, 1) / P.C.C_LIGHT).toFixed(3), 'c');
+fly('1 Sundancer, 4 tanks, aero I', [stage('sundancer', 1, 4)], { cdA: D.BASE_CDA * 0.72 });
+fly('1 Kestrel, 4 tanks, aero I', [stage('kestrel', 1, 4)], { cdA: D.BASE_CDA * 0.72 });
+fly('1 Kestrel, 6 tanks, aero I', [stage('kestrel', 1, 6)], { cdA: D.BASE_CDA * 0.72 });
+fly('Merlin 4x22 + Merlin 22 + Kestrel 6', [stage('merlin', 4, 22, 0.07), stage('merlin', 1, 22, 0.07), stage('kestrel', 1, 6, 0.07)],
+  { cdA: D.BASE_CDA * 0.4, turnStart: 1000, turnEnd: 30000 });
+fly('Raptor 3x60/60 + Hydra 30 (300 kg)', [stage('raptor', 3, 60, 0.045), stage('raptor', 1, 60, 0.045), stage('hydra', 1, 30, 0.045)],
+  { cdA: D.BASE_CDA * 0.4, turnStart: 1000, turnEnd: 30000, payload: 300 });
+fly('Raptor 3x60/60 + NERVA 30 (300 kg)', [stage('raptor', 3, 60, 0.045), stage('raptor', 1, 60, 0.045), stage('nerva', 1, 30, 0.045)],
+  { cdA: D.BASE_CDA * 0.4, turnStart: 1000, turnEnd: 30000, payload: 300 });
 console.log('sail cruise 0.02c to Alpha Cen:', (4.37 / 0.02).toFixed(0), 'years');
+
+if (!args.quick) {
+  console.log('\n=== 2. Capability table: best Δv left in LEO (km/s) by payload, per cumulative tech tier ===');
+  const t0 = Date.now();
+  const rows = capabilityTable({ log: (s) => console.log(s) });
+  const worst = Math.max(...rows.map((r) => r.added.length));
+  const never = D.MISSIONS.filter((m) => !rows[rows.length - 1].feasible.includes(m.id)).map((m) => m.id);
+  console.log(`most missions opened by one tier: ${worst}` + (never.length ? `  | never feasible: ${never.join(', ')}` : '  | every mission feasible by the last tier') +
+    `  (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+}
+
+const until = args.until || 'voyager';
+console.log(`\n=== 3. Progression bot (until ${until}) ===`);
+const t1 = Date.now();
+const r = runBot({ until, seed: +(args.seed || 1), maxTime: 30 * 3600, statusEvery: 1800, log: (s) => console.log(s) });
+const m = r.marks;
+const KEY = [['alt1000', '1 km'], ['r:engSundancer', 'first engine research'], ['alt5000', '5 km (science)'],
+  ['r:crew1', 'ground crew'], ['alt100000', 'Kármán line'], ['orbit', 'FIRST ORBIT'],
+  ['m:moonFlyby', 'Moon flyby'], ['m:marsFlyby', 'Mars flyby'], ['r:engNerva', 'NERVA'],
+  ['m:jupiterFlyby', 'Jupiter flyby'], ['m:voyager', 'Voyager / phase 3'], ['won', 'Andromeda']];
+console.log('\nsummary:');
+for (const [k, label] of KEY) if (m[k] !== undefined) console.log('  ' + label.padEnd(24) + fmtClock(m[k]));
+console.log(`  flights ${r.flights}, dispatches ${r.dispatches}, game time ${fmtClock(r.clock)}, wall ${((Date.now() - t1) / 1000).toFixed(0)}s`);

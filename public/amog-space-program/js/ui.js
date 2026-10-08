@@ -396,6 +396,9 @@
     var slots = G.missionSlots();
     $('budget-box').innerHTML =
       '<div class="budget">Mission slots: <b>' + st.missions.length + ' / ' + slots + '</b> in flight' +
+      ' · public interest <b class="good">×' + G.fameMult().toFixed(1) + '</b>' +
+      '<div class="hint">Every new place you visit adds +' + Math.round(D.FAME_PER_MISSION * 100) +
+      '% to all income. Repeats keep the lights on; exploring is how you grow.</div>' +
       '<div class="hint">Two ways to send a probe: set a mission as the <b>flight objective</b> and fly a rocket to orbit with enough Δv left, ' +
       'or <b>dispatch</b> a proven vehicle (any design that has reached orbit with that payload) without watching.' +
       (st.research.slingshot ? ' <b class="good">Gravity assists available.</b>' : '') +
@@ -1114,7 +1117,10 @@
         var mm = G.missionById(res.mission.id);
         toast('🛰 ' + (mm ? mm.name : 'Mission') + ' — probe departed! ETA ' + D.fmtTime(res.mission.dur), 'good');
       }
-      if (res.missionWhy) toast(res.missionWhy + ' The payload stays in orbit' + (res.satDeployed ? ' as a satellite.' : '.'), 'warn');
+      if (res.missionWhy) {
+        toast(res.missionWhy + (res.status === 'orbit' ? ' The payload stays in orbit' +
+          (res.satDeployed ? ' as a satellite.' : '.') : ''), 'warn');
+      }
       refresh();
     });
     G.on('missionStart', function (e) {

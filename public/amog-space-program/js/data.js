@@ -159,45 +159,45 @@
 
     // Phase 2: orbit and the planets. Each tech tier opens one to three
     // missions (see the capability table in tools/amog-space-program).
-    { id: 'crew3',    name: 'Ground crew III',   cost: { funds: 1.2e5, sci: 600 }, requires: ['crew2'], requiresOrbit: true,
+    { id: 'crew3',    name: 'Ground crew III',   cost: { funds: 300000, sci: 1000 }, requires: ['crew2'], requiresOrbit: true,
       desc: 'Pad turnaround → 3 s.' },
-    { id: 'reuse',    name: 'Booster recovery',  cost: { funds: 1.5e5, sci: 800 }, requiresOrbit: true,
+    { id: 'reuse',    name: 'Booster recovery',  cost: { funds: 400000, sci: 1500 }, requiresOrbit: true,
       desc: 'Stage 1 lands on a barge: 75% of its hardware cost comes back every launch. Big cheap first stages are now a strategy.' },
-    { id: 'station',  name: 'Space station',     cost: { funds: 2.5e5, sci: 1000 }, requiresOrbit: true,
+    { id: 'station',  name: 'Space station',     cost: { funds: 600000, sci: 2000 }, requiresOrbit: true,
       desc: 'A lab in orbit: +3 science/s.' },
-    { id: 'dispatch', name: 'Mission Control',   cost: { funds: 2.0e5, sci: 1000 }, requiresMission: 'weather',
-      desc: 'Auto-dispatch: tick “auto” on a mission and it re-launches with your cheapest proven vehicle whenever a slot is free and its window is open.' },
-    { id: 'engHydra', name: 'Hydrolox upper stage', cost: { funds: 3.0e5, sci: 1500 }, requiresMission: 'meo',
+    { id: 'dispatch', name: 'Mission Control',   cost: { funds: 500000, sci: 1500 }, requiresMission: 'weather',
+      desc: 'Auto-dispatch: tick “auto” on a mission and it re-launches with your cheapest proven vehicle whenever a slot is free and its window is open. With 2+ slots it always leaves one free for you.' },
+    { id: 'engHydra', name: 'Hydrolox upper stage', cost: { funds: 800000, sci: 3000 }, requiresMission: 'meo',
       desc: 'Hydra: ve 4.3 km/s vacuum engine (stages 2+ only). Hydrogen tanks weigh 1.6× more.' },
-    { id: 'warp3',    name: 'Flight computer III', cost: { funds: 3.0e5, sci: 1500 }, requires: ['warp2'], requiresMission: 'meo',
+    { id: 'warp3',    name: 'Flight computer III', cost: { funds: 600000, sci: 2000 }, requires: ['warp2'], requiresMission: 'meo',
       desc: 'Sim speed 512× and 1024×.' },
-    { id: 'stage4',   name: 'Quadruple staging', cost: { funds: 6.0e5, sci: 2500 }, requires: ['stage3'], requiresMission: 'moonFlyby',
+    { id: 'stage4',   name: 'Quadruple staging', cost: { funds: 2e6, sci: 5000 }, requires: ['stage3'], requiresMission: 'moonFlyby',
       desc: 'A fourth stage. The rocket equation’s favorite cheat code.' },
-    { id: 'dsn1',     name: 'Deep Space Network I',  cost: { funds: 5.0e5, sci: 2500 }, requiresMission: 'moonFlyby',
+    { id: 'dsn1',     name: 'Deep Space Network I',  cost: { funds: 1.5e6, sci: 5000 }, requiresMission: 'moonFlyby',
       desc: '+1 concurrent mission (2 total).' },
-    { id: 'heavy1',   name: 'Heavy-lift pad I',  cost: { funds: 1.0e6, sci: 4000 }, requiresMission: 'moonOrbit',
+    { id: 'heavy1',   name: 'Heavy-lift pad I',  cost: { funds: 3e6, sci: 8000 }, requiresMission: 'moonOrbit',
       desc: 'Tank factory cap 30 → 45 tanks per stage.' },
-    { id: 'crew4',    name: 'Ground crew IV',    cost: { funds: 1.0e6, sci: 4000 }, requires: ['crew3'], requiresMission: 'moonOrbit',
+    { id: 'crew4',    name: 'Ground crew IV',    cost: { funds: 2.5e6, sci: 6000 }, requires: ['crew3'], requiresMission: 'moonOrbit',
       desc: 'Pad turnaround → 1.5 s.' },
-    { id: 'aerobrake', name: 'Aerobraking',      cost: { funds: 1.5e6, sci: 6000 }, requiresMission: 'marsFlyby',
+    { id: 'aerobrake', name: 'Aerobraking',      cost: { funds: 5e6, sci: 12000 }, requiresMission: 'marsFlyby',
       desc: 'Use a planet’s atmosphere as a free brake: Venus, Mars and Titan missions need less Δv.' },
-    { id: 'engIon',   name: 'Ion propulsion',    cost: { funds: 2.5e6, sci: 9000 }, requiresMission: 'marsOrbit',
+    { id: 'engIon',   name: 'Ion propulsion',    cost: { funds: 8e6, sci: 18000 }, requiresMission: 'marsOrbit',
       desc: 'Ion drive (mission Δv only, ion-friendly missions only — like SMART-1 and Dawn). Ion legs add 50% to the trip time.' },
-    { id: 'dsn2',     name: 'Deep Space Network II', cost: { funds: 2.5e6, sci: 9000 }, requires: ['dsn1'], requiresMission: 'marsOrbit',
+    { id: 'dsn2',     name: 'Deep Space Network II', cost: { funds: 8e6, sci: 18000 }, requires: ['dsn1'], requiresMission: 'marsOrbit',
       desc: '+1 concurrent mission (3 total).' },
-    { id: 'heavy2',   name: 'Heavy-lift pad II', cost: { funds: 4.0e6, sci: 12000 }, requires: ['heavy1'], requiresMission: 'venusLander',
+    { id: 'heavy2',   name: 'Heavy-lift pad II', cost: { funds: 1.2e7, sci: 25000 }, requires: ['heavy1'], requiresMission: 'venusLander',
       desc: 'Tank factory cap 45 → 60 tanks per stage.' },
-    { id: 'mat4',     name: 'Materials IV',      cost: { funds: 5.0e6, sci: 15000 }, requires: ['mat3'], requiresMission: 'moonLanding',
+    { id: 'mat4',     name: 'Materials IV',      cost: { funds: 1.5e7, sci: 30000 }, requires: ['mat3'], requiresMission: 'moonLanding',
       desc: 'Carbon-composite tanks: dry mass → 4.5%.' },
-    { id: 'engNerva', name: 'Nuclear thermal',   cost: { funds: 8.0e6, sci: 20000 }, requiresMission: 'moonLanding',
+    { id: 'engNerva', name: 'Nuclear thermal',   cost: { funds: 2.5e7, sci: 40000 }, requiresMission: 'moonLanding',
       desc: 'NERVA: ve 8.2 km/s upper stage. Heavy, low thrust, fat tanks — a specialist, not a cheat code.' },
-    { id: 'slingshot',name: 'Gravity assists',   cost: { funds: 1.2e7, sci: 30000 }, requiresMission: 'jupiterFlyby',
+    { id: 'slingshot',name: 'Gravity assists',   cost: { funds: 3e7, sci: 60000 }, requiresMission: 'jupiterFlyby',
       desc: 'Steal momentum from Jupiter: outer-system missions can fly a cheaper-Δv, 60% longer assist trajectory.' },
-    { id: 'dsn3',     name: 'Deep Space Network III', cost: { funds: 1.5e7, sci: 40000 }, requires: ['dsn2'], requiresMission: 'jupiterFlyby',
+    { id: 'dsn3',     name: 'Deep Space Network III', cost: { funds: 3e7, sci: 60000 }, requires: ['dsn2'], requiresMission: 'jupiterFlyby',
       desc: '+1 concurrent mission (4 total).' },
-    { id: 'heavy3',   name: 'Heavy-lift pad III', cost: { funds: 2.5e7, sci: 60000 }, requires: ['heavy2'], requiresMission: 'saturnFlyby',
+    { id: 'heavy3',   name: 'Heavy-lift pad III', cost: { funds: 5e7, sci: 120000 }, requires: ['heavy2'], requiresMission: 'saturnFlyby',
       desc: 'Tank factory cap 60 → 80 tanks per stage. Super heavy.' },
-    { id: 'nerva2',   name: 'Bimodal NERVA',     cost: { funds: 6.0e7, sci: 1.2e5 }, requires: ['engNerva'], requiresMission: 'neptuneFlyby',
+    { id: 'nerva2',   name: 'Bimodal NERVA',     cost: { funds: 1e8, sci: 250000 }, requires: ['engNerva'], requiresMission: 'neptuneFlyby',
       desc: 'Hotter core, better hydrogen: NERVA ve 8.2 → 9.2 km/s. The last word before the stars.' },
 
     // Phase 3: the stars
@@ -226,48 +226,51 @@
   // Off-window launches are possible but need WINDOW.offPenalty × the Δv.
   var WINDOW = { open: 0.25, offPenalty: 1.3 };
   var MISSIONS = [
-    { id: 'weather',     name: 'Weather satellite', dv: 150,  payload: 300, cost: 3e3,  funds: 6.0e4, sci: 400,  time: 30,
+    { id: 'weather',     name: 'Weather satellite', dv: 150,  payload: 300, cost: 3e3,  funds: 50000, sci: 400,  time: 30,
       note: 'Heavy payload, polar orbit. The first job that pays for itself.' },
-    { id: 'meo',         name: 'Navigation satellite (MEO)', dv: 1200, payload: 100, cost: 6e3, funds: 1.2e5, sci: 700, time: 45, requires: 'weather',
+    { id: 'meo',         name: 'Navigation satellite (MEO)', dv: 1200, payload: 100, cost: 6e3, funds: 100000, sci: 700, time: 45, requires: 'weather',
       note: 'Medium Earth orbit, 20,000 km up, where GPS lives.' },
-    { id: 'moonFlyby',   name: 'Moon flyby',      dv: 3150,  payload: 75,  cost: 1.5e4, funds: 4.0e5, sci: 2000, time: 60, requires: 'meo',
+    { id: 'moonFlyby',   name: 'Moon flyby',      dv: 3150,  payload: 75,  cost: 1.5e4, funds: 300000, sci: 2000, time: 90, requires: 'meo',
       note: 'Free-return trajectory, like Apollo 13. Luna 1 did it in 1959.' },
-    { id: 'moonOrbit',   name: 'Moon orbit',      dv: 3950,  payload: 120, cost: 3e4,  funds: 8.0e5, sci: 3500, time: 75, requires: 'moonFlyby', ionOk: true,
+    { id: 'moonOrbit',   name: 'Moon orbit',      dv: 3950,  payload: 120, cost: 3e4,  funds: 500000, sci: 3500, time: 120, requires: 'moonFlyby', ionOk: true,
       note: 'SMART-1 got here on an ion drive.' },
-    { id: 'venusFlyby',  name: 'Venus flyby',     dv: 3500,  payload: 150, cost: 3e4,  funds: 7.0e5, sci: 3000, time: 120, requires: 'moonFlyby', window: 290 },
-    { id: 'marsFlyby',   name: 'Mars flyby',      dv: 3700,  payload: 250, cost: 5e4,  funds: 1.2e6, sci: 5000, time: 150, requires: 'moonFlyby', window: 390 },
-    { id: 'l2scope',     name: 'Deep-space telescope (L2)', dv: 3300, payload: 500, cost: 8e4, funds: 1.5e6, sci: 7000, time: 90, requires: 'moonOrbit',
+    { id: 'venusFlyby',  name: 'Venus flyby',     dv: 3500,  payload: 150, cost: 3e4,  funds: 600000, sci: 3000, time: 240, requires: 'moonFlyby', window: 290 },
+    { id: 'marsFlyby',   name: 'Mars flyby',      dv: 3700,  payload: 250, cost: 5e4,  funds: 900000, sci: 5000, time: 300, requires: 'moonFlyby', window: 390 },
+    { id: 'l2scope',     name: 'Deep-space telescope (L2)', dv: 3300, payload: 500, cost: 8e4, funds: 1.2e6, sci: 7000, time: 180, requires: 'moonOrbit',
       note: 'Heavy mirror, parked 1.5 million km out. Built for the heavy-lift pad.' },
-    { id: 'venusLander', name: 'Venus lander',    dv: 4400,  aeroDv: 3600, payload: 400, cost: 1e5, funds: 2.5e6, sci: 9000, time: 150, requires: 'venusFlyby', window: 290,
+    { id: 'venusLander', name: 'Venus lander',    dv: 4400,  aeroDv: 3600, payload: 400, cost: 1e5, funds: 1.8e6, sci: 9000, time: 300, requires: 'venusFlyby', window: 290,
       note: 'Venera-style: the atmosphere does the braking, then crushes the probe. 57 glorious minutes of data.' },
-    { id: 'marsOrbit',   name: 'Mars orbit',      dv: 5700,  aeroDv: 4700, payload: 200, cost: 1.5e5, funds: 3.0e6, sci: 11000, time: 180, requires: 'marsFlyby', window: 390, ionOk: true },
-    { id: 'mercuryOrbit',name: 'Mercury orbit',   dv: 9500,  payload: 150, cost: 3e5, funds: 6.0e6, sci: 18000, time: 220, requires: 'venusFlyby', window: 120, ionOk: true,
+    { id: 'marsOrbit',   name: 'Mars orbit',      dv: 5700,  aeroDv: 4700, payload: 200, cost: 1.5e5, funds: 2.2e6, sci: 11000, time: 360, requires: 'marsFlyby', window: 390, ionOk: true },
+    { id: 'mercuryOrbit',name: 'Mercury orbit',   dv: 9500,  payload: 150, cost: 3e5, funds: 4e6, sci: 18000, time: 420, requires: 'venusFlyby', window: 120, ionOk: true,
       note: 'Falling toward the Sun is easy. Stopping is not. BepiColombo used ion drives.' },
-    { id: 'ceres',       name: 'Ceres (asteroid belt)', dv: 9800, payload: 200, cost: 3e5, funds: 6.5e6, sci: 20000, time: 280, requires: 'marsOrbit', window: 230, ionOk: true,
+    { id: 'ceres',       name: 'Ceres (asteroid belt)', dv: 9800, payload: 200, cost: 3e5, funds: 4.5e6, sci: 20000, time: 540, requires: 'marsOrbit', window: 230, ionOk: true,
       note: 'Dawn did it on ion drives. Hint, hint.' },
-    { id: 'moonLanding', name: 'Moon landing',    dv: 5900,  payload: 100, cost: 2e5,  funds: 5.0e6, sci: 16000, time: 90, requires: 'moonOrbit',
+    { id: 'moonLanding', name: 'Moon landing',    dv: 5900,  payload: 100, cost: 2e5,  funds: 3.5e6, sci: 16000, time: 150, requires: 'moonOrbit',
       descent: { g: 1.62, body: 'the Moon' },
       note: 'No atmosphere, no parachutes: every m/s of descent is paid in Δv.' },
-    { id: 'jupiterFlyby',name: 'Jupiter flyby',   dv: 6300,  payload: 120, cost: 3e5, funds: 9.0e6, sci: 25000, time: 300, requires: 'marsFlyby', window: 200,
+    { id: 'jupiterFlyby',name: 'Jupiter flyby',   dv: 6300,  payload: 120, cost: 3e5, funds: 6e6, sci: 25000, time: 600, requires: 'marsFlyby', window: 200,
       note: 'Unlocks gravity-assist research: use Jupiter as a catapult.' },
-    { id: 'marsLanding', name: 'Mars landing',    dv: 7600,  aeroDv: 6300, payload: 250, cost: 5e5, funds: 1.4e7, sci: 35000, time: 200, requires: 'marsOrbit', window: 390,
+    { id: 'marsLanding', name: 'Mars landing',    dv: 7600,  aeroDv: 6300, payload: 250, cost: 5e5, funds: 9e6, sci: 35000, time: 400, requires: 'marsOrbit', window: 390,
       descent: { g: 3.71, body: 'Mars' },
       note: 'Thin air: aerobraking helps, but the last kilometers are rockets all the way.' },
-    { id: 'saturnFlyby', name: 'Saturn flyby',    dv: 7300,  assistDv: 6200, payload: 300, cost: 6e5, funds: 2.0e7, sci: 50000, time: 420, requires: 'jupiterFlyby', window: 190 },
-    { id: 'uranusFlyby', name: 'Uranus flyby',    dv: 8000,  assistDv: 6800, payload: 300, cost: 8e5, funds: 2.8e7, sci: 65000, time: 540, requires: 'saturnFlyby', window: 185 },
-    { id: 'neptuneFlyby',name: 'Neptune flyby',   dv: 8700,  assistDv: 7400, payload: 300, cost: 1e6, funds: 3.6e7, sci: 80000, time: 600, requires: 'uranusFlyby', window: 184 },
-    { id: 'titanLanding',name: 'Titan landing',   dv: 12500, assistDv: 10600, aeroDv: 10500, payload: 300, cost: 1.5e6, funds: 5.0e7, sci: 1.1e5, time: 480, requires: 'saturnFlyby', window: 190,
+    { id: 'saturnFlyby', name: 'Saturn flyby',    dv: 7300,  assistDv: 6200, payload: 300, cost: 6e5, funds: 1.3e7, sci: 50000, time: 900, requires: 'jupiterFlyby', window: 190 },
+    { id: 'uranusFlyby', name: 'Uranus flyby',    dv: 8000,  assistDv: 6800, payload: 300, cost: 8e5, funds: 1.8e7, sci: 65000, time: 1200, requires: 'saturnFlyby', window: 185 },
+    { id: 'neptuneFlyby',name: 'Neptune flyby',   dv: 8700,  assistDv: 7400, payload: 300, cost: 1e6, funds: 2.4e7, sci: 80000, time: 1500, requires: 'uranusFlyby', window: 184 },
+    { id: 'titanLanding',name: 'Titan landing',   dv: 12500, assistDv: 10600, aeroDv: 10500, payload: 300, cost: 1.5e6, funds: 3.5e7, sci: 1.1e5, time: 1000, requires: 'saturnFlyby', window: 190,
       descent: { g: 1.35, body: 'Titan' },
       note: 'Thick atmosphere: parachutes work here. Huygens did this in 2005.' },
-    { id: 'europaOrbit', name: 'Europa orbit',    dv: 14000, assistDv: 9800, payload: 200, cost: 1.5e6, funds: 5.5e7, sci: 1.2e5, time: 400, requires: 'jupiterFlyby', window: 200,
+    { id: 'europaOrbit', name: 'Europa orbit',    dv: 14000, assistDv: 9800, payload: 200, cost: 1.5e6, funds: 3.8e7, sci: 1.2e5, time: 900, requires: 'jupiterFlyby', window: 200,
       note: 'Jupiter’s radiation belts, then a moon with an ocean under the ice.' },
-    { id: 'plutoFlyby',  name: 'Pluto flyby',     dv: 9500,  assistDv: 8100, payload: 250, cost: 2e6, funds: 6.5e7, sci: 1.5e5, time: 660, requires: 'neptuneFlyby', window: 183 },
-    { id: 'voyager',     name: 'Solar escape (Voyager moment)', dv: 8800, assistDv: 7500, payload: 400, cost: 3e6, funds: 1.0e8, sci: 2.0e5, time: 720, requires: 'saturnFlyby',
+    { id: 'plutoFlyby',  name: 'Pluto flyby',     dv: 9500,  assistDv: 8100, payload: 250, cost: 2e6, funds: 4.5e7, sci: 1.5e5, time: 1800, requires: 'neptuneFlyby', window: 183 },
+    { id: 'voyager',     name: 'Solar escape (Voyager moment)', dv: 8800, assistDv: 7500, payload: 400, cost: 3e6, funds: 7e7, sci: 2.0e5, time: 1500, requires: 'saturnFlyby',
       note: 'Leave the Sun behind. The stars are next.' }
   ];
   // Repeat missions: the public stops caring, slowly. Funds decay to a floor
   // (a repeat is a real, rate-limited job); science decays to ~nothing.
   var REPEAT = { funds: 0.3, fundsDecay: 0.8, fundsFloor: 0.08, sci: 0.25, sciDecay: 0.5 };
+  // Public interest: every distinct mission completed adds this much to all
+  // income (funds and science). Exploring new places is how the economy grows.
+  var FAME_PER_MISSION = 0.1;
 
   // ---- Contracts ------------------------------------------------------------
   // A small board of rotating, expiring jobs. Rate-limited by construction:
@@ -314,7 +317,7 @@
 
   function launchPayout(maxAlt, maxSpeed, gotOrbit, telemetryMult) {
     var f = 15 * Math.pow(effectiveAlt(maxAlt), 0.85) + 0.25 * Math.pow(maxSpeed / 100, 2);
-    if (gotOrbit) f *= 2;
+    if (gotOrbit) f *= 1.5;
     return f * (telemetryMult || 1);
   }
 
@@ -380,7 +383,7 @@
     STRUCTURE: STRUCTURE, HEAVY_TANKS: HEAVY_TANKS, WARPS: WARPS,
     ALT_MILESTONES: ALT_MILESTONES, SPEED_MILESTONES: SPEED_MILESTONES,
     ORBIT_MILESTONE: ORBIT_MILESTONE, ESCAPE_MILESTONE: ESCAPE_MILESTONE,
-    RESEARCH: RESEARCH, MISSIONS: MISSIONS, WINDOW: WINDOW, REPEAT: REPEAT,
+    RESEARCH: RESEARCH, MISSIONS: MISSIONS, WINDOW: WINDOW, REPEAT: REPEAT, FAME_PER_MISSION: FAME_PER_MISSION,
     CONTRACTS: CONTRACTS, STARS: STARS, FLYBY: FLYBY, COLONY: COLONY,
     effectiveAlt: effectiveAlt,
     launchPayout: launchPayout, launchScience: launchScience, structureCost: structureCost,

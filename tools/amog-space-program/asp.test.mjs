@@ -418,6 +418,7 @@ test('spamming cheap probes cannot farm money (shipyard slots + no repeat funds)
   st.colonies = {};
   st.research.yard2 = st.research.yard3 = st.research.yard4 = false;
   assert.equal(G.shipSlots(), 1);
+  const firstVisit = G.starReward(G.starById('heliopause'), 'flyby').funds;
   assert.ok(G.launchShip('sail', 1, 'flyby', 'heliopause'));
   assert.equal(G.launchShip('sail', 1, 'flyby', 'heliopause'), false, 'one slot');
   // fly the same cheap target over and over for a long time
@@ -430,8 +431,6 @@ test('spamming cheap probes cannot farm money (shipyard slots + no repeat funds)
       G.launchShip('sail', 1, 'flyby', 'heliopause');
     }
   }
-  const star = G.starById('heliopause');
-  const firstVisit = star.funds * D.FLYBY.first;
   assert.ok(st.flybys.heliopause > 10, 'it really did fly many times');
   // net funds gained is at most the first-visit payout
   assert.ok(st.funds - f0 <= firstVisit + 1, `net ${st.funds - f0} vs first ${firstVisit}`);

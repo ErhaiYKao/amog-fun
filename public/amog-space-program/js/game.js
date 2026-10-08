@@ -256,7 +256,14 @@
     var n = 0, k; for (k in G.state.colonies) if (G.state.colonies[k]) n++;
     return n;
   };
-  G.globalMult = function () { return Math.pow(2, G.colonyCount()); };
+  G.missionsExplored = function () {
+    var n = 0, k; for (k in G.state.missionsDone) if (G.state.missionsDone[k]) n++;
+    return n;
+  };
+  // Public interest: +10% income per distinct mission completed.
+  G.fameMult = function () { return 1 + D.FAME_PER_MISSION * G.missionsExplored(); };
+  // Colonies double everything; fame adds up mission by mission.
+  G.globalMult = function () { return Math.pow(2, G.colonyCount()) * G.fameMult(); };
   G.telemetryMult = function () {
     var s = G.state.research;
     return s.telem2 ? 2.25 : (s.telem1 ? 1.5 : 1);
@@ -579,7 +586,7 @@
     G.flightMeta = { spaceDv: r.spaceDv, manual: !!manual, payload: r.probe, cost: cost,
       objective: st.objective ? Object.assign({}, st.objective) : null,
       design: JSON.parse(JSON.stringify(st.design)) };
-    G.warp = Math.min(G.warp || 1, G.maxWarp());
+    G.warp = 1;   // watch the ascent; main.js speeds up the boring coast
     st.totalLaunches++;
     G.emit('launch');
     return true;
@@ -675,6 +682,8 @@
           (c.sci ? ' +' + D.fmt(c.sci * mult) + '⚗' : ''), 'good');
         if (st.objective && st.objective.kind === 'contract' && st.objective.id === c.id) st.objective = null;
       }
+    } else if (obj && obj.kind === 'mission' && !inSpace) {
+      result.missionWhy = 'Didn’t reach orbit — no mission this time.';
     } else if (obj && obj.kind === 'mission' && inSpace) {
       var m = findBy(D.MISSIONS, obj.id);
       if (m) {
@@ -839,8 +848,8 @@
       if (stretch) { opts = opts.filter(function (p) { return p > top; }); if (!opts.length) opts = [top]; }
       c.payload = pick(opts);
       c.target = 0;
-      c.funds = Math.round(30000 * Math.pow(c.payload / 100, 0.85) * (stretch ? 1.5 : 1));
-      c.sci = Math.round(150 * Math.pow(c.payload / 100, 0.6));
+      c.funds = Math.round(8000 * Math.pow(c.payload / 100, 0.8) * (stretch ? 1.4 : 1));
+      c.sci = Math.round(120 * Math.pow(c.payload / 100, 0.6));
     }
     c.stretch = stretch;
     c.client = pick(CLIENTS);
@@ -1042,11 +1051,14 @@
       var done = st.missions.filter(function (am) { return st.clock - am.t0 >= am.dur; });
       done.forEach(finishMission);
     }
-    // auto-dispatch: only inside launch windows, only when it can pay
+    // auto-dispatch: only inside launch windows, only when it can pay, and
+    // (once you have two or more slots) never into the last free one — that
+    // one is kept for whatever you fly yourself
     if (st.research.dispatch) {
+      var reserve = G.missionSlots() >= 2 ? 1 : 0;
       Object.keys(st.autoMissions).forEach(function (id) {
         var m = findBy(D.MISSIONS, id);
-        if (!m || st.missions.length >= G.missionSlots()) return;
+        if (!m || st.missions.length + reserve >= G.missionSlots()) return;
         if (!G.missionWindow(m).open) return;
         var plan = G.dispatchPlan(m, st.autoMissions[id]);
         if (plan.vehicle && !plan.why) G.dispatch(id, st.autoMissions[id], false);

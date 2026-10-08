@@ -314,7 +314,9 @@ label.toggle.tiny { display: inline-flex; align-items: center; gap: 4px; font-si
   border-bottom: 1px solid #121a2e; padding: 6px 2px; font-size: 13px;
 }
 .fleetrow .btnrow { margin-top: 0; flex-wrap: nowrap; }
-#warp-buttons { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+#warpbar { width: max-content; max-width: 96%; }
+#warp-buttons { display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+#warpbar button[data-warp] { padding: 4px 7px; }
 #warp-more { font-size: 10px; }
 ul.changes { margin: 8px 0 8px 18px; font-size: 13px; line-height: 1.5; }
 ul.changes li { margin-bottom: 4px; }
