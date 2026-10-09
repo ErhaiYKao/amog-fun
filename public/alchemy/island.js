@@ -32,21 +32,6 @@
   const grass = pattern(TS, (x, y, r) => (r < 0.08 ? "#4a7a2e" : r < 0.16 ? "#6aa246" : y === 0 ? "#6aa246" : "#5b8f3a"));
   const cliff = pattern(CLIFF, (x, y, r) => (y === CLIFF - 1 ? "#3b2a1a" : r < 0.2 ? "#5a3d24" : "#6b4a2b"));
 
-  function progress(t) {
-    switch (t.id) {
-      case "tree": return t.grow < 1 ? [t.grow, "#a7c957"] : null;
-      case "barrel": return t.time > 0 ? [1 - t.time / C.barrel.time, "#c08a4a"] : [t.fill / C.barrel.units, "#a7c957"];
-      case "rainBarrel": return [t.water, "#3f76e4"];
-      case "crucible": return [t.lava / C.crucible.lava, "#ff7a1a"];
-      case "infested": return [t.t / C.infested.time, "#f2efe6"];
-      case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve": return t.idle ? null : [t.t / A.autoPeriod(t), "#4fd6e8"];
-      case "farmland": return t.seed ? [t.g, "#a7c957"] : null;
-      case "autoGen": case "autoGen2": case "autoGen3": return [t.acc, "#9a9aa2"];
-      case "treeHarvester": return [t.p, "#a7c957"];
-      case "battery": case "fuelGenerator": case "solarGenerator": return [UI.s.energy / (A.energyCapacity(UI.s) || 1), "#4fd6e8"];
-      default: return null;
-    }
-  }
   const iconOf = t => (t.id === "tree" && t.grow < 1 ? "sapling" : t.id);
 
   let hover = -1, frameNo = 0, cam = { k: 1, ox: 0, oy: 0 };
@@ -104,13 +89,6 @@
       if (!land.has(`${x},${y + 1}`)) ctx.drawImage(cliff, px, py + TS);
       if (!t) return;
       ctx.drawImage(I.canvas(iconOf(t)), px + 2, py + 2);
-      const p = progress(t);
-      if (p) {
-        ctx.fillStyle = "rgba(0,0,0,.6)";
-        ctx.fillRect(px + 2, py + 17, 16, 2);
-        ctx.fillStyle = p[1];
-        ctx.fillRect(px + 2, py + 17, Math.round(16 * Math.max(0, Math.min(1, p[0]))), 2);
-      }
       if (t.id === "furnace" && s.slots.some(j => j && !j.stalled) && frameNo % 6 < 3) {
         ctx.fillStyle = "#fff1a8";
         ctx.fillRect(px + 9, py + 12, 2, 1);
@@ -231,6 +209,8 @@
       case "crusher": case "energizedSmelter": case "infuser": return `${D.ELECTRIC[t.id].watts} W · queue recipes below`;
       case "treeHarvester": return `${t.status || "waiting"} · ${Math.floor(t.p * 100)}%`;
       case "fuelGenerator": case "solarGenerator": return `${(t.output || 0).toFixed(1)} W`;
+      case "geothermal": return `${(t.output || 0).toFixed(1)} W from lava`;
+      case "autoCompressor": return `${t.idle ? "waiting for 9" : "compressing"} ${UI.name(t.sel).toLowerCase()}`;
       case "battery": return `${Math.floor(s.energy).toLocaleString()} / ${A.energyCapacity(s).toLocaleString()} J on the grid`;
       default: return D.ITEMS[t.id].desc || "";
     }
@@ -240,8 +220,8 @@
     const s = UI.s;
     draw();
     const used = s.island.filter(Boolean).length, cost = A.expandCost(s), maxed = s.island.length >= C.land.max;
-    UI.v("d:expand", A.count(s, "dirt") < cost);
-    UI.setHTML($("land"), "land", `${used}/${s.island.length} tiles ${maxed ? "· full size" : `<button class="mini" data-act="expand" data-d="d:expand">Expand · ${cost} dirt</button>`}`);
+    UI.v("d:expand", A.count(s, cost.id) < cost.n);
+    UI.setHTML($("land"), "land", `${used}/${s.island.length} tiles ${maxed ? "· full size" : `<button class="mini" data-act="expand" data-d="d:expand" data-tip="${cost.id}">Expand · ${cost.n} ${UI.esc(UI.name(cost.id).toLowerCase())}</button>`}`);
     const i = UI.selected, t = s.island[i];
     let h, body = "";
     if (i < 0 || i >= s.island.length) h = `<span class="meta">Click a building to open it. Drag buildings to move them, or onto the inventory to pick them up. New land appears at the dashed square.</span>`;

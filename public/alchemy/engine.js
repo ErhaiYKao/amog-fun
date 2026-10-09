@@ -26,6 +26,8 @@
     farmland: () => ({ seed: null, sel: "seeds", g: 0 }),
     fuelGenerator: () => ({ fuel: "charcoal", fuelJ: 0, enabled: true }),
     treeHarvester: () => ({ p: 0, enabled: true }),
+    geothermal: () => ({ enabled: true }),
+    autoCompressor: () => ({ t: 0, sel: "dust" }),
   };
 
   // Stations share a recipe queue with one job slot per machine; use shared fuel or electricity.
@@ -196,10 +198,17 @@
   }
 
   // ---------- island ----------
-  const expandCost = s => Math.round(C.land.base + C.land.step * (s.island.length - C.start.land));
+  // the next tile's price: { id, n }. Each stretch of island needs a harder material (CONFIG.land.tiers).
+  function expandCost(s) {
+    const size = s.island.length, tiers = C.land.tiers;
+    const i = tiers.findIndex(t => size < t.upTo), tier = tiers[i < 0 ? tiers.length - 1 : i];
+    const from = i > 0 ? tiers[i - 1].upTo : C.start.land;
+    return { id: tier.id, n: tier.n + tier.step * (size - from) };
+  }
   function expand(s) {
-    if (s.island.length >= C.land.max || count(s, "dirt") < expandCost(s)) return false;
-    take(s, "dirt", expandCost(s));
+    const c = expandCost(s);
+    if (s.island.length >= C.land.max || count(s, c.id) < c.n) return false;
+    take(s, c.id, c.n);
     s.island.push(null);
     return true;
   }
@@ -352,6 +361,11 @@
       t.output = 0;
       if (t.enabled === false) continue;
       let budget = Math.min(cfg.watts * dt, capacity - s.energy);
+      if (cfg.lavaPerJ) { // geothermal: drink lava from crucibles, then from lava buckets in the inventory
+        const made = burnLava(s, budget, cfg.lavaPerJ);
+        s.energy += made; t.output += made / dt; s.power.generated += made / dt;
+        continue;
+      }
       while (budget > 1e-9) {
         if (cfg.fuels && t.fuelJ <= 1e-9) {
           if (!cfg.fuels[t.fuel] || count(s, t.fuel) < 1) break;
@@ -366,6 +380,26 @@
         s.power.generated += made / dt;
       }
     }
+  }
+  // geothermal fuel: crucible lava first, then the generators' shared tank, topped up from lava buckets
+  function burnLava(s, joules, perJ) {
+    let want = joules * perJ;
+    const start = want;
+    for (const c of s.island) {
+      if (!c || c.id !== "crucible") continue;
+      const use = Math.min(c.lava, want);
+      c.lava -= use; want -= use;
+    }
+    while (want > 1e-9) {
+      if (!(s.lavaTank > 1e-9)) {
+        if (!((s.inv.lavaBucket || 0) > 0)) break;
+        s.inv.lavaBucket--; s.inv.bucket = (s.inv.bucket || 0) + 1; // the empty bucket comes back
+        s.lavaTank = 1000;
+      }
+      const use = Math.min(s.lavaTank, want);
+      s.lavaTank -= use; want -= use;
+    }
+    return (start - want) / perJ;
   }
   function usePower(s, watts, seconds) {
     const used = Math.min(s.energy, watts * seconds);
@@ -518,6 +552,18 @@
         case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve":
           autoRun(s, tile, dt);
           break;
+        case "autoCompressor": {
+          const out = C.compress.map[tile.sel];
+          tile.t += dt;
+          tile.idle = false;
+          while (tile.t >= C.compress.time) {
+            if (!out || count(s, tile.sel) - (C.reserve[tile.sel] || 0) < 9) { tile.t = C.compress.time; tile.idle = true; break; }
+            tile.t -= C.compress.time;
+            take(s, tile.sel, 9);
+            give(s, out, 1);
+          }
+          break;
+        }
         case "farmland":
           if (!tile.seed && tile.sel && count(s, tile.sel) > 0) { take(s, tile.sel, 1); tile.seed = tile.sel; tile.g = 0; }
           if (tile.seed) {

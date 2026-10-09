@@ -25,7 +25,7 @@ const FUEL = { 1: "planks", 2: "charcoal", 3: "coal" };
 function land(d) {
   if (A.free(s) > 0) return true;
   if (s.island.length >= A.DATA.CONFIG.land.max) throw new Error("island is full");
-  if (need("dirt", A.expandCost(s), d + 1)) A.expand(s);
+  if (need(A.expandCost(s).id, A.expandCost(s).n, d + 1)) A.expand(s);
   return false;
 }
 
@@ -116,7 +116,7 @@ function pursue(q) {
   for (const [id, n] of Object.entries(nd.built || {})) if (A.built(s, id) < n) return needBuilt(id, n, 0);
   if (nd.anyBuilt && !nd.anyBuilt.some(id => A.built(s, id))) return needBuilt(nd.anyBuilt[0], 1, 0);
   if (nd.gotAny && !nd.gotAny.some(id => s.got[id])) return need(nd.gotAny[0], 1);
-  if (nd.land && s.island.length < nd.land) { if (need("dirt", A.expandCost(s))) A.expand(s); return; }
+  if (nd.land && s.island.length < nd.land) { if (need(A.expandCost(s).id, A.expandCost(s).n)) A.expand(s); return; }
   wait();
 }
 

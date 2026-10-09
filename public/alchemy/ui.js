@@ -31,7 +31,7 @@
     logItems.length = Math.min(logItems.length, 9);
     UI.setHTML($("log"), "log", logItems.map(l => `<li class="${l.cls}">${l.icon ? UI.img(l.icon, "sm") : ""}<span>${UI.esc(l.text)}</span></li>`).join(""));
   };
-  const RARE = new Set(["silkworm", "diamond", "glowstone"]);
+  const RARE = new Set(["diamond"]); // silkworms and glowstone turn up too often to log every time
   function drainEvents() {
     const s = UI.s;
     for (const e of s.ev.splice(0)) {
@@ -76,7 +76,7 @@
     if (it.place) bits.push("building · takes one tile");
     for (const kind in D.CONFIG.tools) if (D.CONFIG.tools[kind].some(([t]) => t === id)) bits.push(`tool · ${kind === "chammer" ? "compressed hammer" : kind}`);
     // where it comes from is shown when you click the item (crafting panel), not on hover
-    return `<b>${UI.esc(it.name)}</b>${it.desc ? `<div>${UI.esc(it.desc)}</div>` : ""}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}`;
+    return `<b>${UI.esc(it.name)}</b>${it.desc ? `<div>${UI.esc(it.desc)}</div>` : ""}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}<small class="tiphint">right-click: recipes that use it</small>`;
   }
   document.addEventListener("mouseover", e => {
     const el = e.target.closest("[data-tip]");
@@ -109,6 +109,15 @@
     UI.noteGains(r.gains);
     render();
   };
+  // right-click an item (in a recipe, the inventory, a chip...) to list the recipes that use it
+  document.addEventListener("contextmenu", e => {
+    const el = e.target.closest("[data-tip]");
+    if (!el || !D.ITEMS[el.dataset.tip] || !UI.handlers.usedin) return;
+    e.preventDefault();
+    UI.handlers.usedin([el.dataset.tip]);
+    render();
+    $("crafting").closest(".card").scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
   document.addEventListener("click", e => {
     const el = e.target.closest("[data-act]");
     if (!el || el.disabled) return;

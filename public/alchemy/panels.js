@@ -199,13 +199,21 @@
   function renderCrafting() {
     const s = UI.s;
     let rows, focusHTML = "";
-    if (UI.focus) {
+    // every recipe, at the table or in any machine, that takes this item as an ingredient
+    const usersOf = id => [...RECIPES.filter(r => r.in[id] || (r.needs || {})[id]).map(r => craftRow(s, r)),
+      ...STATION_IDS.flatMap(st => rowsFor({ ...s, seen: new Proxy({}, { get: () => 1 }) }, st).filter(x => x.ings.some(([k]) => k === id)))];
+    if (UI.usedIn) {
+      const id = UI.usedIn;
+      rows = usersOf(id).sort((a, b) => b.ok - a.ok);
+      focusHTML = `<div class="top">${img(id, "sm")}<b>${esc(name(id))}</b><span class="meta">used in ${rows.length} recipe${rows.length === 1 ? "" : "s"}</span>
+        <button class="mini" data-act="focus:${id}">how to get it</button><button class="mini" data-act="unfocus">× back to all</button></div>`;
+    } else if (UI.focus) {
       const id = UI.focus;
       rows = [...RECIPES.filter(r => r.out[id]).map(r => craftRow(s, r)),
         ...Object.keys(SMELT).filter(k => SMELT[k].out === id).map(k => stationRow(s, "furnace", k)),
         ...(ALLOY[id] ? [stationRow(s, "alloy", id)] : []),
         ...Object.entries(D.ELECTRIC).flatMap(([st, cfg]) => Object.keys(cfg.recipes).filter(k => cfg.recipes[k].out === id).map(k => stationRow(s, st, k)))];
-      const src = sources(id), uses = RECIPES.filter(r => r.in[id]).length;
+      const src = sources(id), uses = usersOf(id).length;
       focusHTML = `<div class="top">${img(id, "sm")}<b>${esc(name(id))}</b><span class="meta">${rows.length ? `${rows.length} recipe${rows.length === 1 ? " makes" : "s make"} it` : "no recipe makes it"}</span>
         ${uses ? `<button class="mini" data-act="usedin:${id}">used in ${uses}</button>` : ""}<button class="mini" data-act="unfocus">× back to all</button></div>
         ${desc(id)}${src.length ? `<div class="meta">other ways to get it:</div><ul>${src.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}`;
@@ -216,16 +224,16 @@
       if (q) rows = [...rows, ...STATION_IDS.filter(st => s.seen[st]).flatMap(st => rowsFor(s, st))].filter(x => matches(x, q));
       rows = rows.filter(x => UI.filter !== "can" || (x.ok && !x.hid)).sort((a, b) => !!a.hid - !!b.hid || b.ok - a.ok);
     }
-    const firstHid = UI.focus ? -1 : rows.findIndex(x => x.hid);
+    const firstHid = UI.focus || UI.usedIn ? -1 : rows.findIndex(x => x.hid);
     const h = rows.map((x, i) => rowHTML(s, x, i === firstHid ? `<div class="rec-sep">hidden · ${rows.length - firstHid}</div>` : "")).join("");
-    const empty = UI.focus ? "" : UI.search ? "No recipe matches that search." : "No recipes yet. Everything starts with a log.";
+    const empty = UI.focus || UI.usedIn ? "" : UI.search ? "No recipe matches that search." : "No recipes yet. Everything starts with a log.";
     UI.setHTML($("crafting"), "craft", h || `<p class="empty">${empty}</p>`);
     UI.setHTML($("craftfocus"), "cfocus", focusHTML);
     UI.setHTML($("craftfilter"), "cf", ["all", "can"].map(f =>
       `<button class="chip" style="padding-left:9px" data-act="filter:${f}" aria-pressed="${UI.filter === f}">${f === "all" ? "all" : "can craft"}</button>`).join(""));
     UI.setHTML($("craftamt"), "camt", [1, 5, 10, 25, 64].map(n => `<button class="chip" data-act="amt:${n}" aria-pressed="${UI.amount === n}">${n}</button>`).join(""));
   }
-  $("craftsearch").addEventListener("input", e => { UI.search = e.target.value; UI.focus = null; UI.render(); });
+  $("craftsearch").addEventListener("input", e => { UI.search = e.target.value; UI.focus = null; UI.usedIn = null; UI.render(); });
   $("craftn").addEventListener("input", e => { UI.amount = Math.max(1, Math.min(999, e.target.value | 0 || 1)); UI.render(); });
 
   // ---------- the machine panel: click a building on the island to open it ----------
@@ -288,7 +296,8 @@
       const cfg = D.POWER[id];
       let ctl = "";
       if (cfg.watts) {
-        UI.v(`m${i}:power`, `${(t.output || 0).toFixed(1)} / ${cfg.watts} W${cfg.fuels ? ` · ${Math.ceil(t.fuelJ)} J of loaded fuel left` : ""}`);
+        const lava = cfg.lavaPerJ ? ` · ${Math.floor(s.island.reduce((a, c) => a + (c && c.id === "crucible" ? c.lava : 0), 0) + (s.lavaTank || 0)).toLocaleString()} mB of lava on hand, ${s.inv.lavaBucket || 0} lava bucket${s.inv.lavaBucket === 1 ? "" : "s"}` : "";
+        UI.v(`m${i}:power`, `${(t.output || 0).toFixed(1)} / ${cfg.watts} W${cfg.fuels ? ` · ${Math.ceil(t.fuelJ)} J of loaded fuel left` : ""}${lava}`);
         const fuel = cfg.fuels ? Object.entries(cfg.fuels).map(([f, joules]) => `<button class="chip" data-act="genfuel:${i}:${f}" aria-pressed="${t.fuel === f}" data-tip="${f}">${img(f, "sm")}${name(f)} · ${joules.toLocaleString()} J</button>`).join("") : "";
         ctl = `<div class="unitrow"><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled !== false}">${t.enabled === false ? "Resume" : "Pause"}</button><span class="meta" data-v="m${i}:power"></span></div>${fuel ? `<div class="chips">${fuel}</div><p class="meta">It feeds the selected fuel from your inventory only when the grid has room; switching finishes the loaded item first.</p>` : ""}`;
       }
@@ -326,6 +335,13 @@
         return `<div class="chips">${seeds.map(sd => `<button class="chip" data-act="seed:${i}:${sd}" aria-pressed="${t.sel === sd}" data-tip="${sd}">${img(sd, "sm")}<span data-v="i:${sd}"></span></button>`).join("")}<button class="chip" style="padding-left:9px" data-act="seed:${i}:" aria-pressed="${!t.sel}">none</button></div>` +
           unit(`m${i}:st`, `m${i}:bar`, "green") + `<p class="meta">A planted seed stays and regrows forever; switching seeds hands the old one back.</p>`;
       }
+      case "autoCompressor": {
+        const map = C.compress.map;
+        UI.v(`m${i}:bar`, t.idle ? 0 : t.t / C.compress.time);
+        UI.v(`m${i}:st`, t.idle ? `waiting for 9 ${name(t.sel).toLowerCase()}${C.reserve[t.sel] ? ` (it leaves ${C.reserve[t.sel]} for crafting)` : ""}` : `${name(t.sel)} → ${name(map[t.sel])}`);
+        return `<div class="chips">${Object.keys(map).filter(k => s.seen[k]).map(k => `<button class="chip" data-act="compress:${i}:${k}" aria-pressed="${t.sel === k}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span></button>`).join("")}</div>` +
+          unit(`m${i}:st`, `m${i}:bar`) + `<p class="meta">Every ${C.compress.time} s it squeezes 9 into 1. Set several to different blocks, or chain one after your auto-hammers and before an auto heavy sieve.</p>`;
+      }
       case "infested":
         UI.v(`m${i}:bar`, t.t / C.infested.time);
         return `<p class="meta">Spins 1 string every ${C.infested.time} s.</p><div class="bar"><i data-w="m${i}:bar"></i></div>`;
@@ -358,12 +374,13 @@
     insert: ([i, id]) => A.insertTool(UI.s, +i, id),
     pull: ([i]) => A.pullTool(UI.s, +i),
     seed: ([i, id]) => A.setSeed(UI.s, +i, id || null),
+    compress: ([i, k]) => { const t = UI.s.island[+i]; if (t && t.id === "autoCompressor" && C.compress.map[k]) t.sel = k; },
     filter: ([f]) => { UI.filter = f; },
     drops: () => { const box = $("drops-box"); box.open = true; box.scrollIntoView({ behavior: "smooth", block: "nearest" }); },
     amt: ([n]) => { UI.amount = +n; $("craftn").value = n; },
-    focus: ([id]) => { UI.focus = id; $("crafting").scrollTop = 0; $("crafting").closest(".card").scrollIntoView({ block: "nearest", behavior: "smooth" }); },
-    unfocus: () => { UI.focus = null; },
-    usedin: ([id]) => { UI.focus = null; UI.search = name(id); $("craftsearch").value = UI.search; },
+    focus: ([id]) => { UI.focus = id; UI.usedIn = null; $("crafting").scrollTop = 0; $("crafting").closest(".card").scrollIntoView({ block: "nearest", behavior: "smooth" }); },
+    unfocus: () => { UI.focus = null; UI.usedIn = null; },
+    usedin: ([id]) => { UI.focus = null; UI.usedIn = id; $("crafting").scrollTop = 0; },
     hide: ([key]) => {
       const r = RECIPES.find(x => x.key === key);
       const hidden = r ? A.hidden(UI.s, r) : UI.s.hide[key] === 1;

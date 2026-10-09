@@ -56,6 +56,8 @@
     cGravel: { name: "Compressed Gravel", icon: ["block", "#8a817c", "compressed"] },
     cSand: { name: "Compressed Sand", icon: ["block", "#dccf9a", "compressed"] },
     cDust: { name: "Compressed Dust", icon: ["block", "#ebe5d3", "compressed"] },
+    obsidian: { name: "Obsidian", icon: ["block", "#2a1f3d", "compressed"], desc: "Water poured onto lava. Very hard: geothermal generators and the last stretches of land need it." },
+    glass: { name: "Glass", icon: ["block", "#bfe3ec", "dust"], desc: "Smelted sand. Solar panels and energy cells need it." },
 
     // heat and ore
     charcoal: { name: "Charcoal", icon: ["lump", "#3d3129"], fuel: [2, 60], desc: "Hot enough to fire clay. Not hot enough for iron." },
@@ -121,7 +123,7 @@
     // machines (each takes one tile of the island)
     tree: { name: "Oak Tree", icon: ["tree"], place: true, desc: "Drops leaves on its own once grown." },
     table: { name: "Crafting Table", icon: ["table"], place: true },
-    barrel: { name: "Oak Barrel", icon: ["barrel", "#9a6b3a"], place: true, desc: "Turns 6 compost into dirt. Each extra barrel costs more planks." },
+    barrel: { name: "Oak Barrel", icon: ["barrel", "#9a6b3a"], place: true, desc: "Turns 6 compost into dirt." },
     rainBarrel: { name: "Rain Barrel", icon: ["barrel", "#9a6b3a", "#3f76e4"], place: true, desc: "Fills with rainwater. Mix in dust for clay." },
     infested: { name: "Infested Leaves", icon: ["infested"], place: true, desc: "A silkworm colony. Spins string." },
     sieve: { name: "Sieve", icon: ["sieve"], place: true, desc: "Each sieve adds sieving power. Needs a mesh." },
@@ -140,6 +142,8 @@
     farmland: { name: "Farmland", icon: ["farm"], place: true, desc: "Click it to pick a seed. A planted seed stays and keeps growing." },
     fuelGenerator: { name: "Fuel Generator", icon: ["power", "#df963b"], place: true, desc: "40 W; stores 4,000 J. Burns your chosen coal or charcoal only when the grid has room. Click it to pick the fuel." },
     solarGenerator: { name: "Solar Generator", icon: ["solar", "#4678bb"], place: true, desc: "10 W forever under the void's eternal sun. Stores 2,000 J; no fuel required." },
+    geothermal: { name: "Geothermal Generator", icon: ["power", "#ff7a1a"], place: true, desc: "150 W from lava: drinks it from your crucibles (or a lava bucket from your inventory) at 1 mB per 10 J. Stores 8,000 J." },
+    autoCompressor: { name: "Auto-Compressor", icon: ["autohammer", "#b692f6"], place: true, desc: "Squeezes 9 of a block into its compressed form every 4 s. Click it to pick which block." },
     battery: { name: "Energy Cell", icon: ["battery", "#76cfb3"], place: true, desc: "Adds 20,000 J of shared storage. Every powered machine connects automatically." },
     crusher: { name: "Crusher", icon: ["autohammer", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Click it to queue jobs." },
     energizedSmelter: { name: "Energized Smelter", icon: ["furnace", "#4fd6e8"], place: true, desc: "20 W. Smelts with electricity, twice as fast as a furnace. No heat or fuel requirement." },
@@ -189,6 +193,7 @@
     crucibleRaw: { out: "crucibleFired", time: 20, heat: 2 },
     ironChunk: { out: "iron", time: 8, heat: 3 },
     goldChunk: { out: "gold", time: 8, heat: 3 },
+    sand: { out: "glass", time: 5, heat: 2 },
   };
 
   const ALLOY = {
@@ -199,6 +204,7 @@
   const POWER = {
     fuelGenerator: { watts: 40, capacity: 4000, fuels: { coal: 3200, charcoal: 1600 } },
     solarGenerator: { watts: 10, capacity: 2000 },
+    geothermal: { watts: 150, capacity: 8000, lavaPerJ: 0.1 }, // burns crucible lava (or lava buckets)
     battery: { watts: 0, capacity: 20000 },
   };
   const ELECTRIC = {
@@ -240,8 +246,11 @@
   const RECIPES = [
     { in: { steel: 1 }, out: { paperclip: 8 }, at: "table" },
     { in: { steel: 4, gear: 2, redAlloy: 2 }, out: { fuelGenerator: 1 }, at: "table" },
-    { in: { steel: 2, gold: 4, redAlloy: 4, glowstone: 8 }, out: { solarGenerator: 1 }, at: "table" },
-    { in: { steel: 4, gold: 2, redAlloy: 4 }, out: { battery: 1 }, at: "table" },
+    { in: { steel: 2, gold: 4, redAlloy: 4, glowstone: 4, glass: 8 }, out: { solarGenerator: 1 }, at: "table" },
+    { in: { steel: 4, gold: 2, redAlloy: 4, glass: 4 }, out: { battery: 1 }, at: "table" },
+    { in: { obsidian: 8, steel: 6, redAlloy: 4, gear: 4 }, out: { geothermal: 1 }, at: "table" },
+    { in: { steel: 2, gear: 2, redAlloy: 2, cCobble: 2 }, out: { autoCompressor: 1 }, at: "table" },
+    { name: "Pour water onto lava", in: { lavaBucket: 1, waterBucket: 1 }, out: { obsidian: 1, bucket: 1, waterBucket: 1 } },
     { in: { steel: 4, gear: 2, redAlloy: 2, cobble: 8 }, out: { crusher: 1 }, at: "table" },
     { in: { steel: 4, redAlloy: 2, cobble: 8 }, out: { energizedSmelter: 1 }, at: "table" },
     { in: { steel: 4, gear: 2, redAlloy: 4 }, out: { infuser: 1 }, at: "table" },
@@ -250,7 +259,7 @@
     { in: { planks: 2 }, out: { stick: 4 } },
     { in: { planks: 4 }, out: { table: 1 } },
     { in: { stick: 5 }, out: { crook: 1 }, at: "table" },
-    { in: { planks: 7 }, out: { barrel: 1 }, at: "table", scale: { per: "barrel", k: 1 } }, // 7, 14, 21, ... planks
+    { in: { planks: 7 }, out: { barrel: 1 }, at: "table" },
     { in: { silkworm: 1, leaves: 6 }, out: { infested: 1 } },
     { in: { string: 3 }, out: { twine: 1 } },
     { in: { string: 6, stick: 2 }, out: { stringMesh: 1 }, at: "table" },
@@ -331,7 +340,7 @@
     { id: "barrel", title: "Barrel", text: "Craft an oak barrel and place it on the island. It pulls leaves from your inventory and composts them.", need: { built: { barrel: 1 } } },
     { id: "dirt", title: "Dirt From Nothing", text: "Six compost in a barrel rot into a block of dirt.", need: { got: { dirt: 1 } } },
     { id: "grow", title: "Another Tree", text: "Drag a sapling from your inventory onto an empty tile to plant it. Grown trees drop leaves by themselves.", need: { built: { tree: 2 } } },
-    { id: "land", title: "More Land", text: "Spend dirt to add a tile to the island.", need: { land: 7 } },
+    { id: "land", title: "More Land", text: "Spend dirt to add a tile to the island. Later stretches of land need harder materials: cobblestone, then compressed cobblestone, iron, steel and obsidian.", need: { land: 7 } },
     { id: "silk", title: "Silkworm", text: "Keep shaking leaves with the crook until a silkworm falls out.", need: { got: { silkworm: 1 } } },
     { id: "infest", title: "Infested Leaves", text: "Put the silkworm on leaves. The colony spins string forever.", need: { built: { infested: 1 } } },
     { id: "string", title: "String Theory", text: "Collect 6 string.", need: { got: { string: 6 } } },
@@ -362,6 +371,8 @@
     { id: "infusion", title: "Applied Metallurgy", text: "Build a metallurgic infuser to make alloys faster with less coal and redstone.", need: { built: { infuser: 1 } } },
     { id: "forestry", title: "The Forest Works for You", text: "Build a tree harvester. It uses 600 J per harvest and replants automatically; plant more trees to keep it busy.", need: { built: { treeHarvester: 1 } } },
     { id: "storage", title: "Potential Energy", text: "Build an energy cell to store 20,000 more joules for later.", need: { built: { battery: 1 } } },
+    { id: "geo", title: "Hot Rocks", text: "Pour water onto lava for obsidian, then build a geothermal generator. It turns crucible lava into 150 W.", need: { built: { geothermal: 1 } } },
+    { id: "compress", title: "Squeeze Play", text: "Build an auto-compressor. Point one at dust, put it between your auto-hammers and an auto heavy sieve, and the dust farm runs itself.", need: { built: { autoCompressor: 1 } } },
     { id: "clips", title: "A Perfectly Harmless Objective", text: "Turn a steel ingot into eight paperclips. They do nothing. Maximizing them is entirely your decision.", need: { got: { paperclip: 8 } } },
   ];
 
@@ -373,14 +384,23 @@
     clay: ["hammer"], crucible: ["clay", "charcoal"], gen: ["crucible"], coal: ["hammer"], iron: ["coal", "furnace"],
     farm: ["clay", "charcoal"], cast: ["clay", "charcoal"], ironpick: ["cast", "iron"], auto: ["iron"],
     autogen: ["auto", "gen"], heavy: ["iron"], diamond: ["iron"], alloy: ["iron"], steel: ["alloy"],
-    pstone: ["diamond"], terminal: ["pstone", "steel"],
+    pstone: ["diamond"], terminal: ["pstone", "steel"], geo: ["power", "steel"], compress: ["steel", "heavy"],
     power: ["steel"], orepower: ["power"], infusion: ["power"], forestry: ["power"], storage: ["power"], clips: ["steel"],
   };
   QUESTS.forEach(q => (q.after = QUEST_AFTER[q.id] || []));
 
   const CONFIG = {
     start: { land: 6 },
-    land: { max: 36, base: 3, step: 1.5 }, // the n-th expansion costs base + step * n dirt
+    // land expansion: each stretch of island needs a harder material (expansion k within a tier costs n + step * k)
+    land: { max: 36, tiers: [
+      { upTo: 10, id: "dirt", n: 4, step: 2 },
+      { upTo: 15, id: "cobble", n: 16, step: 8 },
+      { upTo: 21, id: "cCobble", n: 4, step: 2 },
+      { upTo: 27, id: "iron", n: 8, step: 4 },
+      { upTo: 32, id: "steel", n: 6, step: 3 },
+      { upTo: 36, id: "obsidian", n: 8, step: 4 },
+    ] },
+    compress: { time: 4, map: { dirt: "cDirt", cobble: "cCobble", gravel: "cGravel", sand: "cSand", dust: "cDust" } },
     tree: { grow: 45, litter: 20, drops: [["leaves", 1, 1], ["sapling", 0.12, 1], ["stick", 0.06, 1]] },
     barrel: { units: 6, time: 8 },
     rain: { time: 30 },

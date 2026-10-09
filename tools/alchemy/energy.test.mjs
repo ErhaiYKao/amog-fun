@@ -231,3 +231,44 @@ test('recipes can consume a building from the inventory or straight off the isla
   assert.equal(A.built(s, 'autoGen'), 0);
   assert.equal(s.inv.autoGen2, 1);
 });
+test('geothermal burns crucible lava first, then lava buckets (bucket comes back)', () => {
+  const s = island('geothermal', 'crucible', 'battery');
+  s.island[1].lava = 500; s.opt.feedCrucible = false;
+  A.give(s, 'lavaBucket', 1);
+  run(s, 10, 1);
+  close(s.energy, 1500);                 // 150 W
+  close(s.island[1].lava, 350);          // 1 mB per 10 J
+  assert.equal(s.inv.lavaBucket, 1);     // crucible lava is used before buckets
+  s.island[1].lava = 0;
+  run(s, 10, 1);
+  assert.equal(s.inv.lavaBucket, 0);
+  assert.equal(s.inv.bucket, 1);
+  close(s.lavaTank, 850);
+});
+test('auto-compressors squeeze 9 into 1 on their own input, respecting the crafting reserve', () => {
+  const s = island('autoCompressor', 'autoCompressor');
+  s.island[0].sel = 'dust'; s.island[1].sel = 'cobble';
+  A.give(s, 'dust', 20); A.give(s, 'cobble', 30);
+  run(s, 40, 1);
+  assert.equal(s.inv.cDust, 2); assert.equal(s.inv.dust, 2);
+  assert.equal(s.inv.cCobble, 1); assert.equal(s.inv.cobble, 21); // never dips into the 16 kept for crafting
+});
+test('obsidian: water onto lava keeps the water and an empty bucket; barrels no longer scale', () => {
+  const s = island('table');
+  A.give(s, 'lavaBucket'); A.give(s, 'waterBucket');
+  assert.equal(A.craft(s, D.RECIPES.find(r => r.out.obsidian), 1), 1);
+  assert.equal(s.inv.obsidian, 1); assert.equal(s.inv.waterBucket, 1); assert.equal(s.inv.bucket, 1); assert.equal(s.inv.lavaBucket, 0);
+  const barrel = D.RECIPES.find(r => r.out.barrel);
+  A.give(s, 'barrel', 5);
+  assert.deepEqual(A.cost(s, barrel), { planks: 7 });
+});
+test('land gets pricier in materials, not just amounts', () => {
+  const s = A.create(0);
+  const at = n => { s.island.length = n; return A.expandCost(s); };
+  assert.deepEqual(at(6), { id: 'dirt', n: 4 });
+  assert.equal(at(10).id, 'cobble');
+  assert.equal(at(15).id, 'cCobble');
+  assert.equal(at(21).id, 'iron');
+  assert.equal(at(27).id, 'steel');
+  assert.equal(at(35).id, 'obsidian');
+});
