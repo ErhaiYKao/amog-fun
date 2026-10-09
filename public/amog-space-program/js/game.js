@@ -549,7 +549,7 @@
     var y = G.state.lastYield;
     if (!y) return { funds: 0, sci: 0 };
     var mult = G.globalMult();
-    return { funds: y.funds * mult - (y.cost || 0), sci: y.sci * mult };
+    return { funds: Math.max(0, y.funds * mult - (y.cost || 0)), sci: y.sci * mult };
   };
   G.incomeRates = function () {
     var st = G.state, iv = G.autoInterval();
@@ -570,8 +570,8 @@
     if (G.flight && G.flight.status === 'flying') return 'A flight is already in progress.';
     var r = G.resolveDesign();
     if (r.invalid) return r.invalid;
-    var cost = G.launchCost();
-    if (G.state.funds < cost) return 'Can’t afford the hardware ($' + D.fmt(cost) + ').';
+    // no funds check: the sponsor fronts the hardware and is paid back out of the flight's earnings,
+    // so you can always launch (being broke can never lock you out)
     return '';
   };
 
@@ -580,8 +580,7 @@
     G.warpTouched = false;
     var st = G.state;
     var r = G.resolveDesign();
-    var cost = G.launchCost();
-    st.funds -= cost;
+    var cost = G.launchCost(); // settled when the flight ends, out of its earnings
     G.flight = G.makeFlight(r);
     G.flightMeta = { spaceDv: r.spaceDv, manual: !!manual, payload: r.probe, cost: cost,
       objective: st.objective ? Object.assign({}, st.objective) : null,
@@ -648,14 +647,17 @@
     var mult = G.globalMult();
     var funds = D.launchPayout(f.maxAlt, f.maxSpeed, gotOrbit, G.telemetryMult()) * mult;
     var sci = D.launchScience(f.maxAlt) * mult;
-    st.funds += funds; st.sci += sci;
-    earn('flights', funds - meta.cost, sci);
+    // hardware comes out of the flight's earnings; a flight that earns less than its hardware nets $0
+    // (the sponsor eats the difference), so a bad design wastes time, never money
+    var net = Math.max(0, funds - meta.cost);
+    st.funds += net; st.sci += sci;
+    earn('flights', net, sci);
     if (f.maxAlt > st.bestAlt) st.bestAlt = f.maxAlt;
     if (f.maxSpeed > st.bestSpeed) st.bestSpeed = f.maxSpeed;
 
     var result = {
       status: f.status, maxAlt: f.maxAlt, maxSpeed: f.maxSpeed,
-      funds: funds, sci: sci, cost: meta.cost, payload: meta.payload,
+      funds: funds, sci: sci, cost: meta.cost, net: net, covered: Math.max(0, meta.cost - funds), payload: meta.payload,
       satDeployed: false, budget: 0, manual: meta.manual, t: f.t,
       contract: null, mission: null, missionShort: 0
     };
@@ -1235,12 +1237,11 @@
       while (G._autoT >= iv) {
         G._autoT -= iv;
         var y = st.lastYield;
-        // a profitable job flies on credit (the sponsor fronts the hardware),
-        // so spending down to $0 can never stall the crew
-        if (st.funds < y.cost && y.funds * mult < y.cost) continue;
-        st.funds += y.funds * mult - y.cost;
+        // same deal as a manual flight: hardware comes out of the earnings and never takes you below $0
+        var net = Math.max(0, y.funds * mult - y.cost);
+        st.funds += net;
         st.sci += y.sci * mult;
-        earn('crew', y.funds * mult - y.cost, y.sci * mult);
+        earn('crew', net, y.sci * mult);
         st.totalLaunches++;
         if (y.orbit && st.sats < G.satCap()) st.sats++;
       }

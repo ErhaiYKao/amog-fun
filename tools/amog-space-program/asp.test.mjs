@@ -252,18 +252,47 @@ test('sim speed: 16x from the start, faster speeds are research', () => {
 
 // ---- Launch costs, crew ------------------------------------------------------
 
-test('launches cost hardware; the soda bottle is free so you can never get stuck', () => {
+test('hardware comes out of the earnings: you can launch while broke and a flop never costs money', () => {
   const st = fresh();
   assert.equal(G.launchCost(), 0);
-  assert.ok(G.launch(true));
-  G.flight.advance(4000); G.endFlight();
-  st.research.engSundancer = true;
-  G.setStageEngine(0, 'sundancer');
+  st.research.engSundancer = true; st.research.engKestrel = true;
+  // broke, with an expensive rocket: you can still launch
+  G.setStageEngine(0, 'kestrel');
   st.funds = 0;
   assert.ok(G.launchCost() > 0);
-  assert.match(G.launchBlocker(), /afford/);
-  G.setStageEngine(0, 'fizz');
   assert.equal(G.launchBlocker(), '');
+  // a flop (aborted on the pad) earns less than its hardware and nets exactly $0
+  assert.ok(G.launch(true));
+  G.flight.status = 'aborted';
+  const flop = G.endFlight();
+  assert.ok(flop.funds < flop.cost);
+  assert.equal(flop.net, 0);
+  assert.equal(st.funds, 0);
+  // a good flight nets earnings minus hardware
+  G.setStageEngine(0, 'sundancer');
+  st.design.stages[0].tanks = Math.min(2, G.maxTanks());
+  const fly = () => { assert.ok(G.launch(true)); while (G.flight.status === 'flying') G.flight.advance(60); return G.endFlight(); };
+  fly(); // the first one also claims one-time altitude milestones
+  const before = st.funds, r = fly();
+  assert.ok(r.funds > r.cost);
+  assert.ok(Math.abs(r.net - (r.funds - r.cost)) < 1e-9);
+  assert.ok(Math.abs(st.funds - before - r.net) < 1e-6, `gained ${st.funds - before}, net ${r.net}`);
+});
+
+test('every newly researched first-stage engine has a profitable single-stage design', () => {
+  // the "research an engine, slap it on, go broke" trap from airetho's playtest
+  const P = createRequire(import.meta.url)('../../public/amog-space-program/js/physics.js');
+  for (const [id, cd] of [['sundancer', 1], ['kestrel', 1], ['merlin', 0.55], ['raptor', 0.55]]) {
+    const e = D.ENGINES[id];
+    let best = -Infinity;
+    for (let t = 2; t <= 20; t += 2) {
+      const f = new P.Flight({ stages: [{ engine: e, engineCount: 1, tanks: t, tankFuel: D.TANK.fuel, tankDry: D.TANK.fuel * D.TANK.dryFrac * (e.dryMult || 1) }],
+        payload: D.PAYLOAD_MASS, cdA: D.BASE_CDA * cd, turnStart: 0, turnEnd: 0 });
+      while (f.status === 'flying' && f.t < 3600) f.advance(60);
+      best = Math.max(best, D.launchPayout(f.maxAlt, f.maxSpeed, f.status === 'orbit', 1) - (e.unit + e.tank * t));
+    }
+    assert.ok(best > 0, `${id}: best single-stage profit ${best}`);
+  }
 });
 
 test('ground crew re-flies the last free flight on credit, never stalls', () => {
@@ -273,7 +302,7 @@ test('ground crew re-flies the last free flight on credit, never stalls', () => 
   st.funds = 0;
   G.tick(G.autoInterval() * 10 + 0.01);
   assert.ok(Math.abs(st.funds - 4000) < 1e-6, `funds ${st.funds}`);
-  // a money-losing job does not fly while broke
+  // a money-losing job nets $0 (never negative)
   st.lastYield.funds = 50; st.funds = 0;
   G.tick(G.autoInterval() * 3 + 0.01);
   assert.equal(st.funds, 0);
