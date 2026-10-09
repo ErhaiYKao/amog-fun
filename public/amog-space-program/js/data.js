@@ -31,16 +31,16 @@
                  blurb: 'Hobby-store solid motor, scaled up irresponsibly.' },
     kestrel:   { id: 'kestrel',   name: 'Kestrel',         ve: 2500,  thrust: 2.6e4, mass: 180,  unit: 60,    tank: 10,  research: 'engKestrel', vac: 1.12,
                  blurb: 'A real kerolox engine. Small, honest, flammable.' },
-    merlin:    { id: 'merlin',    name: 'Merlin-ish',      ve: 3000,  thrust: 1.2e5, mass: 450,  unit: 150,   tank: 12,  research: 'engMerlin', vac: 1.12,
+    merlin:    { id: 'merlin',    name: 'Merlin-ish',      ve: 3000,  thrust: 1.2e5, mass: 450,  unit: 60,   tank: 5,  research: 'engMerlin', vac: 1.12,
                  blurb: 'Now we are actually doing this.' },
-    raptor:    { id: 'raptor',    name: 'Raptor-class',    ve: 3550,  thrust: 4.5e5, mass: 950,  unit: 600,  tank: 15,  research: 'engRaptor', vac: 1.10,
+    raptor:    { id: 'raptor',    name: 'Raptor-class',    ve: 3550,  thrust: 4.5e5, mass: 950,  unit: 150,  tank: 5,  research: 'engRaptor', vac: 1.10,
                  blurb: 'Full-flow staged combustion. Amog approves.' },
-    hydra:     { id: 'hydra',     name: 'Hydra (hydrolox)', ve: 4300, thrust: 7.0e4, mass: 320,  unit: 6000,  tank: 40,  research: 'engHydra', upper: true, dryMult: 1.6,
+    hydra:     { id: 'hydra',     name: 'Hydra (hydrolox)', ve: 4300, thrust: 7.0e4, mass: 320,  unit: 600,  tank: 8,  research: 'engHydra', upper: true, dryMult: 1.6,
                  blurb: 'Liquid hydrogen + oxygen, vacuum nozzle. Upper stages only — at sea level the bell would just flap.' },
-    nerva:     { id: 'nerva',     name: 'NERVA (nuclear)', ve: 8200,  thrust: 7.0e4, mass: 1800, unit: 40000, tank: 60,  research: 'engNerva', upper: true, dryMult: 1.8,
+    nerva:     { id: 'nerva',     name: 'NERVA (nuclear)', ve: 8200,  thrust: 7.0e4, mass: 1800, unit: 1500, tank: 10,  research: 'engNerva', upper: true, dryMult: 1.8,
                  upgrade: { research: 'nerva2', ve: 9200 },
                  blurb: 'A nuclear reactor with a hole in one end. ve = 8.2 km/s, but it weighs 1.8 t and its hydrogen tanks are fat.' },
-    ion:       { id: 'ion',       name: 'Ion drive',       ve: 30000, thrust: 100,   mass: 60,   unit: 15000, tank: 300, research: 'engIon', planner: true, dryMult: 1.5,
+    ion:       { id: 'ion',       name: 'Ion drive',       ve: 30000, thrust: 100,   mass: 60,   unit: 1500, tank: 30, research: 'engIon', planner: true, dryMult: 1.5,
                  blurb: 'Shoots xenon at 30 km/s with the thrust of a sheet of paper. Can’t lift off and can’t land: only helps ion-friendly missions (orbits, asteroids), and slowly.' }
   };
 
@@ -325,7 +325,7 @@
 
   function launchPayout(maxAlt, maxSpeed, gotOrbit, telemetryMult) {
     var f = 15 * Math.pow(effectiveAlt(maxAlt), 0.85) + 0.25 * Math.pow(maxSpeed / 100, 2);
-    if (gotOrbit) f *= 1.5;
+    if (gotOrbit) f *= 3; // orbit is where the money is
     return f * (telemetryMult || 1);
   }
 

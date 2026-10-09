@@ -549,7 +549,7 @@
     var y = G.state.lastYield;
     if (!y) return { funds: 0, sci: 0 };
     var mult = G.globalMult();
-    return { funds: Math.max(0, y.funds * mult - (y.cost || 0)), sci: y.sci * mult };
+    return { funds: G.flightNet(y.funds * mult, y.cost || 0), sci: y.sci * mult };
   };
   G.incomeRates = function () {
     var st = G.state, iv = G.autoInterval();
@@ -564,6 +564,9 @@
   };
 
   G.launchCost = function () { return G.designCost(G.state.design); };
+  // what a flight actually pays you: its earnings minus hardware, with hardware capped at half the earnings
+  G.HARDWARE_CAP = 0.5;
+  G.flightNet = function (payout, hardware) { return payout - Math.min(hardware, payout * G.HARDWARE_CAP); };
 
   // Returns '' if this design can launch right now, else the reason.
   G.launchBlocker = function () {
@@ -647,9 +650,9 @@
     var mult = G.globalMult();
     var funds = D.launchPayout(f.maxAlt, f.maxSpeed, gotOrbit, G.telemetryMult()) * mult;
     var sci = D.launchScience(f.maxAlt) * mult;
-    // hardware comes out of the flight's earnings; a flight that earns less than its hardware nets $0
-    // (the sponsor eats the difference), so a bad design wastes time, never money
-    var net = Math.max(0, funds - meta.cost);
+    // hardware comes out of the flight's earnings, but never more than half of them: every flight keeps
+    // at least 50% of its payout (the sponsor covers the rest), so a big rocket costs profit, never money
+    var net = G.flightNet(funds, meta.cost);
     st.funds += net; st.sci += sci;
     earn('flights', net, sci);
     if (f.maxAlt > st.bestAlt) st.bestAlt = f.maxAlt;
@@ -657,7 +660,7 @@
 
     var result = {
       status: f.status, maxAlt: f.maxAlt, maxSpeed: f.maxSpeed,
-      funds: funds, sci: sci, cost: meta.cost, net: net, covered: Math.max(0, meta.cost - funds), payload: meta.payload,
+      funds: funds, sci: sci, cost: meta.cost, net: net, covered: Math.max(0, meta.cost - (funds - net)), payload: meta.payload,
       satDeployed: false, budget: 0, manual: meta.manual, t: f.t,
       contract: null, mission: null, missionShort: 0
     };
@@ -1238,7 +1241,7 @@
         G._autoT -= iv;
         var y = st.lastYield;
         // same deal as a manual flight: hardware comes out of the earnings and never takes you below $0
-        var net = Math.max(0, y.funds * mult - y.cost);
+        var net = G.flightNet(y.funds * mult, y.cost);
         st.funds += net;
         st.sci += y.sci * mult;
         earn('crew', net, y.sci * mult);

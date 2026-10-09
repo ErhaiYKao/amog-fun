@@ -252,7 +252,7 @@ test('sim speed: 16x from the start, faster speeds are research', () => {
 
 // ---- Launch costs, crew ------------------------------------------------------
 
-test('hardware comes out of the earnings: you can launch while broke and a flop never costs money', () => {
+test('hardware comes out of the earnings, capped at half: launch while broke, every flight keeps half its payout', () => {
   const st = fresh();
   assert.equal(G.launchCost(), 0);
   st.research.engSundancer = true; st.research.engKestrel = true;
@@ -261,13 +261,13 @@ test('hardware comes out of the earnings: you can launch while broke and a flop 
   st.funds = 0;
   assert.ok(G.launchCost() > 0);
   assert.equal(G.launchBlocker(), '');
-  // a flop (aborted on the pad) earns less than its hardware and nets exactly $0
+  // a flop earns less than its hardware and still keeps half its payout
   assert.ok(G.launch(true));
   G.flight.status = 'aborted';
   const flop = G.endFlight();
   assert.ok(flop.funds < flop.cost);
-  assert.equal(flop.net, 0);
-  assert.equal(st.funds, 0);
+  assert.ok(Math.abs(flop.net - flop.funds / 2) < 1e-9);
+  assert.ok(Math.abs(st.funds - flop.net) < 1e-6);
   // a good flight nets earnings minus hardware
   G.setStageEngine(0, 'sundancer');
   st.design.stages[0].tanks = Math.min(2, G.maxTanks());
@@ -275,7 +275,8 @@ test('hardware comes out of the earnings: you can launch while broke and a flop 
   fly(); // the first one also claims one-time altitude milestones
   const before = st.funds, r = fly();
   assert.ok(r.funds > r.cost);
-  assert.ok(Math.abs(r.net - (r.funds - r.cost)) < 1e-9);
+  assert.ok(Math.abs(r.net - G.flightNet(r.funds, r.cost)) < 1e-9);
+  assert.ok(r.net >= r.funds / 2);
   assert.ok(Math.abs(st.funds - before - r.net) < 1e-6, `gained ${st.funds - before}, net ${r.net}`);
 });
 
@@ -302,10 +303,10 @@ test('ground crew re-flies the last free flight on credit, never stalls', () => 
   st.funds = 0;
   G.tick(G.autoInterval() * 10 + 0.01);
   assert.ok(Math.abs(st.funds - 4000) < 1e-6, `funds ${st.funds}`);
-  // a money-losing job nets $0 (never negative)
+  // a job whose hardware outweighs its payout still keeps half the payout
   st.lastYield.funds = 50; st.funds = 0;
   G.tick(G.autoInterval() * 3 + 0.01);
-  assert.equal(st.funds, 0);
+  assert.ok(Math.abs(st.funds - 75) < 1e-6, `funds ${st.funds}`);
 });
 
 // ---- Contracts ----------------------------------------------------------------
@@ -603,4 +604,18 @@ test('early game: rewarding first minutes, but no longer a sprint to space', () 
   assert.ok(m['r:engSundancer'] < 4 * 60, `first research at ${m['r:engSundancer']}s`);
   assert.ok(m.alt5000 < 8 * 60, `science by ${m.alt5000}s`);
   assert.ok(m.alt100000 > 6 * 60, `Kármán line already at ${m.alt100000}s`);
+});
+
+test('late-game hardware stays a minority of what a good orbital rocket earns', () => {
+  // airetho's playtest: ~$440k of hardware per launch against ~$10k of reward
+  const P = createRequire(import.meta.url)('../../public/amog-space-program/js/physics.js');
+  const stg = (id, n, t) => ({ engine: D.ENGINES[id], engineCount: n, tanks: t, tankFuel: D.TANK.fuel, tankDry: D.TANK.fuel * 0.045 * (D.ENGINES[id].dryMult || 1) });
+  for (const upper of ['hydra', 'nerva']) {
+    const stages = [stg('raptor', 3, 60), stg('raptor', 1, 60), stg(upper, 1, 30)];
+    const f = new P.Flight({ stages, payload: 300, cdA: D.BASE_CDA * 0.4, turnStart: 1000, turnEnd: 30000 });
+    while (f.status === 'flying' && f.t < 7200) f.advance(60);
+    const pay = D.launchPayout(f.maxAlt, f.maxSpeed, f.status === 'orbit', 1);
+    const hw = stages.reduce((a, s) => a + s.engine.unit * s.engineCount + s.engine.tank * s.tanks, 0);
+    assert.ok(hw < pay * 0.5, `${upper}: hardware ${hw} vs payout ${Math.round(pay)} (${f.status})`);
+  }
 });

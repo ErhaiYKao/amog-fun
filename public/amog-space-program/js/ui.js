@@ -194,7 +194,7 @@
       }
       html += '</div>';
       html += '<div class="hint">Payload ' + r.probe + ' kg · liftoff mass ' + (r.stats.liftoffMass / 1000).toFixed(2) +
-        ' t · hardware <b>$' + D.fmt(G.launchCost()) + '</b>/launch, paid out of the flight’s earnings' +
+        ' t · hardware <b>$' + D.fmt(G.launchCost()) + '</b>/launch, paid out of the flight’s earnings (never more than half)' +
         (G.state.research.reuse ? ' (stage 1 recovered)' : '') + '</div>';
       if (r.stats.liftoffTwr < 1.02) {
         html += '<div class="bad">TWR &lt; 1 — this will sit on the pad and burn until it’s light enough.</div>';
@@ -293,7 +293,7 @@
     box.innerHTML = '<b>Last flight: ' + txt(s[0]) + extra + '</b>' +
       '<span>' + D.fmtDist(res.maxAlt) + ' · ' + D.fmtSpeed(res.maxSpeed) + ' · ' + D.fmtTime(res.t) +
       ' · payload ' + res.payload + ' kg</span>' +
-      '<em>+$' + D.fmt(res.net) + (res.cost ? ' (earned $' + D.fmt(res.funds) + ' − hardware $' + D.fmt(res.cost) + (res.covered ? '; the sponsor ate the loss' : '') + ')' : '') +
+      '<em>+$' + D.fmt(res.net) + (res.cost ? ' (earned $' + D.fmt(res.funds) + ' − hardware $' + D.fmt(res.cost) + (res.covered ? '; you keep half, the sponsor covered $' + D.fmt(res.covered) : '') + ')' : '') +
       (res.sci >= 1 ? ' · +' + D.fmt(res.sci) + '⚗' : '') +
       (res.budget ? ' · Δv left in orbit ' + D.fmtSpeed(res.budget) : '') + '</em>' +
       (res.missionWhy ? '<span class="bad">' + txt(res.missionWhy) + '</span>' : '');
@@ -879,7 +879,7 @@
       '<p>The space program got an overhaul, and your save came along. What changed:</p>' +
       '<ul class="changes">' +
       '<li><b>Research unlocks engines directly</b> — no second purchase. Engines you owned are researched.</li>' +
-      '<li><b>Hardware comes out of each flight’s earnings</b> (a flop nets $0, it never costs you money), and the <b>ground crew</b> re-flies your latest free flight back to back.</li>' +
+      '<li><b>Hardware comes out of each flight’s earnings</b>, but never more than half: every flight pays you at least 50% of what it earns. The <b>ground crew</b> re-flies your latest free flight back to back.</li>' +
       '<li><b>Contracts</b>: rotating jobs with their own payloads and targets.</li>' +
       '<li><b>Missions are flown</b>: set one as the flight objective and reach orbit with enough Δv to spare, or dispatch a proven vehicle. ' +
       'Several at once (Deep Space Network), launch windows, gravity assists, aerobraking, auto-dispatch.</li>' +

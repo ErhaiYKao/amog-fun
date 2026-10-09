@@ -357,17 +357,16 @@ export function runBot(opts = {}) {
   // income per second of player time for a flight result
   function rate(res, design) {
     if (!res.ok || res.status === 'aborted') return -Infinity;
-    const cost = G.designCost(design);
-    if (cost > st().funds) return -Infinity;
+    // hardware is paid out of the earnings (capped at half), never up front, so cash on hand doesn't matter
     const pay = D.launchPayout(res.maxAlt, res.maxSpeed, res.status === 'orbit', G.telemetryMult()) * G.globalMult();
     const sci = D.launchScience(res.maxAlt) * G.globalMult();
     // science valued like money at the current outsourcing exchange rate
     const sciVal = sci * D.outsourceCost(st().outsourced) / D.outsourceSci(st().outsourced) * 0.5;
-    return (pay + sciVal - cost) / (overhead + res.t / G.maxWarp());
+    return (G.flightNet(pay, G.designCost(design)) + sciVal) / (overhead + res.t / G.maxWarp());
   }
 
   function altScore(res, design) {
-    if (!res.ok || G.designCost(design) > st().funds) return -Infinity;
+    if (!res.ok) return -Infinity;
     return res.maxAlt - G.designCost(design) * 1e-3;
   }
 
@@ -562,7 +561,7 @@ export function runBot(opts = {}) {
         const orb = bestBudget(D.PAYLOAD_MASS, false);
         if (orb.budget && G.designCost(orb.design) <= s.funds) { fly(orb.design); continue; }
       }
-      if (alt && alt.res.maxAlt > s.bestAlt * 1.03 + 50 && G.designCost(alt.design) <= s.funds) {
+      if (alt && alt.res.maxAlt > s.bestAlt * 1.03 + 50) {
         fly(alt.design); continue;
       }
     }
@@ -580,7 +579,7 @@ export function runBot(opts = {}) {
       if (!crew && grind !== 'never') { fly(incomeBest.design); continue; }
       if (crew && grind === 'always') { fly(incomeBest.design); continue; }
       // hand the best income design to the ground crew, then let them work
-      if (crew && (!job || job.key !== jobName) && G.designCost(incomeBest.design) <= s.funds) {
+      if (crew && (!job || job.key !== jobName)) {
         s.crewLock = false;
         fly(incomeBest.design);
         if (s.lastYield) { s.lastYield.key = jobName; s.crewLock = true; }
