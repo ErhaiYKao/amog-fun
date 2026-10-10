@@ -36,7 +36,9 @@
     const s = UI.s;
     for (const e of s.ev.splice(0)) {
       if (e.type === "quest") UI.log(`Quest complete: ${e.text}`, "quest");
-      if (e.type === "new") UI.log(`New: ${e.text}`, "new", e.id);
+      if (e.type === "new") UI.log(`New: ${e.text}`, "new", e.id === "area" ? null : e.id);
+      if (e.type === "land") UI.log(`The island grew: ${e.text}.`, "quest");
+      if (e.type === "faint") UI.log(`The ${e.text.toLowerCase()} knocked you out. Back in a few seconds.`, "");
     }
   }
   UI.noteGains = gains => {

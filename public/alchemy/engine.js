@@ -2,7 +2,7 @@
 (function (root) {
   "use strict";
   const D = root.ALCHEMY_DATA || require("./data.js");
-  const { ITEMS, RECIPES, SMELT, ALLOY, CROPS, ACTIONS, QUESTS, CONFIG: C } = D;
+  const { ITEMS, RECIPES, SMELT, ALLOY, CROPS, MOBS, AREAS, ACTIONS, QUESTS, CONFIG: C } = D;
   RECIPES.forEach((r, i) => (r.id = r.id || "r" + i));
   // stable across data.js edits (ids shift when recipes are inserted), used for hidden-recipe prefs
   RECIPES.forEach(r => (r.key = r.key || Object.keys(r.out).join("+") + "<" + Object.keys(r.in).join("+")));
@@ -28,6 +28,8 @@
     treeHarvester: () => ({ p: 0, enabled: true }),
     geothermal: () => ({ enabled: true }),
     autoCompressor: () => ({ t: 0, sel: "dust" }),
+    mobGrinder: () => ({ p: 0, sel: "zombie", enabled: true }),
+    table: () => ({ auto: null, limit: C.autocraft.limit, t: 0 }),
   };
 
   // Stations share a recipe queue with one job slot per machine; use shared fuel or electricity.
@@ -40,12 +42,14 @@
 
   function create(now = Date.now()) {
     const s = {
-      v: 5, t: now, start: now, won: 0, clicks: 0,
+      v: 6, t: now, start: now, won: 0, clicks: 0,
       inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {}, hide: {},
       sel: { sieve: "dirt", hammer: "cobble", chammer: "cCobble", hsieve: "cGravel", autoHammer: "cobble", autoSieve: "gravel", autoCHammer: "cCobble", autoHeavySieve: "cGravel" },
       opt: { feedBarrels: true, compostSaplings: false, feedCrucible: true },
       fuel: [0, 0, 0, 0], queue: [], slots: [], aqueue: [], aslots: [], fold: {}, ev: [],
       energy: 0, power: { generated: 0, used: 0 },
+      areas: {}, hp: C.combat.hp, xp: 0, mob: { id: "zombie", hp: MOBS.zombie.hp }, hitT: 0, calmT: 99, faintT: 0, kills: {},
+      cows: 0, cowT: 0, ench: {},
     };
     for (const st of Object.values(STATIONS)) { s[st.q] = []; s[st.sl] = []; }
     for (let i = 0; i < C.start.land; i++) s.island.push(null);
@@ -88,7 +92,9 @@
     for (const [id, v] of C.tools[kind]) if (count(s, id) > 0) best = [id, v];
     return best;
   }
-  const toolValue = (s, kind) => (tool(s, kind) || [null, 0])[1];
+  // enchanting makes your best tool of a kind stronger (25% per level); meshes aren't enchantable (they gate drops)
+  const enchMult = (s, kind) => 1 + C.enchant.perLevel * ((s.ench && s.ench[kind]) || 0);
+  const toolValue = (s, kind) => (tool(s, kind) || [null, 0])[1] * (C.enchant.kinds.includes(kind) ? enchMult(s, kind) : 1);
 
   function roll(s, table, mesh = 0) {
     const got = {};
@@ -198,20 +204,6 @@
   }
 
   // ---------- island ----------
-  // the next tile's price: { id, n }. Each stretch of island needs a harder material (CONFIG.land.tiers).
-  function expandCost(s) {
-    const size = s.island.length, tiers = C.land.tiers;
-    const i = tiers.findIndex(t => size < t.upTo), tier = tiers[i < 0 ? tiers.length - 1 : i];
-    const from = i > 0 ? tiers[i - 1].upTo : C.start.land;
-    return { id: tier.id, n: tier.n + tier.step * (size - from) };
-  }
-  function expand(s) {
-    const c = expandCost(s);
-    if (s.island.length >= C.land.max || count(s, c.id) < c.n) return false;
-    take(s, c.id, c.n);
-    s.island.push(null);
-    return true;
-  }
   // empty a tile, handing back whatever was inside the machine (not the machine itself)
   function clearTile(s, i) {
     const t = s.island[i];
@@ -330,6 +322,7 @@
         slotList[i] = { id: q.id, p: 0 };
         if (--q.n <= 0) queue.shift();
       }
+      if (!slotList[i]) autoJob(s, st, i);
       const job = slotList[i];
       if (!job) continue;
       const rec = S.rec(job.id);
@@ -344,6 +337,141 @@
         t -= use;
         job.p += use / rec.time;
         if (job.p >= 1 - 1e-6) { give(s, rec.out, rec.n); slotList[i] = null; break; }
+      }
+    }
+  }
+
+  // ---------- auto-crafting: a machine set to auto-make something starts a job whenever its slot is idle,
+  // the queue is empty, the ingredients are there and you have fewer than its limit ----------
+  const autoOn = s => !!s.quests.auto;
+  function autoJob(s, st, i) {
+    if (!autoOn(s)) return;
+    const t = s.island.filter(x => x && x.id === st)[i]; // the i-th machine of this kind runs slot i
+    if (!t || !t.auto) return;
+    const rec = STATIONS[st].rec(t.auto);
+    if (!rec || count(s, rec.out) >= (t.limit || C.autocraft.limit) || stationMax(s, st, t.auto) < 1) return;
+    for (const k in rec.in) take(s, k, rec.in[k]);
+    s[STATIONS[st].sl][i] = { id: t.auto, p: 0, auto: true };
+  }
+  function autoCraftTable(s, t, dt) {
+    if (!autoOn(s) || !t.auto) return;
+    const r = RECIPES.find(x => x.key === t.auto);
+    if (!r) return;
+    t.t = (t.t || 0) + dt;
+    while (t.t >= C.autocraft.time) {
+      t.t -= C.autocraft.time;
+      const out = Object.keys(r.out)[0];
+      if (count(s, out) >= (t.limit || C.autocraft.limit) || !recipeState(s, r).ok) { t.t = 0; break; }
+      craft(s, r, 1);
+    }
+  }
+  function setAuto(s, i, recipe, limit) {
+    const t = s.island[i];
+    if (!t || !(t.id === "table" || STATIONS[t.id])) return false;
+    if (recipe !== undefined) t.auto = recipe || null;
+    if (limit !== undefined) t.limit = Math.max(1, Math.min(99999, limit | 0));
+    return true;
+  }
+
+  // ---------- the wilds: areas, combat, the pasture, enchanting ----------
+  function unlockArea(s, id) {
+    const a = AREAS[id];
+    if (!a || s.areas[id] || Object.entries(a.unlock).some(([k, n]) => count(s, k) < n)) return false;
+    for (const [k, n] of Object.entries(a.unlock)) take(s, k, n);
+    s.areas[id] = 1;
+    if (id === "pasture") s.cows = Math.max(s.cows, C.pasture.start);
+    emit(s, "new", a.name, { id: "area" });
+    checkQuests(s);
+    return true;
+  }
+  // levels: level L needs levelXp·L² total XP
+  const level = s => Math.floor(Math.sqrt((s.xp || 0) / C.combat.levelXp));
+  const xpFor = L => C.combat.levelXp * L * L;
+  const swordDmg = s => toolValue(s, "sword") || C.combat.fist;
+  const armorBlock = s => Math.min(C.combat.armorMax, toolValue(s, "armor") * C.combat.armorPct);
+  function setMob(s, id) {
+    if (!MOBS[id] || level(s) < MOBS[id].level || s.mob.id === id) return false;
+    s.mob = { id, hp: MOBS[id].hp };
+    return true;
+  }
+  // one swing at the current mob; returns { dmg, killed, drops } or null if you can't fight right now
+  function attack(s) {
+    if (!s.areas.platform || s.faintT > 0) return null;
+    const m = MOBS[s.mob.id], dmg = swordDmg(s);
+    s.calmT = 0;
+    s.mob.hp -= dmg;
+    if (s.mob.hp > 1e-9) return { dmg, killed: false };
+    s.xp += m.xp;
+    s.kills[s.mob.id] = (s.kills[s.mob.id] || 0) + 1;
+    const drops = roll(s, m.drops);
+    s.mob = { id: s.mob.id, hp: m.hp };
+    return { dmg, killed: true, drops, xp: m.xp };
+  }
+  function eat(s) {
+    if ((s.inv.steak || 0) < 1 || s.hp >= C.combat.hp || s.faintT > 0) return false;
+    take(s, "steak", 1);
+    s.hp = Math.min(C.combat.hp, s.hp + C.combat.steakHeal);
+    return true;
+  }
+  function tickCombat(s, dt) {
+    if (!s.areas.platform) return;
+    const K = C.combat;
+    if (s.faintT > 0) { s.faintT = Math.max(0, s.faintT - dt); if (!s.faintT) s.hp = K.hp; return; }
+    s.calmT += dt;
+    if (s.calmT >= K.calm) { // nobody's swinging: the mob wanders off to heal, and so do you
+      s.hp = Math.min(K.hp, s.hp + K.regen * dt);
+      s.mob.hp = MOBS[s.mob.id].hp;
+      s.hitT = 0;
+      return;
+    }
+    const m = MOBS[s.mob.id];
+    s.hitT += dt;
+    while (s.hitT >= m.every) {
+      s.hitT -= m.every;
+      s.hp -= m.dmg * (1 - armorBlock(s));
+      if (s.hp <= 0) { s.hp = 0; s.faintT = K.faint; s.mob.hp = m.hp; s.hitT = 0; emit(s, "faint", m.name, {}); break; }
+    }
+  }
+  function breed(s) {
+    const cost = C.pasture.breed;
+    if (!s.areas.pasture || s.cows >= C.pasture.max || Object.entries(cost).some(([k, n]) => count(s, k) < n)) return false;
+    for (const [k, n] of Object.entries(cost)) take(s, k, n);
+    s.cows++;
+    return true;
+  }
+  function tickPasture(s, dt) {
+    if (!s.areas.pasture || !s.cows) return;
+    s.cowT += dt;
+    while (s.cowT >= C.pasture.every) { s.cowT -= C.pasture.every; for (let k = 0; k < s.cows; k++) roll(s, C.pasture.drops); }
+  }
+  const enchantCost = (s, kind) => C.enchant.cost * (((s.ench && s.ench[kind]) || 0) + 1);
+  function enchant(s, kind) {
+    if (!built(s, "enchantTable") || !C.enchant.kinds.includes(kind) || !tool(s, kind)) return false;
+    const n = s.ench[kind] || 0, cost = enchantCost(s, kind), L = level(s);
+    if (n >= C.enchant.max || L < cost) return false;
+    s.xp = xpFor(L - cost); // spend whole levels
+    s.ench[kind] = n + 1;
+    checkQuests(s);
+    return true;
+  }
+  function grindMobs(s, dt) {
+    const cfg = C.grinder;
+    for (const t of s.island) {
+      if (!t || t.id !== "mobGrinder") continue;
+      let left = dt;
+      t.status = t.enabled ? "grinding" : "paused";
+      while (t.enabled && left > 1e-9) {
+        const wanted = Math.min(left, (1 - t.p) * cfg.time), ran = usePower(s, cfg.watts, wanted);
+        t.p += ran / cfg.time;
+        left -= ran;
+        if (ran + 1e-9 < wanted) t.status = "waiting for energy";
+        if (t.p >= 1 - 1e-9) {
+          t.p = 0;
+          const m = MOBS[cfg.mobs.includes(t.sel) ? t.sel : "zombie"];
+          roll(s, m.drops);
+          s.xp += cfg.xp;
+        }
+        if (ran + 1e-9 < wanted) break;
       }
     }
   }
@@ -425,6 +553,7 @@
           slots[i] = { id: q.id, p: 0 };
           if (--q.n <= 0) queue.shift();
         }
+        if (!slots[i]) autoJob(s, st, i);
         const job = slots[i];
         if (!job) break;
         const rec = S.rec(job.id), wanted = Math.min(left, (1 - job.p) * rec.time);
@@ -552,6 +681,7 @@
         case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve":
           autoRun(s, tile, dt);
           break;
+        case "table": autoCraftTable(s, tile, dt); break;
         case "autoCompressor": {
           const out = C.compress.map[tile.sel];
           tile.t += dt;
@@ -565,16 +695,27 @@
           break;
         }
         case "farmland":
-          if (!tile.seed && tile.sel && count(s, tile.sel) > 0) { take(s, tile.sel, 1); tile.seed = tile.sel; tile.g = 0; }
+          if (!tile.seed && tile.sel && count(s, tile.sel) > 0) {
+            take(s, tile.sel, 1); tile.seed = tile.sel; tile.g = 0;
+            if (tile.fert && count(s, "boneMeal") > 0) { take(s, "boneMeal", 1); tile.g = 0.5; }
+          }
           if (tile.seed) {
             tile.g += dt / CROPS[tile.seed].grow;
-            while (tile.g >= 1) { tile.g -= 1; roll(s, CROPS[tile.seed].drops); }
+            while (tile.g >= 1) {
+              tile.g -= 1;
+              roll(s, CROPS[tile.seed].drops);
+              // fertilized: every crop that gets a bone meal starts half grown (twice as fast)
+              if (tile.fert && count(s, "boneMeal") > 0) { take(s, "boneMeal", 1); tile.g += 0.5; }
+            }
           }
           break;
       }
     }
     for (const st in STATIONS) tickStation(s, st, dt);
     harvestTrees(s, dt);
+    grindMobs(s, dt);
+    tickCombat(s, dt);
+    tickPasture(s, dt);
     s.power.used /= dt;
     checkQuests(s);
   }
@@ -586,6 +727,8 @@
     if (need.anyBuilt && !need.anyBuilt.some(id => built(s, id) > 0)) return false;
     if (need.gotAny && !need.gotAny.some(id => (s.got[id] || 0) > 0)) return false;
     if (need.land && s.island.length < need.land) return false;
+    if (need.area && !(s.areas || {})[need.area]) return false;
+    if (need.enchanted && Object.values(s.ench || {}).reduce((a, n) => a + n, 0) < need.enchanted) return false;
     return true;
   }
   function checkQuests(s) {
@@ -596,6 +739,14 @@
       emit(s, "quest", q.title, { id: q.id });
       if (q.id === "terminal" && !s.won) s.won = s.t;
     }
+    growLand(s);
+  }
+  // land: every completed quest adds a tile (it never shrinks, so old saves keep what they bought)
+  const landTarget = s => Math.min(C.land.max, C.start.land + C.land.perQuest * Object.keys(s.quests).length);
+  function growLand(s) {
+    let grew = 0;
+    while (s.island.length < landTarget(s)) { s.island.push(null); grew++; }
+    if (grew) emit(s, "land", `+${grew} tile${grew === 1 ? "" : "s"} of land`, {});
   }
   // advancement tree: open = not done yet, and everything it comes after is done
   const openQuests = s => QUESTS.filter(q => !s.quests[q.id] && (q.after || []).every(a => s.quests[a]));
@@ -632,7 +783,9 @@
     }
     if (s.v < 4) s.v = 4; // new grid/queue fields were filled from create(); legacy machines stay fuel-free
     if (s.v < 5) s.v = 5; // v5: buildings can sit in the inventory; nothing on the island changes
+    if (s.v < 6) s.v = 6; // v6: land comes from quests (growLand below), the wilds; new fields filled from create()
     s.ev = [];
+    growLand(s); // land owed for quests already done
     return s;
   }
   // credit time spent away (capped); returns what was gained
@@ -650,9 +803,10 @@
 
   const api = {
     DATA: D, KEY, create, count, built, free, grownTrees, give, take, tool, toolValue, actionState, act,
-    cost, recipeState, maxCraft, craft, visible, hidden, toolKind, expandCost, expand, demolish, pickUp, place, move, placesAs, isPlace, feedBarrels, fullRain, lavaCrucible,
+    cost, recipeState, maxCraft, craft, visible, hidden, toolKind, landTarget, demolish, pickUp, place, move, placesAs, isPlace, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
-    insertTool, pullTool, autoPeriod, setSeed, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
+    insertTool, pullTool, autoPeriod, setSeed, setAuto, unlockArea, level, xpFor, swordDmg, armorBlock, setMob, attack, eat,
+    breed, enchant, enchantCost, enchMult, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
   };
   root.Alchemy = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

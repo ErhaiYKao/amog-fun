@@ -19,8 +19,12 @@
  *          built. needTool: power from `per` alone isn't enough, you need the tool too. toolName: for messages.
  * Drop tables are lists of [item, chance, amount, gate]. gate is a minimum mesh tier (number)
  *          or a tool kind you must own (string, e.g. "crook").
+ * MOBS     the Dark Platform's monsters: { name, hp, dmg (per hit), every (s between hits), xp, level (to fight),
+ *          drops, icon }. Your sword is CONFIG.tools.sword, your armor CONFIG.tools.armor.
+ * AREAS    unlockable places off the island (they take no tiles): { name, unlock: {id: n}, desc }.
  * QUESTS   an advancement tree. need: { got: {id: n} } (ever obtained), { built: {id: n} },
- *          { anyBuilt: [ids] }, { gotAny: [ids] }, { land: tiles }. reward: {id: n}. after: quest ids that
+ *          { anyBuilt: [ids] }, { gotAny: [ids] }, { land: tiles }, { area: id }, { enchanted: levels }. reward: {id: n}.
+ *          Every completed quest also adds one tile of land (CONFIG.land). after: quest ids that
  *          must be done before it shows as open (set in QUEST_AFTER below). A quest completes whenever its need
  *          is met, open or not. Array order = display order and tie-break for the "main" open quest.
  * CONFIG   timings and balance.
@@ -56,6 +60,17 @@
     cGravel: { name: "Compressed Gravel", icon: ["block", "#8a817c", "compressed"] },
     cSand: { name: "Compressed Sand", icon: ["block", "#dccf9a", "compressed"] },
     cDust: { name: "Compressed Dust", icon: ["block", "#ebe5d3", "compressed"] },
+    // the wilds: combat, animals, books
+    rottenFlesh: { name: "Rotten Flesh", icon: ["lump", "#7a8c3a"], compost: 2, desc: "Zombies drop it. Barrels compost it (worth 2 leaves)." },
+    bone: { name: "Bone", icon: ["bone", "#e8e2d0"], desc: "Skeletons drop it. Grind it into bone meal." },
+    boneMeal: { name: "Bone Meal", icon: ["pile", "#f0ece0"], desc: "Fertilizer: farmland set to use it grows each crop twice as fast." },
+    enderPearl: { name: "Ender Pearl", icon: ["ball", "#1f8f7a"], desc: "Endermen drop it. An enchanting table needs one." },
+    leather: { name: "Leather", icon: ["hide", "#8b5a2b"], desc: "From the cow pasture. Armor and books." },
+    rawBeef: { name: "Raw Beef", icon: ["lump", "#c0504d"], desc: "From the cow pasture. Cook it in a furnace." },
+    steak: { name: "Steak", icon: ["lump", "#7a4a2a"], desc: "Eat it on the Dark Platform to heal 8 HP." },
+    sugarcane: { name: "Sugarcane", icon: ["cane", "#7fbf5a"], desc: "Turns up when sieving sand. Plant it on farmland; it regrows. Paper comes from it." },
+    paper: { name: "Paper", icon: ["sheet", "#f2efe6"] },
+    book: { name: "Book", icon: ["book", "#8b3a2b"], desc: "Three paper bound in leather. The enchanting table wants one." },
     obsidian: { name: "Obsidian", icon: ["block", "#2a1f3d", "compressed"], desc: "Water poured onto lava. Very hard: geothermal generators and the last stretches of land need it." },
     glass: { name: "Glass", icon: ["block", "#bfe3ec", "dust"], desc: "Smelted sand. Solar panels and energy cells need it." },
 
@@ -115,6 +130,13 @@
     flintMesh: { name: "Flint Mesh", icon: ["mesh", "#55555e"] },
     ironMesh: { name: "Iron Mesh", icon: ["mesh", "#dcdcdc"] },
     diamondMesh: { name: "Diamond Mesh", icon: ["mesh", "#5ee0d8"] },
+    woodSword: { name: "Wooden Sword", icon: ["sword", "#b08850"] },
+    stoneSword: { name: "Stone Sword", icon: ["sword", "#8f8f8f"] },
+    ironSword: { name: "Iron Sword", icon: ["sword", "#dcdcdc"] },
+    diamondSword: { name: "Diamond Sword", icon: ["sword", "#5ee0d8"] },
+    leatherArmor: { name: "Leather Armor", icon: ["armor", "#8b5a2b"] },
+    ironArmor: { name: "Iron Armor", icon: ["armor", "#dcdcdc"] },
+    diamondArmor: { name: "Diamond Armor", icon: ["armor", "#5ee0d8"] },
     cHammer: { name: "Compressed Hammer", icon: ["hammer", "#6d747f"], desc: "Smashes compressed blocks: 9 at a time." },
     diamondCHammer: { name: "Diamond Compressed Hammer", icon: ["hammer", "#3fb8b0"] },
     pstone: { name: "Philosopher's Stone", icon: ["gem", "#e0243f", "glow"], desc: "Enables transmutation. Not used up." },
@@ -143,6 +165,8 @@
     fuelGenerator: { name: "Fuel Generator", icon: ["power", "#df963b"], place: true, desc: "40 W; stores 4,000 J. Burns your chosen coal or charcoal only when the grid has room. Click it to pick the fuel." },
     solarGenerator: { name: "Solar Generator", icon: ["solar", "#4678bb"], place: true, desc: "10 W forever under the void's eternal sun. Stores 2,000 J; no fuel required." },
     geothermal: { name: "Geothermal Generator", icon: ["power", "#ff7a1a"], place: true, desc: "150 W from lava: drinks it from your crucibles (or a lava bucket from your inventory) at 1 mB per 10 J. Stores 8,000 J." },
+    enchantTable: { name: "Enchanting Table", icon: ["enchant"], place: true, desc: "Spend XP levels to enchant your best tool of a kind: each level makes it 25% stronger. Click it to enchant." },
+    mobGrinder: { name: "Mob Grinder", icon: ["autohammer", "#c0392b"], place: true, desc: "40 W: fights a monster every 8 s for its drops and a little XP. Click it to pick which." },
     autoCompressor: { name: "Auto-Compressor", icon: ["autohammer", "#b692f6"], place: true, desc: "Squeezes 9 of a block into its compressed form every 4 s. Click it to pick which block." },
     battery: { name: "Energy Cell", icon: ["battery", "#76cfb3"], place: true, desc: "Adds 20,000 J of shared storage. Every powered machine connects automatically." },
     crusher: { name: "Crusher", icon: ["autohammer", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Click it to queue jobs." },
@@ -155,7 +179,7 @@
     dirt: [["pebble", 1, 2], ["pebble", 0.6, 1], ["pebble", 0.3, 1], ["seeds", 0.1, 1], ["sapling", 0.03, 1]],
     gravel: [["flint", 0.25, 1], ["coal", 0.12, 1], ["ironPiece", 0.3, 1], ["ironPiece", 0.15, 1],
       ["goldPiece", 0.08, 1, 2], ["diamond", 0.012, 1, 3]],
-    sand: [["ironPiece", 0.5, 1], ["ironPiece", 0.25, 1], ["goldPiece", 0.25, 1], ["glowstone", 0.06, 1, 2]],
+    sand: [["ironPiece", 0.5, 1], ["ironPiece", 0.25, 1], ["goldPiece", 0.25, 1], ["glowstone", 0.06, 1, 2], ["sugarcane", 0.04, 1]],
     dust: [["redstone", 0.3, 1], ["glowstone", 0.12, 1, 2], ["redstone", 0.1, 1, 3],
       ["clay", 0.15, 1], ["goldPiece", 0.12, 1, 2]],
   };
@@ -194,6 +218,7 @@
     ironChunk: { out: "iron", time: 8, heat: 3 },
     goldChunk: { out: "gold", time: 8, heat: 3 },
     sand: { out: "glass", time: 5, heat: 2 },
+    rawBeef: { out: "steak", time: 4, heat: 1 },
   };
 
   const ALLOY = {
@@ -234,6 +259,23 @@
     redstoneSeeds: { grow: 60, drops: [["redstone", 1, 2]] },
     glowSeeds: { grow: 90, drops: [["glowstone", 1, 1]] },
     diamondSeeds: { grow: 480, drops: [["diamond", 1, 1]] },
+    sugarcane: { grow: 40, drops: [["sugarcane", 1, 2]] },
+  };
+
+  const MOBS = {
+    zombie: { name: "Zombie", hp: 10, dmg: 2, every: 1.6, xp: 4, level: 0, icon: ["mob", "#5d9b4a", "zombie"],
+      drops: [["rottenFlesh", 1, 1], ["rottenFlesh", 0.5, 1], ["ironPiece", 0.05, 1]] },
+    skeleton: { name: "Skeleton", hp: 14, dmg: 3, every: 1.4, xp: 6, level: 2, icon: ["mob", "#d8d4c4", "skeleton"],
+      drops: [["bone", 1, 1], ["bone", 0.5, 1]] },
+    spider: { name: "Spider", hp: 16, dmg: 3, every: 1, xp: 7, level: 4, icon: ["mob", "#2a2a33", "spider"],
+      drops: [["string", 1, 2], ["string", 0.5, 1]] },
+    enderman: { name: "Enderman", hp: 40, dmg: 7, every: 1.5, xp: 20, level: 10, icon: ["mob", "#151318", "enderman"],
+      drops: [["enderPearl", 0.5, 1]] },
+  };
+
+  const AREAS = {
+    platform: { name: "Dark Platform", unlock: { cobble: 32, planks: 16 }, desc: "A slab of cobblestone off the edge of the island, kept dark so monsters spawn on it." },
+    pasture: { name: "Cow Pasture", unlock: { planks: 32, stick: 16, wheat: 4 }, desc: "A fenced field below the island. Lure two cows in with wheat; feed them more to breed." },
   };
 
   const AUTO = {
@@ -250,6 +292,19 @@
     { in: { steel: 4, gold: 2, redAlloy: 4, glass: 4 }, out: { battery: 1 }, at: "table" },
     { in: { obsidian: 8, steel: 6, redAlloy: 4, gear: 4 }, out: { geothermal: 1 }, at: "table" },
     { in: { steel: 2, gear: 2, redAlloy: 2, cCobble: 2 }, out: { autoCompressor: 1 }, at: "table" },
+    // the wilds
+    { in: { planks: 2, stick: 1 }, out: { woodSword: 1 }, at: "table" },
+    { in: { cobble: 2, stick: 1, twine: 1 }, out: { stoneSword: 1 }, at: "table" },
+    { in: { iron: 2, stick: 1, twine: 1 }, out: { ironSword: 1 }, at: "table" },
+    { in: { diamond: 2, stick: 1, twine: 1 }, out: { diamondSword: 1 }, at: "table" },
+    { in: { leather: 8 }, out: { leatherArmor: 1 }, at: "table" },
+    { in: { iron: 12, leather: 2 }, out: { ironArmor: 1 }, at: "table" },
+    { in: { diamond: 12, leather: 2 }, out: { diamondArmor: 1 }, at: "table" },
+    { in: { bone: 1 }, out: { boneMeal: 3 } },
+    { in: { sugarcane: 3 }, out: { paper: 3 } },
+    { in: { paper: 3, leather: 1 }, out: { book: 1 } },
+    { in: { book: 1, diamond: 2, obsidian: 4, enderPearl: 1 }, out: { enchantTable: 1 }, at: "table" },
+    { in: { steel: 4, ironSword: 1, redAlloy: 2, gear: 2 }, out: { mobGrinder: 1 }, at: "table" },
     { name: "Pour water onto lava", in: { lavaBucket: 1, waterBucket: 1 }, out: { obsidian: 1, bucket: 1, waterBucket: 1 } },
     { in: { steel: 4, gear: 2, redAlloy: 2, cobble: 8 }, out: { crusher: 1 }, at: "table" },
     { in: { steel: 4, redAlloy: 2, cobble: 8 }, out: { energizedSmelter: 1 }, at: "table" },
@@ -340,7 +395,7 @@
     { id: "barrel", title: "Barrel", text: "Craft an oak barrel and place it on the island. It pulls leaves from your inventory and composts them.", need: { built: { barrel: 1 } } },
     { id: "dirt", title: "Dirt From Nothing", text: "Six compost in a barrel rot into a block of dirt.", need: { got: { dirt: 1 } } },
     { id: "grow", title: "Another Tree", text: "Drag a sapling from your inventory onto an empty tile to plant it. Grown trees drop leaves by themselves.", need: { built: { tree: 2 } } },
-    { id: "land", title: "More Land", text: "Spend dirt to add a tile to the island. Later stretches of land need harder materials: cobblestone, then compressed cobblestone, iron, steel and obsidian.", need: { land: 7 } },
+    { id: "land", title: "More Land", text: "Every quest and advancement you complete adds a tile of land to the island. Keep going and the island keeps growing.", need: { land: 7 } },
     { id: "silk", title: "Silkworm", text: "Keep shaking leaves with the crook until a silkworm falls out.", need: { got: { silkworm: 1 } } },
     { id: "infest", title: "Infested Leaves", text: "Put the silkworm on leaves. The colony spins string forever.", need: { built: { infested: 1 } } },
     { id: "string", title: "String Theory", text: "Collect 6 string.", need: { got: { string: 6 } } },
@@ -371,6 +426,12 @@
     { id: "infusion", title: "Applied Metallurgy", text: "Build a metallurgic infuser to make alloys faster with less coal and redstone.", need: { built: { infuser: 1 } } },
     { id: "forestry", title: "The Forest Works for You", text: "Build a tree harvester. It uses 600 J per harvest and replants automatically; plant more trees to keep it busy.", need: { built: { treeHarvester: 1 } } },
     { id: "storage", title: "Potential Energy", text: "Build an energy cell to store 20,000 more joules for later.", need: { built: { battery: 1 } } },
+    { id: "fight", title: "First Blood", text: "Unlock the Dark Platform in the Wilds, craft a sword and fight a zombie.", need: { got: { rottenFlesh: 1 } } },
+    { id: "moo", title: "Moo", text: "Unlock the cow pasture in the Wilds. Cows give leather and beef; feed them wheat to breed more.", need: { area: "pasture" } },
+    { id: "bookworm", title: "Bookworm", text: "Sieve sand for sugarcane, grow it on farmland, and bind three paper in leather into a book.", need: { got: { book: 1 } } },
+    { id: "ender", title: "The End?", text: "Reach level 10 and take an ender pearl from an enderman. Bring armor.", need: { got: { enderPearl: 1 } } },
+    { id: "enchant", title: "Enchanted", text: "Build an enchanting table and spend XP levels enchanting a tool.", need: { enchanted: 1 } },
+    { id: "grind", title: "Grind Time", text: "Build a powered mob grinder to farm monster drops while you do other things.", need: { built: { mobGrinder: 1 } } },
     { id: "geo", title: "Hot Rocks", text: "Pour water onto lava for obsidian, then build a geothermal generator. It turns crucible lava into 150 W.", need: { built: { geothermal: 1 } } },
     { id: "compress", title: "Squeeze Play", text: "Build an auto-compressor. Point one at dust, put it between your auto-hammers and an auto heavy sieve, and the dust farm runs itself.", need: { built: { autoCompressor: 1 } } },
     { id: "clips", title: "A Perfectly Harmless Objective", text: "Turn a steel ingot into eight paperclips. They do nothing. Maximizing them is entirely your decision.", need: { got: { paperclip: 8 } } },
@@ -384,22 +445,21 @@
     clay: ["hammer"], crucible: ["clay", "charcoal"], gen: ["crucible"], coal: ["hammer"], iron: ["coal", "furnace"],
     farm: ["clay", "charcoal"], cast: ["clay", "charcoal"], ironpick: ["cast", "iron"], auto: ["iron"],
     autogen: ["auto", "gen"], heavy: ["iron"], diamond: ["iron"], alloy: ["iron"], steel: ["alloy"],
-    pstone: ["diamond"], terminal: ["pstone", "steel"], geo: ["power", "steel"], compress: ["steel", "heavy"],
+    pstone: ["diamond"], terminal: ["pstone", "steel"], geo: ["power", "steel"], fight: ["cobble"], moo: ["farm"], bookworm: ["moo"], ender: ["fight", "iron"],
+    enchant: ["bookworm", "ender", "diamond"], grind: ["fight", "power"], compress: ["steel", "heavy"],
     power: ["steel"], orepower: ["power"], infusion: ["power"], forestry: ["power"], storage: ["power"], clips: ["steel"],
   };
   QUESTS.forEach(q => (q.after = QUEST_AFTER[q.id] || []));
 
   const CONFIG = {
     start: { land: 6 },
-    // land expansion: each stretch of island needs a harder material (expansion k within a tier costs n + step * k)
-    land: { max: 36, tiers: [
-      { upTo: 10, id: "dirt", n: 4, step: 2 },
-      { upTo: 15, id: "cobble", n: 16, step: 8 },
-      { upTo: 21, id: "cCobble", n: 4, step: 2 },
-      { upTo: 27, id: "iron", n: 8, step: 4 },
-      { upTo: 32, id: "steel", n: 6, step: 3 },
-      { upTo: 36, id: "obsidian", n: 8, step: 4 },
-    ] },
+    // land: every completed quest/advancement adds a tile (no buying land); the 9×7 map holds 63
+    land: { max: 63, perQuest: 1 },
+    combat: { hp: 20, regen: 1, faint: 10, fist: 1, armorPct: 0.04, armorMax: 0.8, levelXp: 10, steakHeal: 8, calm: 4 },
+    pasture: { start: 2, max: 12, every: 40, breed: { wheat: 2 }, drops: [["leather", 1, 1], ["rawBeef", 0.6, 1]] },
+    enchant: { kinds: ["axe", "crook", "hammer", "pick", "chammer", "sword", "armor"], max: 5, perLevel: 0.25, cost: 3 }, // n-th level costs cost·n XP levels
+    grinder: { watts: 40, time: 8, xp: 1, mobs: ["zombie", "skeleton", "spider"] },
+    autocraft: { time: 1, limit: 64 }, // tables and machines set to auto-make an item, unlocked by the Automation quest
     compress: { time: 4, map: { dirt: "cDirt", cobble: "cCobble", gravel: "cGravel", sand: "cSand", dust: "cDust" } },
     tree: { grow: 45, litter: 20, drops: [["leaves", 1, 1], ["sapling", 0.12, 1], ["stick", 0.06, 1]] },
     barrel: { units: 6, time: 8 },
@@ -408,7 +468,7 @@
     crucible: { cobble: 4, melt: 10, perCobble: 250, lava: 2000 }, // a bucket is 1000 mB
     autoGen: { autoGen: 0.5, autoGen2: 1.5, autoGen3: 4 }, // cobblestone per second
     harvester: { watts: 60, time: 10, drops: { log: 4, leaves: 4, sapling: 1 } },
-    reserve: { cobble: 16, leaves: 6, seeds: 4 }, // auto machines and barrels leave this much for crafting (and planting)
+    reserve: { cobble: 16, leaves: 6, seeds: 4, wheat: 8 }, // auto machines and barrels leave this much for crafting, planting (and luring cows)
     offline: 7200, // seconds of progress credited while the tab is closed
     tools: {
       axe: [["woodAxe", 1], ["stoneAxe", 2], ["ironAxe", 4], ["diamondAxe", 7]], // extra chopping power
@@ -417,11 +477,13 @@
       pick: [["stonePick", 1], ["ironPick", 3], ["diamondPick", 6]], // mining power per swing (plus 1 per generator)
       mesh: [["stringMesh", 1], ["flintMesh", 2], ["ironMesh", 3], ["diamondMesh", 4]],
       chammer: [["cHammer", 3], ["diamondCHammer", 6]],
+      sword: [["woodSword", 2], ["stoneSword", 3], ["ironSword", 5], ["diamondSword", 8]], // damage per hit
+      armor: [["leatherArmor", 4], ["ironArmor", 10], ["diamondArmor", 16]], // each point blocks 4% of a hit
     },
     meshLuck: [0, 1, 1.25, 1.5, 1.8], // drop chance multiplier per mesh tier
   };
 
-  const DATA = { ITEMS, RECIPES, SMELT, ALLOY, POWER, ELECTRIC, CROPS, AUTO, SIEVE, HEAVY_SIEVE, ACTIONS, QUESTS, CONFIG };
+  const DATA = { ITEMS, RECIPES, SMELT, ALLOY, POWER, ELECTRIC, CROPS, MOBS, AREAS, AUTO, SIEVE, HEAVY_SIEVE, ACTIONS, QUESTS, CONFIG };
   root.ALCHEMY_DATA = DATA;
   if (typeof module !== "undefined" && module.exports) module.exports = DATA;
 })(typeof window !== "undefined" ? window : globalThis);

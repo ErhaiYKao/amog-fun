@@ -219,12 +219,11 @@
   function renderIsland() {
     const s = UI.s;
     draw();
-    const used = s.island.filter(Boolean).length, cost = A.expandCost(s), maxed = s.island.length >= C.land.max;
-    UI.v("d:expand", A.count(s, cost.id) < cost.n);
-    UI.setHTML($("land"), "land", `${used}/${s.island.length} tiles ${maxed ? "· full size" : `<button class="mini" data-act="expand" data-d="d:expand" data-tip="${cost.id}">Expand · ${cost.n} ${UI.esc(UI.name(cost.id).toLowerCase())}</button>`}`);
+    const used = s.island.filter(Boolean).length, maxed = s.island.length >= C.land.max;
+    UI.setHTML($("land"), "land", `${used}/${s.island.length} tiles${maxed ? " · full size" : ` · <span title="Every quest and advancement you complete adds a tile">+1 per quest</span>`}`);
     const i = UI.selected, t = s.island[i];
     let h, body = "";
-    if (i < 0 || i >= s.island.length) h = `<span class="meta">Click a building to open it. Drag buildings to move them, or onto the inventory to pick them up. New land appears at the dashed square.</span>`;
+    if (i < 0 || i >= s.island.length) h = `<span class="meta">Click a building to open it. Drag buildings to move them, or onto the inventory to pick them up. Every quest you complete adds a tile at the dashed square.</span>`;
     else if (!t) h = `<span class="meta">Empty land. Drag a building here from your inventory${Object.keys(D.ITEMS).some(id => A.placesAs(id) && s.inv[id] > 0) ? "" : " (craft one first)"}.</span>`;
     else {
       UI.v("tile:st", status(s, t));

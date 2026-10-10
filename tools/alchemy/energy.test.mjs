@@ -157,7 +157,7 @@ test('old saves migrate without changing legacy machines, inventory or recipe pr
   delete s.energy; delete s.power;
   for (const st of Object.keys(D.ELECTRIC)) { delete s[A.STATIONS[st].q]; delete s[A.STATIONS[st].sl]; }
   const saved = A.serialize(s), revived = A.revive(saved);
-  assert.equal(revived.v, 5);
+  assert.equal(revived.v, 6);
   assert.equal(revived.energy, 0);
   assert.deepEqual(revived.island, s.island);
   assert.deepEqual(revived.inv, s.inv);
@@ -262,13 +262,77 @@ test('obsidian: water onto lava keeps the water and an empty bucket; barrels no 
   A.give(s, 'barrel', 5);
   assert.deepEqual(A.cost(s, barrel), { planks: 7 });
 });
-test('land gets pricier in materials, not just amounts', () => {
+test('land: one tile per completed quest, never bought, never shrinks', () => {
   const s = A.create(0);
-  const at = n => { s.island.length = n; return A.expandCost(s); };
-  assert.deepEqual(at(6), { id: 'dirt', n: 4 });
-  assert.equal(at(10).id, 'cobble');
-  assert.equal(at(15).id, 'cCobble');
-  assert.equal(at(21).id, 'iron');
-  assert.equal(at(27).id, 'steel');
-  assert.equal(at(35).id, 'obsidian');
+  assert.equal(s.island.length, 6);
+  s.quests = { wood: 1, planks: 1, table: 1 };
+  A.tick(s, 0.1);
+  assert.equal(s.island.length, 9);
+  // an old save that bought more land than its quests would give keeps it
+  const old = A.create(0); old.v = 5; old.island = Array(20).fill(null); old.quests = { wood: 1 };
+  assert.equal(A.revive(A.serialize(old)).island.length, 20);
+});
+test('auto-crafting: a table or furnace set to an item makes it while ingredients last, up to its limit', () => {
+  const s = island('table', 'furnace');
+  s.quests.auto = 1;
+  A.give(s, 'log', 3); A.give(s, 'planks', 0);
+  const planks = D.RECIPES.find(r => r.out.planks && r.in.log);
+  assert.ok(A.setAuto(s, 0, planks.key, 8));
+  run(s, 5, 0.5);
+  assert.equal(s.inv.planks, 8);          // stopped at the limit (2 crafts × 4)
+  assert.equal(s.inv.log, 1);
+  A.give(s, 'ironChunk', 2); A.give(s, 'coal', 2); A.addFuel(s, 'coal', 2);
+  assert.ok(A.setAuto(s, 1, 'ironChunk', 99));
+  run(s, 20, 0.5);
+  assert.equal(s.inv.iron, 2);
+  assert.equal(s.inv.ironChunk, 0);
+  // locked until the Automation quest
+  const t = island('table'); A.give(t, 'log', 3); A.setAuto(t, 0, planks.key, 99); run(t, 5, 0.5);
+  assert.equal(t.inv.planks || 0, 0);
+});
+test('combat: swords hit harder, armor blocks, fainting is temporary, kills give XP and drops', () => {
+  const s = island();
+  A.give(s, 'cobble', 32); A.give(s, 'planks', 16);
+  assert.equal(A.attack(s), null);                 // no platform yet
+  assert.ok(A.unlockArea(s, 'platform'));
+  assert.equal(A.swordDmg(s), 1);                   // fists
+  A.give(s, 'ironSword');
+  assert.equal(A.swordDmg(s), 5);
+  let r; do r = A.attack(s); while (!r.killed);
+  assert.equal(s.xp, D.MOBS.zombie.xp);
+  assert.ok(s.inv.rottenFlesh >= 1);
+  assert.ok(!A.setMob(s, 'enderman'));               // level-gated
+  // stand there taking hits with no armor: you faint, then recover
+  A.attack(s); for (let i = 0; i < 40 && !s.faintT; i++) { A.attack(s); A.tick(s, 0.5); s.mob.hp = 1e9; }
+  assert.ok(s.faintT > 0);
+  assert.equal(A.attack(s), null);
+  run(s, D.CONFIG.combat.faint + 0.5, 0.5);
+  assert.equal(s.hp, D.CONFIG.combat.hp);
+  A.give(s, 'diamondArmor');
+  close(A.armorBlock(s), Math.min(0.8, 16 * 0.04));
+});
+test('pasture, bone meal and enchanting', () => {
+  const s = island('farmland');
+  A.give(s, 'planks', 32); A.give(s, 'stick', 16); A.give(s, 'wheat', 12);
+  assert.ok(A.unlockArea(s, 'pasture'));
+  assert.equal(s.cows, 2);
+  assert.ok(A.breed(s));
+  assert.equal(s.cows, 3);
+  run(s, D.CONFIG.pasture.every + 0.1, 1);
+  assert.equal(s.inv.leather, 3);
+  // bone meal: fertilized farmland harvests twice as often
+  A.give(s, 'seeds', 1); A.give(s, 'boneMeal', 10);
+  A.setSeed(s, 0, 'seeds'); s.island[0].fert = true;
+  const wheat = s.inv.wheat;
+  run(s, 61, 1);
+  assert.ok(s.inv.wheat - wheat >= 4, `wheat ${s.inv.wheat - wheat}`); // 4 instead of 2
+  // enchanting needs the table, a tool and enough levels; each level is +25%
+  A.give(s, 'stoneSword');
+  s.xp = A.xpFor(5);
+  assert.ok(!A.enchant(s, 'sword'));                 // no table
+  A.give(s, 'enchantTable'); A.place(s, 'enchantTable', s.island.indexOf(null));
+  assert.ok(A.enchant(s, 'sword'));
+  close(A.swordDmg(s), 3 * 1.25);
+  assert.equal(A.level(s), 2);                      // spent 3 levels
+  assert.ok(!A.enchant(s, 'sword'));                 // next one costs 6
 });

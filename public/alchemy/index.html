@@ -87,6 +87,27 @@
   .machine .recipes { max-height: 320px; }
   .machine h3 { margin: 4px 0 0; }
   .machine p.meta { margin: 0; }
+  /* the wilds */
+  #wilds-card[hidden] { display: none; }
+  #wilds { display: grid; gap: 12px; }
+  .area { border: 1px solid var(--line-2); border-radius: 12px; padding: 12px; background: var(--bg); display: grid; gap: 8px; }
+  .area.locked { opacity: .8; border-style: dashed; }
+  .area .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .area .row .grow { flex: 1; min-width: 80px; }
+  .area p.meta { margin: 0; }
+  .fight { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .fight .side { display: grid; gap: 4px; align-content: start; }
+  .fight .foe { grid-template-columns: 40px 1fr; align-items: start; gap: 10px; }
+  .fight .foe img.px { width: 40px; height: 40px; }
+  .bar.hp > i { background: var(--g2); } .bar.xp > i { background: var(--g3); } .bar.foehp > i { background: #c0392b; }
+  .fightbtn { width: auto !important; font-size: 17px; padding: 8px 14px; display: inline-flex; gap: 10px; align-items: center; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 10px; color: var(--ink); cursor: pointer; font-family: var(--serif); }
+  .fightbtn:hover:not(:disabled) { border-color: var(--g2); }
+  .fightbtn:disabled { opacity: .5; cursor: default; }
+  .fightbtn .k { font-family: var(--mono); font-size: 11px; color: var(--faint); border: 1px solid var(--line-2); border-radius: 5px; padding: 0 5px; }
+  .machine select, .machine input[type=number] { font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 6px; }
+  .machine select { max-width: 220px; }
+  .machine input[type=number] { width: 70px; }
+  @media (max-width: 520px) { .fight { grid-template-columns: 1fr; } }
   /* machines */
   .mach { border-top: 1px solid var(--line); padding: 12px 0; display: grid; gap: 8px; }
   .mach:first-of-type { border-top: 0; padding-top: 0; }
@@ -228,6 +249,7 @@
       </section>
       <section class="card" style="--o:3"><div class="card-h"><h2>Work</h2><span class="meta">keys 1–7</span></div><div class="actions" id="actions"></div>
         <details class="drops" id="drops-box"><summary>sieve drop rates: what each mesh finds</summary><div id="drops"></div></details></section>
+      <section class="card" id="wilds-card" style="--o:6" hidden><div class="card-h"><h2>The Wilds</h2><span class="meta">areas off the island · they take no tiles</span></div><div id="wilds"></div></section>
     </div>
     <div class="col">
       <section class="card quest" id="quest" style="--o:1"></section>
@@ -268,6 +290,7 @@
 <script src="icons.js"></script>
 <script src="ui.js"></script>
 <script src="panels.js"></script>
+<script src="wilds.js"></script>
 <script src="island.js"></script>
 </body>
 </html>

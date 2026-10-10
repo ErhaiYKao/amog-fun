@@ -4,7 +4,7 @@
  */
 (function (root) {
   "use strict";
-  const { ITEMS } = root.ALCHEMY_DATA;
+  const { ITEMS, MOBS } = root.ALCHEMY_DATA;
   const WOOD = "#8a6236";
 
   const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -40,6 +40,57 @@
   }
 
   const SHAPES = {
+    sword(P, c) {
+      for (let k = 0; k < 9; k++) { const x = 5 + k, y = 10 - k; P(x, y, shade(c, 0.25)); P(x + 1, y, c); P(x + 1, y + 1, shade(c, -0.3)); }
+      for (let k = -2; k <= 2; k++) P(5 + k, 10 + k, "#5a3d24"); // crossguard
+      P(3, 13, "#8a6236"); P(2, 14, "#8a6236"); P(4, 12, "#8a6236"); P(1, 15, "#c9a227");
+    },
+    armor(P, c) {
+      for (let y = 3; y < 14; y++) for (let x = 2; x < 14; x++) {
+        const shoulder = y < 6 && (x < 5 || x > 10), neck = y < 5 && x > 5 && x < 10, sleeve = y >= 8 && (x < 4 || x > 11);
+        if (neck || sleeve || (y >= 6 && y < 8 && (x < 3 || x > 12))) continue;
+        if (y < 3 || (!shoulder && y < 5 && (x < 6 || x > 9) && false)) continue;
+        P(x, y, shade(c, (x < 5 ? 0.15 : x > 10 ? -0.25 : 0) + (y === 13 ? -0.3 : 0)));
+      }
+      for (let x = 6; x < 10; x++) P(x, 5, shade(c, -0.45));
+    },
+    bone(P, c) {
+      for (let k = 0; k < 8; k++) { P(4 + k, 11 - k, c); P(5 + k, 11 - k, shade(c, -0.15)); }
+      for (const [x, y] of [[2, 11], [3, 12], [3, 10], [4, 13], [12, 2], [13, 3], [11, 1], [13, 4]]) P(x, y, shade(c, 0.1));
+    },
+    hide(P, c, _, rnd) {
+      for (let y = 3; y < 14; y++) for (let x = 3; x < 13; x++) {
+        if ((y === 3 || y === 13) && (x < 5 || x > 10)) continue;
+        if ((x === 3 || x === 12) && (y < 5 || y > 11)) continue;
+        P(x, y, shade(c, (rnd(x, y) - 0.5) * 0.2 + (x > 10 ? -0.2 : 0)));
+      }
+    },
+    cane(P, c) {
+      for (const x of [5, 9]) for (let y = 2; y < 15; y++) P(x + (y > 8 ? 1 : 0), y, shade(c, y % 4 === 0 ? -0.35 : x === 9 ? -0.1 : 0.1));
+      P(4, 5, "#9ad46a"); P(3, 4, "#9ad46a"); P(11, 9, "#9ad46a"); P(12, 8, "#9ad46a");
+    },
+    sheet(P, c) {
+      for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++) P(x, y, (x === 12 || y === 14) ? shade(c, -0.2) : c);
+      for (let y = 5; y < 13; y += 2) for (let x = 5; x < 11; x++) P(x, y, "#b9b3a3");
+    },
+    book(P, c) {
+      for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++) P(x, y, x === 3 ? shade(c, -0.4) : x === 12 ? "#efe9d8" : shade(c, y === 2 || y === 14 ? -0.2 : 0));
+      for (let x = 6; x < 11; x++) P(x, 6, "#e3c35a");
+    },
+    enchant(P, _, __, rnd) {
+      for (let y = 8; y < 16; y++) for (let x = 0; x < 16; x++) P(x, y, shade("#2a1f3d", (rnd(x, y) - 0.5) * 0.2 + (y === 8 ? 0.2 : 0)));
+      for (let y = 6; y < 8; y++) for (let x = 1; x < 15; x++) P(x, y, x === 1 || x === 14 ? "#5ee0d8" : "#c0392b");
+      for (let y = 2; y < 6; y++) for (let x = 5; x < 11; x++) P(x, y, x === 8 ? "#5a2a1f" : "#8b3a2b"); // the open book
+      P(6, 3, "#efe9d8"); P(9, 3, "#efe9d8");
+    },
+    mob(P, c, kind) {
+      for (let y = 1; y < 15; y++) for (let x = 2; x < 14; x++) P(x, y, shade(c, (x < 4 ? 0.12 : x > 11 ? -0.2 : 0) + (y > 11 ? -0.1 : 0)));
+      const eye = { zombie: "#1d2a17", skeleton: "#111111", spider: "#d42a1f", enderman: "#c77dff" }[kind] || "#000";
+      if (kind === "spider") { for (const [x, y] of [[4, 5], [6, 5], [9, 5], [11, 5], [5, 7], [10, 7]]) P(x, y, eye); }
+      else { P(4, 6, eye); P(5, 6, eye); P(10, 6, eye); P(11, 6, eye); if (kind === "enderman") { P(3, 6, eye); P(12, 6, eye); } }
+      if (kind === "zombie") for (let x = 5; x < 11; x++) P(x, 10, shade(c, -0.45));
+      if (kind === "skeleton") for (let x = 5; x < 11; x++) P(x, 10, x % 2 ? "#111" : shade(c, -0.3));
+    },
     paperclip(P, c) {
       for (let y = 3; y <= 12; y++) { P(4, y, c); P(11, y, c); }
       for (let x = 5; x <= 10; x++) { P(x, 2, c); P(x, 13, c); }
@@ -334,7 +385,7 @@
   const cache = {};
   function canvas(id) {
     if (cache[id]) return cache[id];
-    const spec = (ITEMS[id] && ITEMS[id].icon) || [id];
+    const spec = (ITEMS[id] && ITEMS[id].icon) || (MOBS && MOBS[id] && MOBS[id].icon) || [id];
     const cv = document.createElement("canvas");
     cv.width = cv.height = 16;
     const ctx = cv.getContext("2d");

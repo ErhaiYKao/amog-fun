@@ -22,10 +22,35 @@ const SMELTED = Object.fromEntries(Object.entries(SMELT).map(([k, v]) => [v.out,
 const MESHES = ["stringMesh", "flintMesh", "ironMesh", "diamondMesh"];
 const FUEL = { 1: "planks", 2: "charcoal", 3: "coal" };
 
+// land comes from quests now; if the island is full, pick up a spare building (a second barrel, tree, ...)
 function land(d) {
   if (A.free(s) > 0) return true;
-  if (s.island.length >= A.DATA.CONFIG.land.max) throw new Error("island is full");
-  if (need(A.expandCost(s).id, A.expandCost(s).n, d + 1)) A.expand(s);
+  const spare = s.island.findIndex(t => t && ["barrel", "tree", "sieve", "farmland", "infested"].includes(t.id) && A.built(s, t.id) > 1);
+  if (spare >= 0) { A.pickUp(s, spare); return true; }
+  wait();
+  return false;
+}
+
+// the wilds: fight on the Dark Platform until we have `id` (a mob drop) or reach a level
+const MOBS = A.DATA.MOBS;
+const dropOf = id => Object.keys(MOBS).find(m => MOBS[m].drops.some(dr => dr[0] === id));
+function area(id, d) {
+  if (s.areas[id]) return true;
+  for (const [k, n] of Object.entries(A.DATA.AREAS[id].unlock)) if (!need(k, n, d + 1)) return false;
+  A.unlockArea(s, id);
+  return false;
+}
+function fight(mob, d) {
+  if (!area("platform", d)) return false;
+  const m = MOBS[mob];
+  // gear up for the tougher mobs
+  if (m.level >= 10 && (!need("ironSword", 1, d + 1) || !need("ironArmor", 1, d + 1))) return false;
+  if (!A.tool(s, "sword") && !need("woodSword", 1, d + 1)) return false;
+  if (s.faintT > 0) { wait(); return false; }
+  const target = A.level(s) >= m.level ? mob : Object.keys(MOBS).filter(k => MOBS[k].level <= A.level(s)).pop();
+  A.setMob(s, target);
+  if (s.hp < 7) { if (!A.eat(s)) tick(4); return false; } // back off and heal
+  A.attack(s); clicks++; tick(1 / CPS);
   return false;
 }
 
@@ -46,6 +71,19 @@ function need(id, n, d = 0) {
   if (id === "log") { if (A.grownTrees(s)) click("chop"); else wait(); return act(); }
   if (id === "leaves" || id === "sapling") { if (A.grownTrees(s)) click("leaves"); else wait(); return act(); }
   if (id === "silkworm") { if (!need("crook", 1, d + 1)) return false; click("leaves"); return act(); }
+  if (dropOf(id) && id !== "string" && id !== "ironPiece") return fight(dropOf(id), d);
+  if (id === "wheat") { // grow it: farmland planted with wheat seeds
+    if (!needBuilt("farmland", 1, d + 1)) return false;
+    const f = s.island.findIndex(t => t && t.id === "farmland");
+    if (s.island[f].sel !== "seeds") A.setSeed(s, f, "seeds");
+    if (!s.island[f].seed && !need("seeds", 1, d + 1)) return false;
+    wait(); return false;
+  }
+  if (id === "leather" || id === "rawBeef") {
+    if (!area("pasture", d)) return false;
+    if (s.cows < 6 && A.count(s, "wheat") >= 2) A.breed(s);
+    wait(); return false;
+  }
   if (id === "string") { if (needBuilt("infested", 1, d + 1)) wait(); return false; }
   if (id === "dirt") { if (needBuilt("barrel", A.free(s) ? Math.min(3, 1 + Math.floor(s.island.length / 8)) : 1, d + 1)) { if (A.grownTrees(s)) click("leaves"); else wait(); } return false; }
   if (id === "cobble" && A.built(s, "cobblegen") && A.tool(s, "pick")) { click("mine"); return false; }
@@ -116,7 +154,14 @@ function pursue(q) {
   for (const [id, n] of Object.entries(nd.built || {})) if (A.built(s, id) < n) return needBuilt(id, n, 0);
   if (nd.anyBuilt && !nd.anyBuilt.some(id => A.built(s, id))) return needBuilt(nd.anyBuilt[0], 1, 0);
   if (nd.gotAny && !nd.gotAny.some(id => s.got[id])) return need(nd.gotAny[0], 1);
-  if (nd.land && s.island.length < nd.land) { if (need(A.expandCost(s).id, A.expandCost(s).n)) A.expand(s); return; }
+  if (nd.land && s.island.length < nd.land) { wait(); return; }
+  if (nd.area && !s.areas[nd.area]) { area(nd.area, 0); return; }
+  if (nd.enchanted) {
+    if (!needBuilt("enchantTable", 1, 0)) return;
+    if (!A.tool(s, "sword") && !need("woodSword", 1)) return;
+    if (A.level(s) < A.enchantCost(s, "sword")) { fight("zombie", 0); return; }
+    A.enchant(s, "sword"); return;
+  }
   wait();
 }
 

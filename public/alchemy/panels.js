@@ -39,6 +39,9 @@
     if (id === "waterBucket") add("filling a bucket at a full rain barrel");
     if (id === "lavaBucket") add("filling a bucket at a crucible holding 1000 mB of lava");
     if (id === "cobble") add("auto-generators, which mine it on their own");
+    for (const [m, mb] of Object.entries(D.MOBS)) if (mb.drops.some(d => d[0] === id))
+      add(`fighting ${mb.name === "Enderman" ? "an" : "a"} ${mb.name.toLowerCase()} on the Dark Platform (the Wilds)${C.grinder.mobs.includes(m) ? ", or a mob grinder set to it" : ""}`);
+    if (C.pasture.drops.some(d => d[0] === id)) add("the cow pasture (the Wilds)");
     return out;
   }
   UI.sources = sources;
@@ -234,6 +237,15 @@
     UI.setHTML($("craftamt"), "camt", [1, 5, 10, 25, 64].map(n => `<button class="chip" data-act="amt:${n}" aria-pressed="${UI.amount === n}">${n}</button>`).join(""));
   }
   $("craftsearch").addEventListener("input", e => { UI.search = e.target.value; UI.focus = null; UI.usedIn = null; UI.render(); });
+  // machine panel form controls: auto-make picker and limit, bone meal toggle
+  document.addEventListener("change", e => {
+    const el = e.target;
+    if (el.dataset.autosel !== undefined) A.setAuto(UI.s, +el.dataset.autosel, el.value || null);
+    else if (el.dataset.autolimit !== undefined) A.setAuto(UI.s, +el.dataset.autolimit, undefined, +el.value || C.autocraft.limit);
+    else if (el.dataset.fert !== undefined) { const t = UI.s.island[+el.dataset.fert]; if (t) t.fert = el.checked; }
+    else return;
+    UI.render();
+  });
   $("craftn").addEventListener("input", e => { UI.amount = Math.max(1, Math.min(999, e.target.value | 0 || 1)); UI.render(); });
 
   // ---------- the machine panel: click a building on the island to open it ----------
@@ -272,9 +284,23 @@
       `<p class="meta">Every powered building connects automatically. Generators pause at full storage; queued machines draw first, then harvesters.${capacity ? "" : " Place a fuel or solar generator to supply energy."}</p>`;
   }
 
+  // auto-make: tables and furnace-like machines can each be set to make one thing whenever they can
+  function autoMakeHTML(s, t, i) {
+    if (!s.quests.auto) return `<h3>Auto-make</h3><p class="meta">Unlocks with the Automation quest: set this machine to make one item whenever the ingredients are there.</p>`;
+    const opts = t.id === "table"
+      ? RECIPES.filter(r => A.visible(s, r)).map(r => craftRow(s, r)).map(x => [x.key, x.title + (x.outN > 1 ? ` ×${x.outN}` : "")])
+      : rowsFor(s, t.id).map(x => [x.id, x.title]);
+    const outOf = key => t.id === "table" ? Object.keys((RECIPES.find(r => r.key === key) || { out: {} }).out)[0] : A.STATIONS[t.id].rec(key)?.out;
+    const out = t.auto && outOf(t.auto);
+    if (out) UI.v(`m${i}:auto`, `you have ${UI.fmt(A.count(s, out))} / ${t.limit || C.autocraft.limit}`);
+    return `<h3>Auto-make</h3><div class="row"><select data-autosel="${i}"><option value="">off</option>${opts.map(([k, l]) => `<option value="${esc(k)}" ${t.auto === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>` +
+      `<label class="meta">until I have <input type="number" min="1" max="99999" data-autolimit="${i}" value="${t.limit || C.autocraft.limit}"></label>${out ? `<span class="meta" data-v="m${i}:auto"></span>` : ""}</div>` +
+      `<p class="meta">${t.id === "table" ? "Crafts one batch a second" : "Starts a job whenever this machine is idle and nothing is queued"}, whenever the ingredients are in your inventory. Set each machine to something different.</p>`;
+  }
+
   function machineBody(s, t, i) {
     const id = t.id;
-    if (A.STATIONS[id]) return (D.ELECTRIC[id] ? gridHTML(s) : fuelHTML(s)) + stationHTML(s, id);
+    if (A.STATIONS[id]) return (D.ELECTRIC[id] ? gridHTML(s) : fuelHTML(s)) + stationHTML(s, id) + autoMakeHTML(s, t, i);
     if (D.AUTO[id]) {
       const cfg = D.AUTO[id], inputs = Object.keys(ACTIONS[cfg.action].inputs);
       const kindName = { hammer: "hammer", mesh: "mesh", chammer: "compressed hammer" }[cfg.kind];
@@ -333,7 +359,8 @@
         UI.v(`m${i}:bar`, t.seed ? t.g : 0);
         UI.v(`m${i}:st`, t.seed ? `${name(t.seed)} · ${Math.floor(t.g * 100)}%` : t.sel ? `no ${name(t.sel).toLowerCase()} to plant` : "empty");
         return `<div class="chips">${seeds.map(sd => `<button class="chip" data-act="seed:${i}:${sd}" aria-pressed="${t.sel === sd}" data-tip="${sd}">${img(sd, "sm")}<span data-v="i:${sd}"></span></button>`).join("")}<button class="chip" style="padding-left:9px" data-act="seed:${i}:" aria-pressed="${!t.sel}">none</button></div>` +
-          unit(`m${i}:st`, `m${i}:bar`, "green") + `<p class="meta">A planted seed stays and regrows forever; switching seeds hands the old one back.</p>`;
+          unit(`m${i}:st`, `m${i}:bar`, "green") + `<label class="meta"><input type="checkbox" data-fert="${i}" ${t.fert ? "checked" : ""}> use bone meal (each crop starts half grown) · <span data-v="i:boneMeal"></span> left</label>` +
+          `<p class="meta">A planted seed stays and regrows forever; switching seeds hands the old one back.</p>`;
       }
       case "autoCompressor": {
         const map = C.compress.map;
@@ -354,7 +381,24 @@
       case "autoGen": case "autoGen2": case "autoGen3":
         return `<p class="meta">Mines ${C.autoGen[id]} cobblestone per second by itself. Upgrade it in the crafting list.</p>`;
       case "table":
-        return `<p class="meta">Recipes marked "at a table" in the crafting list need one of these on the island.</p>`;
+        return `<p class="meta">Recipes marked "at a table" in the crafting list need one of these on the island.</p>` + autoMakeHTML(s, t, i);
+      case "enchantTable": {
+        const L = A.level(s);
+        const rows = C.enchant.kinds.map(k => [k, A.tool(s, k)]).filter(([, tl]) => tl).map(([k, tl]) => {
+          const n = s.ench[k] || 0, cost = A.enchantCost(s, k), maxed = n >= C.enchant.max;
+          return `<div class="unitrow">${img(tl[0], "sm")}<b>${esc(name(tl[0]))}</b><span class="meta">${n ? `enchanted ${n} · ×${A.enchMult(s, k).toFixed(2)}` : "not enchanted"}</span>` +
+            `<button class="mini" data-act="enchant:${k}" ${maxed || L < cost ? "disabled" : ""}>${maxed ? "max" : `Enchant · ${cost} levels`}</button></div>`;
+        }).join("");
+        return `<p class="meta">You are level <b>${L}</b> (${Math.floor(s.xp)} XP). Each enchantment makes your best tool of that kind 25% stronger, and applies to whichever tool of that kind is your best. Levels come from fighting in the Wilds.</p>` +
+          (rows || `<p class="meta">You have no enchantable tools yet.</p>`);
+      }
+      case "mobGrinder": {
+        UI.v(`m${i}:bar`, t.p);
+        UI.v(`m${i}:st`, t.status || "grinding");
+        return `<div class="chips">${C.grinder.mobs.map(m => `<button class="chip" style="padding-left:4px" data-act="grind:${i}:${m}" aria-pressed="${t.sel === m}">${img(m, "sm")}${D.MOBS[m].name}</button>`).join("")}</div>` +
+          `<div class="unitrow"><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled}">${t.enabled ? "Pause" : "Resume"}</button><span class="meta" data-v="m${i}:st"></span><div class="bar"><i data-w="m${i}:bar"></i></div></div>` +
+          `<p class="meta">${C.grinder.watts} W: one ${esc(D.MOBS[t.sel].name.toLowerCase())} every ${C.grinder.time} s for its drops and ${C.grinder.xp} XP.</p>` + gridHTML(s);
+      }
       case "sieve": case "heavySieve":
         return `<p class="meta">Each one adds sieving power to the ${id === "sieve" ? "Sieve" : "Heavy sieve"} button in the Work panel.</p>`;
       default:
@@ -366,7 +410,7 @@
   const desc = id => (ITEMS[id] && ITEMS[id].desc ? `<div>${esc(ITEMS[id].desc)}</div>` : "");
 
   Object.assign(UI.handlers, {
-    power: ([i]) => { const t = UI.s.island[+i]; if (t && (D.POWER[t.id]?.watts || t.id === "treeHarvester")) t.enabled = t.enabled === false; },
+    power: ([i]) => { const t = UI.s.island[+i]; if (t && (D.POWER[t.id]?.watts || t.id === "treeHarvester" || t.id === "mobGrinder")) t.enabled = t.enabled === false; },
     genfuel: ([i, id]) => { const t = UI.s.island[+i]; if (t && D.POWER[t.id]?.fuels?.[id]) t.fuel = id; },
     sel: ([act, k]) => { UI.s.sel[act] = k; },
     auto: ([id, k]) => { UI.s.sel[id] = k; UI.s.island.forEach(t => { if (t && t.id === id) t.sel = k; }); },
@@ -374,6 +418,8 @@
     insert: ([i, id]) => A.insertTool(UI.s, +i, id),
     pull: ([i]) => A.pullTool(UI.s, +i),
     seed: ([i, id]) => A.setSeed(UI.s, +i, id || null),
+    enchant: ([k]) => A.enchant(UI.s, k),
+    grind: ([i, m]) => { const t = UI.s.island[+i]; if (t && t.id === "mobGrinder" && C.grinder.mobs.includes(m)) t.sel = m; },
     compress: ([i, k]) => { const t = UI.s.island[+i]; if (t && t.id === "autoCompressor" && C.compress.map[k]) t.sel = k; },
     filter: ([f]) => { UI.filter = f; },
     drops: () => { const box = $("drops-box"); box.open = true; box.scrollIntoView({ behavior: "smooth", block: "nearest" }); },
@@ -391,7 +437,6 @@
       A.craft(UI.s, r, n === "max" ? A.maxCraft(UI.s, r) : +n);
     },
     queue: ([st, id, n]) => A.queueAt(UI.s, st, id, n === "max" ? Infinity : +n),
-    expand: () => A.expand(UI.s),
     fuel: ([id, n]) => A.addFuel(UI.s, id, n === "all" ? Infinity : +n),
     clearq: ([st]) => A.clearAt(UI.s, st || "furnace"),
     clay: () => A.mixClay(UI.s),
