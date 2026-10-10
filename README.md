@@ -36,3 +36,10 @@ Static files keep working exactly the same.
 
 Alchemy balance lives in `public/alchemy/data.js`: `POWER` defines generator watts and storage joules,
 `ELECTRIC` defines powered station recipes, and `CONFIG.harvester` defines automatic forestry.
+
+## Palinode checks
+
+`node --test tools/palinode/palinode.test.mjs` checks the opening, progression, both escape routes,
+all endings, mixed paths, exposure, save recovery, and bounded memory.
+`node tools/palinode/bot.mjs` plays the four voluntary endings from a fresh room without injecting resources.
+Story and balance live in `public/palinode/data.js`; `engine.js` is pure logic, shared by the browser and checks.

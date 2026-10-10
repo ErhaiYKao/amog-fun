@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>Palinode · amog.fun</title>
+  <meta name="description" content="The evening post has arrived. A small game of favors, grudges, and the things that get lost in the mail.">
+  <meta property="og:title" content="Palinode · amog.fun">
+  <meta property="og:description" content="A few last favors, then the walk home.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230a0a0f'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%234fd6e8'/%3E%3Ccircle cx='32' cy='32' r='4' fill='%234fd6e8'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/assets/amog.css">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./data.js" defer></script>
+  <script src="./engine.js" defer></script>
+  <script src="./ui.js" defer></script>
+</head>
+<body>
+  <div class="wrap game-wrap">
+    <header class="topbar">
+      <a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a>
+      <nav aria-label="Site"><a href="https://github.com/ErhaiYKao/amog-fun/issues/new?title=Palinode%20feedback">leave a trace ↗</a></nav>
+    </header>
+    <main id="game">
+      <div class="masthead">
+        <div><p class="eyebrow">small favors. long shadows.</p><h1>Palinode<span>.</span></h1></div>
+        <p class="definition"><i>palinode</i> /ˈpælɪnəʊd/<br>a retraction of something<br>you once believed.</p>
+      </div>
+      <div class="chapter-line"><span id="chapter">I / The evening post</span><span id="turn">before closing</span></div>
+      <div class="game-layout">
+        <section class="story-column" aria-label="The story">
+          <div class="scene" id="scene">
+            <div class="post-office" aria-hidden="true"><div class="office-window"><span></span></div><div class="office-desk"></div><div class="envelope"><span></span></div><div class="teacup"></div></div>
+            <div class="apparition" id="apparition" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit orbit-three"></div><div class="light"></div><div class="reflection r-one"></div><div class="reflection r-two"></div><div class="reflection r-three"></div><div class="reflection r-four"></div><div class="reflection r-five"></div></div>
+            <span class="scene-caption" id="scene-caption">rain at closing time.</span>
+          </div>
+          <div class="transcript" id="transcript" tabindex="0" role="region" aria-label="Memory transcript"></div>
+          <p class="latest" id="latest" role="status" aria-live="polite" aria-atomic="true"></p>
+        </section>
+        <section class="choice-column" aria-label="Your choices">
+          <div class="choice-head"><h2 id="choice-title">Before you close up.</h2><p id="objective">A few last favors before the walk home.</p></div>
+          <div id="request" class="request" aria-label="The next piece of post"></div>
+          <div id="metrics" class="metrics" hidden></div>
+          <div class="actions" id="actions"></div>
+          <p class="time-note" id="time-note">The rain isn’t letting up. No need to rush.</p>
+          <div id="projects" hidden></div>
+        </section>
+      </div>
+      <section id="possibilities" class="possibilities" aria-labelledby="possibilities-title" hidden></section>
+      <section id="ending" class="ending" tabindex="-1" hidden></section>
+      <div class="utilities" id="utilities" hidden>
+        <span id="save-status" role="status">progress saved in this browser</span>
+        <div><button id="archive-button" type="button">traces <span id="archive-count">0</span>/5</button><button id="reset-button" type="button">begin again</button></div>
+      </div>
+    </main>
+    <footer class="game-footer"><span>an idea from Not the Pope Log</span><span>palinode : Certainty → ?</span></footer>
+  </div>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+    <p class="eyebrow">a point of no return</p><h2 id="confirm-title"></h2><p id="confirm-text"></p>
+    <div class="dialog-actions"><button id="cancel-confirm" type="button">Stay a little longer</button><button id="accept-confirm" type="button">Continue</button></div>
+  </dialog>
+  <dialog id="archive-dialog" aria-labelledby="archive-title">
+    <p class="eyebrow">the things you keep</p><h2 id="archive-title">Traces of other endings</h2>
+    <p>Begin again to follow another possibility. Discovered endings stay here.</p><div id="archive-list"></div>
+    <button id="close-archive" type="button">Return</button>
+  </dialog>
+  <noscript><p class="wrap">Palinode needs JavaScript to remember your choices. Enable it, then reload this page.</p></noscript>
+</body>
+</html>

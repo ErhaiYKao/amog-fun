@@ -1,5 +1,16 @@
 [
   {
+    "slug": "palinode",
+    "title": "Palinode",
+    "signature": "palinode : Certainty → ?",
+    "blurb": "The evening post has arrived. Do a few favors, hold a few grudges, and see what gets lost in the mail. An unfolding game from an idea by Not the Pope Log.",
+    "tags": [
+      "game",
+      "unfolding",
+      "narrative"
+    ]
+  },
+  {
     "slug": "alchemy",
     "title": "Alchemy",
     "signature": "alchemy : Void → Everything",
