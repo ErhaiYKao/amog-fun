@@ -56,7 +56,7 @@ A_1 \cap A_2 \arrow[dr, no head] & A_1 \cap A_3 \arrow[d, no head] & A_2 \cap A_
 </script>
 
       <p>We again want to find the elements which are "new" to $U$, that is, not in any lower set. This is the total size of $U$, minus the number of elements which are new to each set below $U$. This relies on each element having a lowest set containing it. We can again calculate these by induction.</p>
-      <p>Let's actually calculate how many elements are new to $U$ using only the size of each set. Letting $n=|U|$, $n_i=|A_i|$, $n_{ij}=|A_i\cap A_j|$, and $n_{123}=|A_1\cap A_2\cap A_3|$, and counting new elements from the bottom up, we have</p>
+      <p>Let's actually calculate how many elements are new to $U$ using only the size of each set. Letting $n=|U|$, $n_i=|A_i|$, $n_{ij}=|A_i\cap A_j|$, and $n_{123}=|A_1\cap A_2\cap A_3|$, and counting new elements from the bottom up, we have<sup class="fnref"><a href="#fn1" id="fnref1" aria-label="footnote 1">1</a></sup></p>
 
 <script type="text/tikzcd" data-col-sep="1.6">
     & {|U|}-\sum n_i+\sum n_{ij} - \sum n_{ijk} \arrow[dl, no head] \arrow[d, no head] \arrow[dr, no head] & \\
@@ -65,7 +65,6 @@ n_{12}-n_{123} \arrow[dr, no head] & n_{13}-n_{123} \arrow[d, no head] & n_{23}-
     & n_{123} &
 </script>
 
-      <p>We could recover the union form of inclusion-exclusion by setting the top number to zero and solving for $|U|$.</p>
     </section>
 
     <section data-section="2" id="s2">
@@ -85,6 +84,12 @@ n_{12}-n_{123} \arrow[dr, no head] & n_{13}-n_{123} \arrow[d, no head] & n_{23}-
       \end{CD}$$
       <p>Notable is the absence of groups from this list, the coproduct object for groups is quite ugly (free product), though the same principles should apply.</p>
       <p>Inductively, we can understand a union/sum of three structures if we understand every intersection between them. (We can understand $A \cup B$ and $C$, and then $(A\cup B)\cap C=(A\cap C)\cup(B\cap C)$, which we can understand by understanding $(A\cap C)\cap(B\cap C)=A\cap B\cap C$).</p>
+    </section>
+
+    <section class="footnotes" aria-label="Footnotes">
+      <ol>
+        <li id="fn1">We could recover the union form of inclusion-exclusion by setting the top number to zero and solving for $|U|$. <a href="#fnref1" class="fnback" aria-label="back to the text">↩</a></li>
+      </ol>
     </section>
 
     <p class="wip"><b>To be continued.</b> These notes are a work in progress; next up is where Möbius comes in.</p>

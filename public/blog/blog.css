@@ -69,3 +69,12 @@ details.sol summary:hover { color: var(--ink); }
   .post .env { padding: 14px 14px; }
   .post ol, .post ul { padding-left: 1.3em; }
 }
+
+/* footnotes: superscript marker in the text, list at the end of the post */
+.fnref { font-family: var(--mono); font-size: .62em; line-height: 0; margin-left: 1px; }
+.fnref a { color: var(--g1); text-decoration: none; padding: 0 2px; }
+.fnref a:hover { text-decoration: underline; }
+.footnotes { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 15.5px; color: #cfcbc1; }
+.footnotes ol { margin: 0; }
+.footnotes li:target { color: var(--ink); }
+.fnback { color: var(--g1); text-decoration: none; font-family: var(--mono); font-size: .9em; margin-left: 4px; }
