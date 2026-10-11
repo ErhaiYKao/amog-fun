@@ -43,11 +43,14 @@ function area(id, d) {
 function fight(mob, d) {
   if (!area("platform", d)) return false;
   const m = MOBS[mob];
+  if (!area(m.area, d)) return false;
   // gear up for the tougher mobs
   if (m.level >= 10 && (!need("ironSword", 1, d + 1) || !need("ironArmor", 1, d + 1))) return false;
+  if (m.level >= 15 && (!need("diamondSword", 1, d + 1) || !need("diamondArmor", 1, d + 1))) return false;
   if (!A.tool(s, "sword") && !need("woodSword", 1, d + 1)) return false;
   if (s.faintT > 0) { wait(); return false; }
-  const target = A.level(s) >= m.level ? mob : Object.keys(MOBS).filter(k => MOBS[k].level <= A.level(s)).pop();
+  // grind the toughest monster we can already fight until the target unlocks
+  const target = A.mobOpen(s, mob) ? mob : Object.keys(MOBS).filter(k => A.mobOpen(s, k)).sort((a, b) => MOBS[a].level - MOBS[b].level).pop();
   A.setMob(s, target);
   if (s.hp < 7) { if (!A.eat(s)) tick(4); return false; } // back off and heal
   A.attack(s); clicks++; tick(1 / CPS);

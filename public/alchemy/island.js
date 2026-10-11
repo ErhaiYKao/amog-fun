@@ -64,36 +64,55 @@
     ctx.strokeStyle = color;
     ctx.strokeRect(x * TS + 0.5, y * TS + 0.5, TS - 1, TS - 1);
   }
+  // Performance: the static scene (grass, cliffs, buildings) lives in an offscreen canvas that is only redrawn
+  // when the island changes; the starfield is pre-rendered once. A frame is then a few drawImage calls, and it
+  // runs on requestAnimationFrame as soon as the pointer moves (not just on the game's 10 Hz render).
+  const WORLD_W = COLS * TS, WORLD_H = ROWS * TS + CLIFF;
+  const scene = document.createElement("canvas");
+  scene.width = WORLD_W; scene.height = WORLD_H;
+  const sctx = scene.getContext("2d");
+  const sky = document.createElement("canvas");
+  sky.width = cv.width; sky.height = cv.height;
+  (() => {
+    const g = sky.getContext("2d");
+    g.fillStyle = "#07070c"; g.fillRect(0, 0, sky.width, sky.height);
+    for (const [x, y, b] of stars) { g.fillStyle = `rgba(255,255,255,${(0.25 + 0.55 * b).toFixed(2)})`; g.fillRect(x, y, 1, 1); }
+  })();
+  let sceneSig = "";
+  function buildScene(s) {
+    const sig = s.island.length + "|" + s.island.map(t => (t ? iconOf(t) : "")).join(",");
+    if (sig === sceneSig) return;
+    sceneSig = sig;
+    sctx.clearRect(0, 0, WORLD_W, WORLD_H);
+    const land = new Set(s.island.map((_, i) => cells[i].join(",")));
+    s.island.forEach((t, i) => {
+      const [x, y] = cells[i], px = x * TS, py = y * TS;
+      sctx.drawImage(grass, px, py);
+      if (!land.has(`${x},${y + 1}`)) sctx.drawImage(cliff, px, py + TS);
+      if (t) sctx.drawImage(I.canvas(iconOf(t)), px + 2, py + 2);
+    });
+  }
   function draw() {
     const s = UI.s;
     frameNo++;
-    ctx.fillStyle = "#07070c";
-    ctx.fillRect(0, 0, cv.width, cv.height);
-    for (const [x, y, b] of stars) {
-      ctx.fillStyle = `rgba(255,255,255,${((0.3 + 0.5 * Math.abs(Math.sin(frameNo / 25 + b * 9))) * b).toFixed(2)})`;
-      ctx.fillRect(x, y, 1, 1);
-    }
+    buildScene(s);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sky, 0, 0);
     cam = camera(s.island.length);
     ctx.save();
     ctx.translate(cam.ox, cam.oy);
     ctx.scale(cam.k, cam.k);
-    const land = new Set(s.island.map((_, i) => cells[i].join(",")));
     if (s.island.length < C.land.max) {
       ctx.setLineDash([2, 2]);
       outline(s.island.length, "rgba(255,255,255,.2)");
       ctx.setLineDash([]);
     }
-    s.island.forEach((t, i) => {
-      const [x, y] = cells[i], px = x * TS, py = y * TS;
-      ctx.drawImage(grass, px, py);
-      if (!land.has(`${x},${y + 1}`)) ctx.drawImage(cliff, px, py + TS);
-      if (!t) return;
-      ctx.drawImage(I.canvas(iconOf(t)), px + 2, py + 2);
-      if (t.id === "furnace" && s.slots.some(j => j && !j.stalled) && frameNo % 6 < 3) {
-        ctx.fillStyle = "#fff1a8";
-        ctx.fillRect(px + 9, py + 12, 2, 1);
-      }
-    });
+    ctx.drawImage(scene, 0, 0);
+    // the only animation: a furnace that's working flickers
+    if (frameNo % 6 < 3 && s.slots.some(j => j && !j.stalled)) {
+      ctx.fillStyle = "#fff1a8";
+      s.island.forEach((t, i) => { if (t && t.id === "furnace") ctx.fillRect(cells[i][0] * TS + 9, cells[i][1] * TS + 12, 2, 1); });
+    }
     if (hover >= 0) outline(hover, drag && drag.moved ? "#c8f04a" : UI.placing && !s.island[hover] ? "#c8f04a" : "rgba(255,255,255,.4)");
     if (UI.selected >= 0 && UI.selected < s.island.length) outline(UI.selected, "#ffffff");
     // the building being dragged follows the pointer
@@ -104,6 +123,12 @@
       ctx.globalAlpha = 1;
     }
     ctx.restore();
+  }
+  let queued = false;
+  function requestDraw() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; draw(); });
   }
 
   const canvasXY = e => { const r = cv.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * cv.width, ((e.clientY - r.top) / r.height) * cv.height]; };
@@ -124,12 +149,14 @@
     cv.setPointerCapture(e.pointerId);
   });
   cv.addEventListener("pointermove", e => {
-    hover = indexAt(e);
+    const h = indexAt(e);
+    if (h !== hover) { hover = h; requestDraw(); }
     if (!drag) return;
     const [cx, cy] = canvasXY(e);
     drag.cx = cx; drag.cy = cy;
     if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 5) drag.moved = true;
     if (!drag.moved) return;
+    requestDraw();
     if (drag.tile) { cv.classList.add("dragging"); invCard.classList.toggle("drop", overInventory(e)); }
     else { // pan
       const r = cv.getBoundingClientRect(), sx = cv.width / r.width;
@@ -152,12 +179,13 @@
     }
     UI.render();
   });
-  cv.addEventListener("pointerleave", () => { hover = -1; });
+  cv.addEventListener("pointerleave", () => { hover = -1; requestDraw(); });
   // ctrl/⌘ + wheel (or a trackpad pinch) zooms; a plain wheel keeps scrolling the page
   cv.addEventListener("wheel", e => {
     if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     zoom(e.deltaY < 0 ? 1 : -1, canvasXY(e));
+    requestDraw();
   }, { passive: false });
 
   function placeAt(id, i) {
@@ -178,7 +206,8 @@
   cv.addEventListener("dragover", e => {
     if (!e.dataTransfer.types.includes("text/x-alchemy-building")) return;
     e.preventDefault();
-    hover = indexAt(e);
+    const h = indexAt(e);
+    if (h !== hover) { hover = h; requestDraw(); }
     cv.classList.add("drop");
   });
   cv.addEventListener("dragleave", () => cv.classList.remove("drop"));
@@ -218,7 +247,7 @@
 
   function renderIsland() {
     const s = UI.s;
-    draw();
+    requestDraw();
     const used = s.island.filter(Boolean).length, maxed = s.island.length >= C.land.max;
     UI.setHTML($("land"), "land", `${used}/${s.island.length} tiles${maxed ? " · full size" : ` · <span title="Every quest and advancement you complete adds a tile">+1 per quest</span>`}`);
     const i = UI.selected, t = s.island[i];

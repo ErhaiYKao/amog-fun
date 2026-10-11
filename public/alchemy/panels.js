@@ -40,7 +40,7 @@
     if (id === "lavaBucket") add("filling a bucket at a crucible holding 1000 mB of lava");
     if (id === "cobble") add("auto-generators, which mine it on their own");
     for (const [m, mb] of Object.entries(D.MOBS)) if (mb.drops.some(d => d[0] === id))
-      add(`fighting ${mb.name === "Enderman" ? "an" : "a"} ${mb.name.toLowerCase()} on the Dark Platform (the Wilds)${C.grinder.mobs.includes(m) ? ", or a mob grinder set to it" : ""}`);
+      add(`fighting ${/^[AEIOU]/.test(mb.name) ? "an" : "a"} ${mb.name.toLowerCase()} ${mb.area === "nether" ? "in the Nether" : "on the Dark Platform"} (the Wilds), or a mob grinder set to it`);
     if (C.pasture.drops.some(d => d[0] === id)) add("the cow pasture (the Wilds)");
     return out;
   }
@@ -306,14 +306,14 @@
       const kindName = { hammer: "hammer", mesh: "mesh", chammer: "compressed hammer" }[cfg.kind];
       const owned = C.tools[cfg.kind].filter(([o]) => (s.inv[o] || 0) > 0).map(([o]) => o).reverse(); // best first
       const sel = t.sel || s.sel[id];
-      UI.v(`m${i}:bar`, t.idle ? 0 : t.t / A.autoPeriod(t));
+      UI.v(`m${i}:bar`, t.idle ? 0 : t.t / A.autoPeriod(t, UI.s));
       const slot = t.tool
         ? `<span class="toolslot full" data-tip="${t.tool}">${img(t.tool, "sm")}${esc(name(t.tool))}</span><button class="mini" data-act="pull:${i}">pull out</button>`
         : `<span class="toolslot">no ${kindName}</span>`;
       const insert = owned.filter(o => o !== t.tool).map(o => `<button class="chip" data-act="insert:${i}:${o}" data-tip="${o}">${img(o, "sm")}<span>insert</span></button>`).join("");
       const chips = (act, cur) => inputs.filter(k => s.seen[k]).map(k => `<button class="chip" data-act="${act}:${k}" aria-pressed="${cur === k}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span></button>`).join("");
       const others = A.built(s, id) > 1 ? `<div class="row"><span class="meta">set all ${A.built(s, id)}</span><div class="chips">${chips(`auto:${id}`, null)}</div></div>` : "";
-      const speed = t.tool && cfg.kind !== "mesh" ? ` <span class="meta">${A.autoPeriod(t).toFixed(1)} s each</span>` : "";
+      const speed = t.tool && cfg.kind !== "mesh" ? ` <span class="meta">${A.autoPeriod(t, UI.s).toFixed(1)} s each</span>` : "";
       const wait = t.idle ? `<p class="meta">${t.tool ? `waiting for ${esc(name(sel).toLowerCase())}${C.reserve[sel] ? ` (it leaves ${C.reserve[sel]} for crafting)` : ""}` : `needs a ${kindName}: insert one from your inventory`}</p>` : "";
       return `<div class="unitrow">${slot}${insert}${speed}</div><div class="unitrow"><span class="meta">input</span><div class="chips">${chips(`autot:${i}`, sel)}</div><div class="bar"><i data-w="m${i}:bar"></i></div></div>${wait}${others}` +
         `<p class="meta">${cfg.kind === "mesh" ? "The mesh inside decides the drops." : "Better hammers work faster."} Manual work uses the best one left in your inventory.</p>`;
@@ -365,9 +365,10 @@
       case "autoCompressor": {
         const map = C.compress.map;
         UI.v(`m${i}:bar`, t.idle ? 0 : t.t / C.compress.time);
-        UI.v(`m${i}:st`, t.idle ? `waiting for 9 ${name(t.sel).toLowerCase()}${C.reserve[t.sel] ? ` (it leaves ${C.reserve[t.sel]} for crafting)` : ""}` : `${name(t.sel)} → ${name(map[t.sel])}`);
+        const [out, n] = map[t.sel] || [t.sel, 9];
+        UI.v(`m${i}:st`, t.idle ? `waiting for ${n} ${name(t.sel).toLowerCase()}${C.reserve[t.sel] ? ` (it leaves ${C.reserve[t.sel]} for crafting)` : ""}` : `${n} ${name(t.sel)} → ${name(out)}`);
         return `<div class="chips">${Object.keys(map).filter(k => s.seen[k]).map(k => `<button class="chip" data-act="compress:${i}:${k}" aria-pressed="${t.sel === k}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span></button>`).join("")}</div>` +
-          unit(`m${i}:st`, `m${i}:bar`) + `<p class="meta">Every ${C.compress.time} s it squeezes 9 into 1. Set several to different blocks, or chain one after your auto-hammers and before an auto heavy sieve.</p>`;
+          unit(`m${i}:st`, `m${i}:bar`) + `<p class="meta">Every ${C.compress.time} s it squeezes 9 blocks into 1 (or 4 ore pieces into a chunk). Set several to different blocks, or chain one after your auto-hammers and before an auto heavy sieve.</p>`;
       }
       case "infested":
         UI.v(`m${i}:bar`, t.t / C.infested.time);
@@ -383,21 +384,24 @@
       case "table":
         return `<p class="meta">Recipes marked "at a table" in the crafting list need one of these on the island.</p>` + autoMakeHTML(s, t, i);
       case "enchantTable": {
-        const L = A.level(s);
-        const rows = C.enchant.kinds.map(k => [k, A.tool(s, k)]).filter(([, tl]) => tl).map(([k, tl]) => {
-          const n = s.ench[k] || 0, cost = A.enchantCost(s, k), maxed = n >= C.enchant.max;
-          return `<div class="unitrow">${img(tl[0], "sm")}<b>${esc(name(tl[0]))}</b><span class="meta">${n ? `enchanted ${n} · ×${A.enchMult(s, k).toFixed(2)}` : "not enchanted"}</span>` +
-            `<button class="mini" data-act="enchant:${k}" ${maxed || L < cost ? "disabled" : ""}>${maxed ? "max" : `Enchant · ${cost} levels`}</button></div>`;
+        const L = A.level(s), ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
+        const EFFECT = { sword: "damage", armor: "protection", meshEff: "sieving speed (manual and auto-sieves)", meshFortune: "drop chances" };
+        const rows = Object.entries(C.enchant.types).map(([type, E]) => [type, E, A.bestOwned(s, E.kind)]).filter(([, , tl]) => tl).map(([type, E, tl]) => {
+          const n = A.enchLevel(s, type), why = A.enchantBlocker(s, type), per = Math.round((E.perLevel || C.enchant.perLevel) * 100);
+          const label = why === "maxed" ? "maxed" : why === "needs a ghast tear" ? `${A.enchantCost(s, type)} levels + a ghast tear` : `${A.enchantCost(s, type)} levels${n >= C.enchant.max ? " + a ghast tear" : ""}`;
+          return `<div class="unitrow">${img(tl[0], "sm")}<b>${E.name}${n ? " " + ROMAN[n] : ""}</b><span class="meta">${esc(name(tl[0]).toLowerCase())} · +${per}% ${EFFECT[type] || "power"} per level${n ? ` (now ×${A.enchMult(s, type).toFixed(2)})` : ""}</span>` +
+            `<button class="mini" data-act="enchant:${type}" ${why ? "disabled" : ""} title="${esc(why)}">${n ? "Upgrade" : "Enchant"} · ${label}</button></div>`;
         }).join("");
-        return `<p class="meta">You are level <b>${L}</b> (${Math.floor(s.xp)} XP). Each enchantment makes your best tool of that kind 25% stronger, and applies to whichever tool of that kind is your best. Levels come from fighting in the Wilds.</p>` +
+        return `<p class="meta">You are level <b>${L}</b> (${Math.floor(s.xp)} XP). Enchantments apply to every tool of that kind you own, including ones slotted into auto-hammers and auto-sieves. Past V, each level also takes a ghast tear from the Nether. Levels come from fighting in the Wilds; spending them never locks a monster again.</p>` +
           (rows || `<p class="meta">You have no enchantable tools yet.</p>`);
       }
       case "mobGrinder": {
         UI.v(`m${i}:bar`, t.p);
         UI.v(`m${i}:st`, t.status || "grinding");
-        return `<div class="chips">${C.grinder.mobs.map(m => `<button class="chip" style="padding-left:4px" data-act="grind:${i}:${m}" aria-pressed="${t.sel === m}">${img(m, "sm")}${D.MOBS[m].name}</button>`).join("")}</div>` +
+        const open = Object.keys(D.MOBS).filter(m => A.mobOpen(s, m));
+        return `<div class="chips">${open.map(m => `<button class="chip" style="padding-left:4px" data-act="grind:${i}:${m}" aria-pressed="${t.sel === m}">${img(m, "sm")}${D.MOBS[m].name}</button>`).join("") || `<span class="meta">unlock the Dark Platform to pick a monster</span>`}</div>` +
           `<div class="unitrow"><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled}">${t.enabled ? "Pause" : "Resume"}</button><span class="meta" data-v="m${i}:st"></span><div class="bar"><i data-w="m${i}:bar"></i></div></div>` +
-          `<p class="meta">${C.grinder.watts} W: one ${esc(D.MOBS[t.sel].name.toLowerCase())} every ${C.grinder.time} s for its drops and ${C.grinder.xp} XP.</p>` + gridHTML(s);
+          `<p class="meta">${C.grinder.watts} W: one ${esc(D.MOBS[A.mobOpen(s, t.sel) ? t.sel : "zombie"].name.toLowerCase())} every ${C.grinder.time} s for its drops and ${C.grinder.xp} XP. It can grind any monster you can fight yourself.</p>` + gridHTML(s);
       }
       case "sieve": case "heavySieve":
         return `<p class="meta">Each one adds sieving power to the ${id === "sieve" ? "Sieve" : "Heavy sieve"} button in the Work panel.</p>`;
@@ -419,7 +423,7 @@
     pull: ([i]) => A.pullTool(UI.s, +i),
     seed: ([i, id]) => A.setSeed(UI.s, +i, id || null),
     enchant: ([k]) => A.enchant(UI.s, k),
-    grind: ([i, m]) => { const t = UI.s.island[+i]; if (t && t.id === "mobGrinder" && C.grinder.mobs.includes(m)) t.sel = m; },
+    grind: ([i, m]) => { const t = UI.s.island[+i]; if (t && t.id === "mobGrinder" && A.mobOpen(UI.s, m)) t.sel = m; },
     compress: ([i, k]) => { const t = UI.s.island[+i]; if (t && t.id === "autoCompressor" && C.compress.map[k]) t.sel = k; },
     filter: ([f]) => { UI.filter = f; },
     drops: () => { const box = $("drops-box"); box.open = true; box.scrollIntoView({ behavior: "smooth", block: "nearest" }); },

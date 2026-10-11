@@ -19,8 +19,8 @@
  *          built. needTool: power from `per` alone isn't enough, you need the tool too. toolName: for messages.
  * Drop tables are lists of [item, chance, amount, gate]. gate is a minimum mesh tier (number)
  *          or a tool kind you must own (string, e.g. "crook").
- * MOBS     the Dark Platform's monsters: { name, hp, dmg (per hit), every (s between hits), xp, level (to fight),
- *          drops, icon }. Your sword is CONFIG.tools.sword, your armor CONFIG.tools.armor.
+ * MOBS     monsters in the wilds: { name, area, hp, dmg (per hit), every (s between hits), xp, level (to fight, by the
+ *          highest level you've reached, so spending levels never locks one again), drops, icon }. Your sword is CONFIG.tools.sword, your armor CONFIG.tools.armor.
  * AREAS    unlockable places off the island (they take no tiles): { name, unlock: {id: n}, desc }.
  * QUESTS   an advancement tree. need: { got: {id: n} } (ever obtained), { built: {id: n} },
  *          { anyBuilt: [ids] }, { gotAny: [ids] }, { land: tiles }, { area: id }, { enchanted: levels }. reward: {id: n}.
@@ -64,6 +64,9 @@
     rottenFlesh: { name: "Rotten Flesh", icon: ["lump", "#7a8c3a"], compost: 2, desc: "Zombies drop it. Barrels compost it (worth 2 leaves)." },
     bone: { name: "Bone", icon: ["bone", "#e8e2d0"], desc: "Skeletons drop it. Grind it into bone meal." },
     boneMeal: { name: "Bone Meal", icon: ["pile", "#f0ece0"], desc: "Fertilizer: farmland set to use it grows each crop twice as fast." },
+    blazeRod: { name: "Blaze Rod", icon: ["stick", "#f5a623"], fuel: [3, 240], desc: "From blazes in the Nether. Burns hot and long: 4 minutes of furnace heat, or 10,000 J in a fuel generator." },
+    ghastTear: { name: "Ghast Tear", icon: ["gem", "#e8f4f8"], desc: "From ghasts in the Nether. The enchanting table can go past V with one tear per extra level." },
+    flintSteel: { name: "Flint and Steel", icon: ["flintsteel"], desc: "Lights a Nether portal." },
     enderPearl: { name: "Ender Pearl", icon: ["ball", "#1f8f7a"], desc: "Endermen drop it. An enchanting table needs one." },
     leather: { name: "Leather", icon: ["hide", "#8b5a2b"], desc: "From the cow pasture. Armor and books." },
     rawBeef: { name: "Raw Beef", icon: ["lump", "#c0504d"], desc: "From the cow pasture. Cook it in a furnace." },
@@ -159,19 +162,19 @@
     autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true, desc: "Holds its own mesh and takes your best one when placed. The mesh decides the drops." },
     alloy: { name: "Alloy Smelter", icon: ["furnace", "#5a6270"], place: true, desc: "Fuses metals into alloys, burning coal from the shared fuel store. Click it to queue recipes." },
     heavySieve: { name: "Heavy Sieve", icon: ["sieve", "#7d8591"], place: true, desc: "Sieves compressed blocks: 7 sievings in one. Needs a mesh." },
-    autoCHammer: { name: "Auto Compressed Hammer", icon: ["autohammer", "#7d8591"], place: true, desc: "Holds its own compressed hammer. Upgrade an auto-hammer or a compressed hammer into one." },
+    autoCHammer: { name: "Auto Compressed Hammer", icon: ["chammerbox", "#7d8591"], place: true, desc: "Holds its own compressed hammer. Upgrade an auto-hammer or a compressed hammer into one." },
     autoHeavySieve: { name: "Auto Heavy Sieve", icon: ["autosieve", "#7d8591"], place: true, desc: "Holds its own mesh and sieves compressed blocks. Upgrade an auto-sieve or a heavy sieve into one." },
     farmland: { name: "Farmland", icon: ["farm"], place: true, desc: "Click it to pick a seed. A planted seed stays and keeps growing." },
-    fuelGenerator: { name: "Fuel Generator", icon: ["power", "#df963b"], place: true, desc: "40 W; stores 4,000 J. Burns your chosen coal or charcoal only when the grid has room. Click it to pick the fuel." },
+    fuelGenerator: { name: "Fuel Generator", icon: ["fuelgen", "#df963b"], place: true, desc: "40 W; stores 4,000 J. Burns your chosen coal or charcoal only when the grid has room. Click it to pick the fuel." },
     solarGenerator: { name: "Solar Generator", icon: ["solar", "#4678bb"], place: true, desc: "10 W forever under the void's eternal sun. Stores 2,000 J; no fuel required." },
-    geothermal: { name: "Geothermal Generator", icon: ["power", "#ff7a1a"], place: true, desc: "150 W from lava: drinks it from your crucibles (or a lava bucket from your inventory) at 1 mB per 10 J. Stores 8,000 J." },
-    enchantTable: { name: "Enchanting Table", icon: ["enchant"], place: true, desc: "Spend XP levels to enchant your best tool of a kind: each level makes it 25% stronger. Click it to enchant." },
-    mobGrinder: { name: "Mob Grinder", icon: ["autohammer", "#c0392b"], place: true, desc: "40 W: fights a monster every 8 s for its drops and a little XP. Click it to pick which." },
-    autoCompressor: { name: "Auto-Compressor", icon: ["autohammer", "#b692f6"], place: true, desc: "Squeezes 9 of a block into its compressed form every 4 s. Click it to pick which block." },
+    geothermal: { name: "Geothermal Generator", icon: ["geo", "#ff7a1a"], place: true, desc: "150 W from lava: drinks it from your crucibles (or a lava bucket from your inventory) at 1 mB per 10 J. Stores 8,000 J." },
+    enchantTable: { name: "Enchanting Table", icon: ["enchant"], place: true, desc: "Spend XP levels on Sharpness (swords), Protection (armor), Efficiency (tools and meshes) and Fortune (meshes). Click it to enchant." },
+    mobGrinder: { name: "Mob Grinder", icon: ["grinder", "#c0392b"], place: true, desc: "40 W: fights a monster every 8 s for its drops and a little XP. Click it to pick which." },
+    autoCompressor: { name: "Auto-Compressor", icon: ["compressor", "#e86a9a"], place: true, desc: "Squeezes 9 of a block into its compressed form (or 4 ore pieces into a chunk) every 4 s. Click it to pick which." },
     battery: { name: "Energy Cell", icon: ["battery", "#76cfb3"], place: true, desc: "Adds 20,000 J of shared storage. Every powered machine connects automatically." },
-    crusher: { name: "Crusher", icon: ["autohammer", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Click it to queue jobs." },
+    crusher: { name: "Crusher", icon: ["crusher", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Click it to queue jobs." },
     energizedSmelter: { name: "Energized Smelter", icon: ["furnace", "#4fd6e8"], place: true, desc: "20 W. Smelts with electricity, twice as fast as a furnace. No heat or fuel requirement." },
-    infuser: { name: "Metallurgic Infuser", icon: ["power", "#b98be3"], place: true, desc: "40 W. Makes steel and redstone alloy with half the coal or redstone. Click it to queue jobs." },
+    infuser: { name: "Metallurgic Infuser", icon: ["infuser", "#b98be3"], place: true, desc: "40 W. Makes steel and redstone alloy with half the coal or redstone. Click it to queue jobs." },
     treeHarvester: { name: "Tree Harvester", icon: ["harvester", "#73aa56"], place: true, desc: "60 W for 10 s per tree: 4 logs, 4 leaves and a sapling. Replants by itself; trees take 45 s to regrow. Click it to pause or resume." },
   };
 
@@ -227,7 +230,7 @@
   };
 
   const POWER = {
-    fuelGenerator: { watts: 40, capacity: 4000, fuels: { coal: 3200, charcoal: 1600 } },
+    fuelGenerator: { watts: 40, capacity: 4000, fuels: { coal: 3200, charcoal: 1600, blazeRod: 10000 } },
     solarGenerator: { watts: 10, capacity: 2000 },
     geothermal: { watts: 150, capacity: 8000, lavaPerJ: 0.1 }, // burns crucible lava (or lava buckets)
     battery: { watts: 0, capacity: 20000 },
@@ -263,19 +266,27 @@
   };
 
   const MOBS = {
-    zombie: { name: "Zombie", hp: 10, dmg: 2, every: 1.6, xp: 4, level: 0, icon: ["mob", "#5d9b4a", "zombie"],
+    zombie: { name: "Zombie", area: "platform", hp: 10, dmg: 2, every: 1.6, xp: 4, level: 0, icon: ["mob", "#5d9b4a", "zombie"],
       drops: [["rottenFlesh", 1, 1], ["rottenFlesh", 0.5, 1], ["ironPiece", 0.05, 1]] },
-    skeleton: { name: "Skeleton", hp: 14, dmg: 3, every: 1.4, xp: 6, level: 2, icon: ["mob", "#d8d4c4", "skeleton"],
+    skeleton: { name: "Skeleton", area: "platform", hp: 14, dmg: 3, every: 1.4, xp: 6, level: 2, icon: ["mob", "#d8d4c4", "skeleton"],
       drops: [["bone", 1, 1], ["bone", 0.5, 1]] },
-    spider: { name: "Spider", hp: 16, dmg: 3, every: 1, xp: 7, level: 4, icon: ["mob", "#2a2a33", "spider"],
+    spider: { name: "Spider", area: "platform", hp: 16, dmg: 3, every: 1, xp: 7, level: 4, icon: ["mob", "#2a2a33", "spider"],
       drops: [["string", 1, 2], ["string", 0.5, 1]] },
-    enderman: { name: "Enderman", hp: 40, dmg: 7, every: 1.5, xp: 20, level: 10, icon: ["mob", "#151318", "enderman"],
+    enderman: { name: "Enderman", area: "platform", hp: 40, dmg: 7, every: 1.5, xp: 20, level: 10, icon: ["mob", "#151318", "enderman"],
       drops: [["enderPearl", 0.5, 1]] },
+    // the Nether (through the portal)
+    piglin: { name: "Zombified Piglin", area: "nether", hp: 30, dmg: 5, every: 1.4, xp: 16, level: 12, icon: ["mob", "#e3a4a0", "piglin"],
+      drops: [["goldPiece", 1, 1], ["goldPiece", 0.5, 1], ["rottenFlesh", 0.5, 1]] },
+    blaze: { name: "Blaze", area: "nether", hp: 36, dmg: 6, every: 1.1, xp: 24, level: 15, icon: ["mob", "#f2b233", "blaze"],
+      drops: [["blazeRod", 0.6, 1]] },
+    ghast: { name: "Ghast", area: "nether", hp: 26, dmg: 10, every: 2.6, xp: 30, level: 18, icon: ["mob", "#f2f0ec", "ghast"],
+      drops: [["ghastTear", 0.5, 1]] },
   };
 
   const AREAS = {
     platform: { name: "Dark Platform", unlock: { cobble: 32, planks: 16 }, desc: "A slab of cobblestone off the edge of the island, kept dark so monsters spawn on it." },
     pasture: { name: "Cow Pasture", unlock: { planks: 32, stick: 16, wheat: 4 }, desc: "A fenced field below the island. Lure two cows in with wheat; feed them more to breed." },
+    nether: { name: "The Nether", unlock: { obsidian: 10, flintSteel: 1 }, desc: "Build an obsidian frame on the island's underside and light it. Hotter, meaner monsters on the other side." },
   };
 
   const AUTO = {
@@ -301,6 +312,7 @@
     { in: { iron: 12, leather: 2 }, out: { ironArmor: 1 }, at: "table" },
     { in: { diamond: 12, leather: 2 }, out: { diamondArmor: 1 }, at: "table" },
     { in: { bone: 1 }, out: { boneMeal: 3 } },
+    { in: { iron: 1, flint: 1 }, out: { flintSteel: 1 } },
     { in: { sugarcane: 3 }, out: { paper: 3 } },
     { in: { paper: 3, leather: 1 }, out: { book: 1 } },
     { in: { book: 1, diamond: 2, obsidian: 4, enderPearl: 1 }, out: { enchantTable: 1 }, at: "table" },
@@ -431,6 +443,9 @@
     { id: "bookworm", title: "Bookworm", text: "Sieve sand for sugarcane, grow it on farmland, and bind three paper in leather into a book.", need: { got: { book: 1 } } },
     { id: "ender", title: "The End?", text: "Reach level 10 and take an ender pearl from an enderman. Bring armor.", need: { got: { enderPearl: 1 } } },
     { id: "enchant", title: "Enchanted", text: "Build an enchanting table and spend XP levels enchanting a tool.", need: { enchanted: 1 } },
+    { id: "nether", title: "Through the Portal", text: "Ten obsidian and a flint and steel open the Nether in the Wilds.", need: { area: "nether" } },
+    { id: "blaze", title: "Hot Property", text: "Reach level 15 and take a blaze rod from a blaze. It's superb fuel.", need: { got: { blazeRod: 1 } } },
+    { id: "tear", title: "Crying Shame", text: "Reach level 18 and bring back a ghast tear. It lets enchantments go past V.", need: { got: { ghastTear: 1 } } },
     { id: "grind", title: "Grind Time", text: "Build a powered mob grinder to farm monster drops while you do other things.", need: { built: { mobGrinder: 1 } } },
     { id: "geo", title: "Hot Rocks", text: "Pour water onto lava for obsidian, then build a geothermal generator. It turns crucible lava into 150 W.", need: { built: { geothermal: 1 } } },
     { id: "compress", title: "Squeeze Play", text: "Build an auto-compressor. Point one at dust, put it between your auto-hammers and an auto heavy sieve, and the dust farm runs itself.", need: { built: { autoCompressor: 1 } } },
@@ -446,7 +461,7 @@
     farm: ["clay", "charcoal"], cast: ["clay", "charcoal"], ironpick: ["cast", "iron"], auto: ["iron"],
     autogen: ["auto", "gen"], heavy: ["iron"], diamond: ["iron"], alloy: ["iron"], steel: ["alloy"],
     pstone: ["diamond"], terminal: ["pstone", "steel"], geo: ["power", "steel"], fight: ["cobble"], moo: ["farm"], bookworm: ["moo"], ender: ["fight", "iron"],
-    enchant: ["bookworm", "ender", "diamond"], grind: ["fight", "power"], compress: ["steel", "heavy"],
+    enchant: ["bookworm", "ender", "diamond"], grind: ["fight", "power"], nether: ["ender", "geo"], blaze: ["nether"], tear: ["nether"], compress: ["steel", "heavy"],
     power: ["steel"], orepower: ["power"], infusion: ["power"], forestry: ["power"], storage: ["power"], clips: ["steel"],
   };
   QUESTS.forEach(q => (q.after = QUEST_AFTER[q.id] || []));
@@ -457,10 +472,20 @@
     land: { max: 63, perQuest: 1 },
     combat: { hp: 20, regen: 1, faint: 10, fist: 1, armorPct: 0.04, armorMax: 0.8, levelXp: 10, steakHeal: 8, calm: 4 },
     pasture: { start: 2, max: 12, every: 40, breed: { wheat: 2 }, drops: [["leather", 1, 1], ["rawBeef", 0.6, 1]] },
-    enchant: { kinds: ["axe", "crook", "hammer", "pick", "chammer", "sword", "armor"], max: 5, perLevel: 0.25, cost: 3 }, // n-th level costs cost·n XP levels
-    grinder: { watts: 40, time: 8, xp: 1, mobs: ["zombie", "skeleton", "spider"] },
+    // enchantments, keyed by id (tools use their kind as the id). n-th level costs cost·n XP levels; past `max`
+    // each level also takes a ghast tear, up to `maxTear`. Applies to every tool of that kind, including tools
+    // slotted into auto machines (better tools = faster auto-hammers/sieves).
+    enchant: { max: 5, maxTear: 8, perLevel: 0.25, cost: 3, types: {
+      sword: { kind: "sword", name: "Sharpness" }, armor: { kind: "armor", name: "Protection" },
+      axe: { kind: "axe", name: "Efficiency" }, crook: { kind: "crook", name: "Efficiency" }, pick: { kind: "pick", name: "Efficiency" },
+      hammer: { kind: "hammer", name: "Efficiency" }, chammer: { kind: "chammer", name: "Efficiency" },
+      meshEff: { kind: "mesh", name: "Efficiency" },                     // faster sieving (manual and auto)
+      meshFortune: { kind: "mesh", name: "Fortune", perLevel: 0.1 },     // +10% drop chances per level
+    } },
+    grinder: { watts: 40, time: 8, xp: 1 }, // grinds any monster you could fight (level and area)
     autocraft: { time: 1, limit: 64 }, // tables and machines set to auto-make an item, unlocked by the Automation quest
-    compress: { time: 4, map: { dirt: "cDirt", cobble: "cCobble", gravel: "cGravel", sand: "cSand", dust: "cDust" } },
+    compress: { time: 4, map: { dirt: ["cDirt", 9], cobble: ["cCobble", 9], gravel: ["cGravel", 9], sand: ["cSand", 9], dust: ["cDust", 9],
+      ironPiece: ["ironChunk", 4], goldPiece: ["goldChunk", 4] } }, // input -> [output, how many in]
     tree: { grow: 45, litter: 20, drops: [["leaves", 1, 1], ["sapling", 0.12, 1], ["stick", 0.06, 1]] },
     barrel: { units: 6, time: 8 },
     rain: { time: 30 },

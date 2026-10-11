@@ -42,7 +42,7 @@
 
   function create(now = Date.now()) {
     const s = {
-      v: 6, t: now, start: now, won: 0, clicks: 0,
+      v: 7, t: now, start: now, won: 0, clicks: 0,
       inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {}, hide: {},
       sel: { sieve: "dirt", hammer: "cobble", chammer: "cCobble", hsieve: "cGravel", autoHammer: "cobble", autoSieve: "gravel", autoCHammer: "cCobble", autoHeavySieve: "cGravel" },
       opt: { feedBarrels: true, compostSaplings: false, feedCrucible: true },
@@ -92,13 +92,17 @@
     for (const [id, v] of C.tools[kind]) if (count(s, id) > 0) best = [id, v];
     return best;
   }
-  // enchanting makes your best tool of a kind stronger (25% per level); meshes aren't enchantable (they gate drops)
-  const enchMult = (s, kind) => 1 + C.enchant.perLevel * ((s.ench && s.ench[kind]) || 0);
-  const toolValue = (s, kind) => (tool(s, kind) || [null, 0])[1] * (C.enchant.kinds.includes(kind) ? enchMult(s, kind) : 1);
+  // enchanting: each type (Sharpness, Protection, Efficiency, Fortune...) has a level; the multiplier is
+  // 1 + perLevel·level. Tool kinds use their own id; meshes have two types of their own (meshEff, meshFortune).
+  const ENCH = C.enchant.types;
+  const enchLevel = (s, type) => (s.ench && s.ench[type]) || 0;
+  const enchMult = (s, type) => 1 + (ENCH[type] && ENCH[type].perLevel || C.enchant.perLevel) * enchLevel(s, type);
+  // tool power (meshes excluded: their value is a tier that gates drops)
+  const toolValue = (s, kind) => (tool(s, kind) || [null, 0])[1] * (ENCH[kind] && kind !== "mesh" ? enchMult(s, kind) : 1);
 
   function roll(s, table, mesh = 0) {
     const got = {};
-    const luck = mesh ? C.meshLuck[mesh] : 1;
+    const luck = mesh ? C.meshLuck[mesh] * enchMult(s, "meshFortune") : 1; // Fortune: +10% per level
     for (const [id, p, n = 1, gate] of table) {
       if (typeof gate === "number" && mesh < gate) continue;
       if (typeof gate === "string" && !tool(s, gate)) continue;
@@ -118,6 +122,7 @@
     let power = a.base || 0;
     if (a.tool) power += toolValue(s, a.tool);
     if (a.per) power += built(s, a.per);
+    if (a.mesh) power *= enchMult(s, "meshEff"); // an Efficiency mesh sieves faster
     if (power <= 0) return { ok: false, reason: a.per ? `build a ${ITEMS[a.per].name.toLowerCase()}` : `needs a ${toolName}` };
     const mesh = a.mesh ? toolValue(s, "mesh") : 0;
     if (a.mesh && !mesh) return { ok: false, reason: "needs a mesh", power };
@@ -387,21 +392,25 @@
   // levels: level L needs levelXp·L² total XP
   const level = s => Math.floor(Math.sqrt((s.xp || 0) / C.combat.levelXp));
   const xpFor = L => C.combat.levelXp * L * L;
+  // monsters unlock by the highest level you've ever reached, so spending levels on enchanting never relocks one
+  const peakLevel = s => Math.max(s.peak || 0, level(s));
+  function gainXp(s, n) { s.xp += n; s.peak = peakLevel(s); }
+  const mobOpen = (s, id) => !!MOBS[id] && !!s.areas[MOBS[id].area] && peakLevel(s) >= MOBS[id].level;
   const swordDmg = s => toolValue(s, "sword") || C.combat.fist;
   const armorBlock = s => Math.min(C.combat.armorMax, toolValue(s, "armor") * C.combat.armorPct);
   function setMob(s, id) {
-    if (!MOBS[id] || level(s) < MOBS[id].level || s.mob.id === id) return false;
+    if (!mobOpen(s, id) || s.mob.id === id) return false;
     s.mob = { id, hp: MOBS[id].hp };
     return true;
   }
   // one swing at the current mob; returns { dmg, killed, drops } or null if you can't fight right now
   function attack(s) {
-    if (!s.areas.platform || s.faintT > 0) return null;
+    if (!mobOpen(s, s.mob.id) || s.faintT > 0) return null;
     const m = MOBS[s.mob.id], dmg = swordDmg(s);
     s.calmT = 0;
     s.mob.hp -= dmg;
     if (s.mob.hp > 1e-9) return { dmg, killed: false };
-    s.xp += m.xp;
+    gainXp(s, m.xp);
     s.kills[s.mob.id] = (s.kills[s.mob.id] || 0) + 1;
     const drops = roll(s, m.drops);
     s.mob = { id: s.mob.id, hp: m.hp };
@@ -414,7 +423,7 @@
     return true;
   }
   function tickCombat(s, dt) {
-    if (!s.areas.platform) return;
+    if (!s.areas.platform && !s.areas.nether) return;
     const K = C.combat;
     if (s.faintT > 0) { s.faintT = Math.max(0, s.faintT - dt); if (!s.faintT) s.hp = K.hp; return; }
     s.calmT += dt;
@@ -444,13 +453,33 @@
     s.cowT += dt;
     while (s.cowT >= C.pasture.every) { s.cowT -= C.pasture.every; for (let k = 0; k < s.cows; k++) roll(s, C.pasture.drops); }
   }
-  const enchantCost = (s, kind) => C.enchant.cost * (((s.ench && s.ench[kind]) || 0) + 1);
-  function enchant(s, kind) {
-    if (!built(s, "enchantTable") || !C.enchant.kinds.includes(kind) || !tool(s, kind)) return false;
-    const n = s.ench[kind] || 0, cost = enchantCost(s, kind), L = level(s);
-    if (n >= C.enchant.max || L < cost) return false;
-    s.xp = xpFor(L - cost); // spend whole levels
-    s.ench[kind] = n + 1;
+  // your best tool of a kind, counting ones slotted into auto machines (for enchanting)
+  function bestOwned(s, kind) {
+    let best = tool(s, kind);
+    for (const t of s.island) {
+      const tk = t && t.tool && toolKind(t.tool);
+      if (tk && tk[0] === kind && (!best || tk[1] > best[1])) best = [t.tool, tk[1]];
+    }
+    return best;
+  }
+  const enchantCost = (s, type) => C.enchant.cost * (enchLevel(s, type) + 1);
+  // the next level of `type`: '' if it can be done now, else why not
+  function enchantBlocker(s, type) {
+    const E = ENCH[type], n = enchLevel(s, type);
+    if (!E) return "unknown enchantment";
+    if (!built(s, "enchantTable")) return "needs an enchanting table";
+    if (!bestOwned(s, E.kind)) return `needs a ${E.kind === "chammer" ? "compressed hammer" : E.kind}`;
+    if (n >= C.enchant.maxTear) return "maxed";
+    if (n >= C.enchant.max && count(s, "ghastTear") < 1) return "needs a ghast tear";
+    if (level(s) < enchantCost(s, type)) return `needs level ${enchantCost(s, type)}`;
+    return "";
+  }
+  function enchant(s, type) {
+    if (enchantBlocker(s, type)) return false;
+    const n = enchLevel(s, type), L = level(s);
+    if (n >= C.enchant.max) take(s, "ghastTear", 1);
+    s.xp = xpFor(L - enchantCost(s, type)); // spend whole levels (the peak level, and so unlocked monsters, stay)
+    s.ench[type] = n + 1;
     checkQuests(s);
     return true;
   }
@@ -467,9 +496,9 @@
         if (ran + 1e-9 < wanted) t.status = "waiting for energy";
         if (t.p >= 1 - 1e-9) {
           t.p = 0;
-          const m = MOBS[cfg.mobs.includes(t.sel) ? t.sel : "zombie"];
+          const m = MOBS[mobOpen(s, t.sel) ? t.sel : "zombie"];
           roll(s, m.drops);
-          s.xp += cfg.xp;
+          gainXp(s, cfg.xp);
         }
         if (ran + 1e-9 < wanted) break;
       }
@@ -591,16 +620,19 @@
 
   // ---------- auto machines: each holds its own tool ----------
   const toolTier = id => (toolKind(id) || [null, 0])[1];
-  // seconds per operation: hammers speed up with tier, sieves always take the base time
-  function autoPeriod(tile) {
+  // seconds per operation: hammers speed up with tier; enchantments speed up whatever tool is slotted in
+  // (Efficiency on hammers, Efficiency on meshes)
+  function autoPeriod(tile, s) {
     const A = D.AUTO[tile.id];
-    return A.kind === "mesh" || !tile.tool ? A.time : (A.time * 2) / (1 + toolTier(tile.tool));
+    if (!tile.tool) return A.time;
+    const base = A.kind === "mesh" ? A.time : (A.time * 2) / (1 + toolTier(tile.tool));
+    return s ? base / enchMult(s, A.kind === "mesh" ? "meshEff" : A.kind) : base;
   }
   function autoRun(s, tile, dt) {
     const A = D.AUTO[tile.id], table = ACTIONS[A.action].inputs;
     let input = tile.sel || s.sel[tile.id];
     if (!table[input]) input = tile.sel = Object.keys(table)[0];
-    const period = autoPeriod(tile), mesh = A.kind === "mesh" && tile.tool ? toolTier(tile.tool) : 0;
+    const period = autoPeriod(tile, s), mesh = A.kind === "mesh" && tile.tool ? toolTier(tile.tool) : 0;
     tile.t += dt;
     tile.idle = false;
     while (tile.t >= period) {
@@ -683,13 +715,13 @@
           break;
         case "table": autoCraftTable(s, tile, dt); break;
         case "autoCompressor": {
-          const out = C.compress.map[tile.sel];
+          const [out, n] = C.compress.map[tile.sel] || [];
           tile.t += dt;
           tile.idle = false;
           while (tile.t >= C.compress.time) {
-            if (!out || count(s, tile.sel) - (C.reserve[tile.sel] || 0) < 9) { tile.t = C.compress.time; tile.idle = true; break; }
+            if (!out || count(s, tile.sel) - (C.reserve[tile.sel] || 0) < n) { tile.t = C.compress.time; tile.idle = true; break; }
             tile.t -= C.compress.time;
-            take(s, tile.sel, 9);
+            take(s, tile.sel, n);
             give(s, out, 1);
           }
           break;
@@ -784,6 +816,7 @@
     if (s.v < 4) s.v = 4; // new grid/queue fields were filled from create(); legacy machines stay fuel-free
     if (s.v < 5) s.v = 5; // v5: buildings can sit in the inventory; nothing on the island changes
     if (s.v < 6) s.v = 6; // v6: land comes from quests (growLand below), the wilds; new fields filled from create()
+    if (s.v < 7) { s.peak = Math.max(s.peak || 0, Math.floor(Math.sqrt((s.xp || 0) / C.combat.levelXp))); s.v = 7; } // v7: peak level
     s.ev = [];
     growLand(s); // land owed for quests already done
     return s;
@@ -806,7 +839,7 @@
     cost, recipeState, maxCraft, craft, visible, hidden, toolKind, landTarget, demolish, pickUp, place, move, placesAs, isPlace, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
     insertTool, pullTool, autoPeriod, setSeed, setAuto, unlockArea, level, xpFor, swordDmg, armorBlock, setMob, attack, eat,
-    breed, enchant, enchantCost, enchMult, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
+    breed, enchant, enchantCost, enchantBlocker, enchLevel, bestOwned, enchMult, peakLevel, mobOpen, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
   };
   root.Alchemy = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

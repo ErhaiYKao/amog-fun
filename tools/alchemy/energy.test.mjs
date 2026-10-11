@@ -157,7 +157,7 @@ test('old saves migrate without changing legacy machines, inventory or recipe pr
   delete s.energy; delete s.power;
   for (const st of Object.keys(D.ELECTRIC)) { delete s[A.STATIONS[st].q]; delete s[A.STATIONS[st].sl]; }
   const saved = A.serialize(s), revived = A.revive(saved);
-  assert.equal(revived.v, 6);
+  assert.equal(revived.v, 7);
   assert.equal(revived.energy, 0);
   assert.deepEqual(revived.island, s.island);
   assert.deepEqual(revived.inv, s.inv);
@@ -335,4 +335,45 @@ test('pasture, bone meal and enchanting', () => {
   close(A.swordDmg(s), 3 * 1.25);
   assert.equal(A.level(s), 2);                      // spent 3 levels
   assert.ok(!A.enchant(s, 'sword'));                 // next one costs 6
+});
+test('monsters unlock by your best level, so enchanting never relocks them; the grinder obeys the same rule', () => {
+  const s = island('enchantTable', 'mobGrinder', 'solarGenerator', 'battery');
+  s.areas.platform = 1; A.give(s, 'ironSword');
+  s.xp = A.xpFor(10); s.peak = 10;
+  assert.ok(A.setMob(s, 'enderman'));
+  assert.ok(A.enchant(s, 'sword'));                   // spends 3 levels
+  assert.equal(A.level(s), 7);
+  assert.ok(A.mobOpen(s, 'enderman'));                // still unlocked
+  assert.ok(!A.mobOpen(s, 'blaze'));                  // the Nether isn't open
+  const g = s.island[1]; g.sel = 'blaze'; s.energy = 20000;
+  run(s, 9, 1);
+  assert.ok(!(s.inv.blazeRod > 0));                   // falls back to zombies
+  assert.ok(s.inv.rottenFlesh > 0);
+});
+test('enchantment types: named, mesh Efficiency speeds auto-sieves, ghast tears go past V', () => {
+  const s = island('enchantTable', 'autoSieve');
+  A.give(s, 'ironMesh'); A.pickUp(s, 1); A.place(s, 'autoSieve', 1); // it takes the mesh when placed
+  assert.equal(s.island[1].tool, 'ironMesh');
+  assert.equal(D.CONFIG.enchant.types.sword.name, 'Sharpness');
+  assert.equal(D.CONFIG.enchant.types.armor.name, 'Protection');
+  s.xp = A.xpFor(30);
+  const before = A.autoPeriod(s.island[1], s);
+  assert.ok(A.enchant(s, 'meshEff'));                 // the mesh is in the machine; it still counts
+  close(A.autoPeriod(s.island[1], s), before / 1.25);
+  s.ench.sword = 5; A.give(s, 'diamondSword');
+  assert.equal(A.enchantBlocker(s, 'sword'), 'needs a ghast tear');
+  A.give(s, 'ghastTear');
+  assert.ok(A.enchant(s, 'sword'));
+  assert.equal(s.ench.sword, 6); assert.equal(s.inv.ghastTear, 0);
+});
+test('auto-compressor turns 4 ore pieces into a chunk; the Nether opens with obsidian and flint and steel', () => {
+  const s = island('autoCompressor');
+  s.island[0].sel = 'goldPiece'; A.give(s, 'goldPiece', 9);
+  run(s, 9, 1);
+  assert.equal(s.inv.goldChunk, 2); assert.equal(s.inv.goldPiece, 1);
+  A.give(s, 'obsidian', 10); A.give(s, 'flintSteel');
+  assert.ok(A.unlockArea(s, 'nether'));
+  s.xp = A.xpFor(15); s.peak = 15;
+  assert.ok(A.setMob(s, 'blaze'));
+  assert.ok(!A.setMob(s, 'ghast'));                   // level 18
 });

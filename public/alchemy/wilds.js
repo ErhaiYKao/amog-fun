@@ -1,5 +1,5 @@
-/* Alchemy — the Wilds: places off the island that cost no tiles. The Dark Platform (fight monsters for XP and
- * drops: swords hit harder, armor blocks hits, steak heals) and the cow pasture (leather and beef; breed with wheat). */
+/* Alchemy — the Wilds: places off the island that cost no tiles. The Dark Platform and the Nether (fight monsters
+ * for XP and drops: swords hit harder, armor blocks hits, steak heals) and the cow pasture (leather and beef). */
 (function () {
   "use strict";
   const UI = window.AlchemyUI, { A, D, $ } = UI;
@@ -10,20 +10,25 @@
     `<span class="ing ${A.count(UI.s, k) < n ? "lack" : ""}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span>/${n}</span>`).join("");
 
   function combatHTML(s) {
-    const L = A.level(s), lo = A.xpFor(L), hi = A.xpFor(L + 1), m = D.MOBS[s.mob.id];
+    const L = A.level(s), peak = A.peakLevel(s), lo = A.xpFor(L), hi = A.xpFor(L + 1), m = D.MOBS[s.mob.id];
     UI.v("w:hp", s.hp / K.hp);
     UI.v("w:hpt", s.faintT > 0 ? `knocked out · back in ${Math.ceil(s.faintT)} s` : `${Math.ceil(s.hp)} / ${K.hp} HP`);
     UI.v("w:xp", (s.xp - lo) / (hi - lo));
-    UI.v("w:xpt", `level ${L} · ${Math.floor(s.xp - lo)} / ${hi - lo} XP`);
+    UI.v("w:xpt", `level ${L}${peak > L ? ` (best ${peak})` : ""} · ${Math.floor(s.xp - lo)} / ${hi - lo} XP`);
     UI.v("w:mob", s.mob.hp / m.hp);
     UI.v("w:mobt", `${Math.max(0, Math.ceil(s.mob.hp))} / ${m.hp} HP`);
     UI.v("d:fight", s.faintT > 0);
     UI.v("d:eat", !(s.inv.steak > 0) || s.hp >= K.hp || s.faintT > 0);
     const sword = A.tool(s, "sword"), armor = A.tool(s, "armor");
-    const mobs = Object.entries(D.MOBS).map(([id, mb]) => L >= mb.level
+    // monsters stay unlocked by your best level ever, so enchanting never takes one away
+    const chip = ([id, mb]) => A.mobOpen(s, id)
       ? `<button class="chip" style="padding-left:4px" data-act="mob:${id}" aria-pressed="${s.mob.id === id}">${img(id, "sm")}${mb.name}</button>`
-      : `<span class="chip" style="padding-left:4px;opacity:.45;cursor:default" title="reach level ${mb.level}">${img(id, "sm")}level ${mb.level}</span>`).join("");
-    return `<div class="area"><div class="row"><b>Dark Platform</b><span class="meta">${Object.values(s.kills).reduce((a, n) => a + n, 0)} kills</span></div>
+      : `<span class="chip" style="padding-left:4px;opacity:.45;cursor:default" title="reach level ${mb.level}">${img(id, "sm")}level ${mb.level}</span>`;
+    const group = area => Object.entries(D.MOBS).filter(([, mb]) => mb.area === area);
+    const mobs = (s.areas.platform ? `<div class="chips"><span class="meta">Dark Platform</span>${group("platform").map(chip).join("")}</div>` : "") +
+      (s.areas.nether ? `<div class="chips"><span class="meta">the Nether</span>${group("nether").map(chip).join("")}</div>` : "");
+    const where = m.area === "nether" ? "The Nether" : "Dark Platform";
+    return `<div class="area"><div class="row"><b>${where}</b><span class="meta">${Object.values(s.kills).reduce((a, n) => a + n, 0)} kills</span></div>
       <div class="fight">
         <div class="side">
           <div class="meta">you · ${sword ? esc(name(sword[0])) : "bare fists"} (${A.swordDmg(s).toFixed(1)} dmg) · ${armor ? `${esc(name(armor[0]))} (blocks ${Math.round(A.armorBlock(s) * 100)}%)` : "no armor"}</div>
@@ -34,7 +39,7 @@
       </div>
       <div class="row"><button class="go fightbtn" data-act="fight" data-d="d:fight">⚔ Attack <span class="k">8</span></button>
         <button class="mini" data-act="eat" data-d="d:eat" data-tip="steak">Eat steak · <span data-v="i:steak"></span></button></div>
-      <div class="chips">${mobs}</div>
+      ${mobs}
       <p class="meta">Each click is one swing. While you fight, the monster hits back; stop for a few seconds and you both recover. Get knocked out and you're back in ${K.faint} s, with nothing lost. Better swords and armor are in the crafting list; enchanting makes them stronger still.</p></div>`;
   }
 
@@ -59,19 +64,15 @@
       h += `<div class="area locked"><div class="row"><b>${esc(a.name)}</b><span class="meta">locked</span></div><p class="meta">${esc(a.desc)}</p>
         <div class="row"><div class="ings">${ings(a.unlock)}</div><button class="mini" data-act="area:${id}" ${can ? "" : "disabled"}>Unlock</button></div></div>`;
     }
-    if (s.areas.platform) h += combatHTML(s);
+    if (s.areas.platform || s.areas.nether) h += combatHTML(s);
     if (s.areas.pasture) h += pastureHTML(s);
     UI.setHTML($("wilds"), "wilds", h);
   }
 
   function swing() {
     const r = A.attack(UI.s);
-    // only log the notable ones: your first kill of each monster, and ender pearls (kills are counted on the panel)
-    if (r && r.killed) {
-      const id = UI.s.mob.id;
-      if (UI.s.kills[id] === 1) UI.log(`First ${D.MOBS[id].name.toLowerCase()} down: +${r.xp} XP.`, "quest", id);
-      if (r.drops.enderPearl) UI.log("An ender pearl!", "new", "enderPearl");
-    }
+    // only your first kill of each monster gets a log line; the panel counts the rest
+    if (r && r.killed && UI.s.kills[UI.s.mob.id] === 1) UI.log(`First ${D.MOBS[UI.s.mob.id].name.toLowerCase()} down: +${r.xp} XP.`, "quest", UI.s.mob.id);
   }
   Object.assign(UI.handlers, {
     area: ([id]) => A.unlockArea(UI.s, id),
@@ -83,7 +84,7 @@
   let lastKey = 0;
   document.addEventListener("keydown", e => {
     if (e.key !== "8" || e.target.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (!UI.s.areas.platform || performance.now() - lastKey < 110) return;
+    if (!(UI.s.areas.platform || UI.s.areas.nether) || performance.now() - lastKey < 110) return;
     lastKey = performance.now();
     e.preventDefault();
     swing();

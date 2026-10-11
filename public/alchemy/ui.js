@@ -78,7 +78,7 @@
     if (it.place) bits.push("building · takes one tile");
     for (const kind in D.CONFIG.tools) if (D.CONFIG.tools[kind].some(([t]) => t === id)) bits.push(`tool · ${kind === "chammer" ? "compressed hammer" : kind}`);
     // where it comes from is shown when you click the item (crafting panel), not on hover
-    return `<b>${UI.esc(it.name)}</b>${it.desc ? `<div>${UI.esc(it.desc)}</div>` : ""}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}<small class="tiphint">right-click: recipes that use it</small>`;
+    return `<b>${UI.esc(it.name)}</b>${it.desc ? `<div>${UI.esc(it.desc)}</div>` : ""}${bits.length ? `<small>${bits.join(" · ")}</small>` : ""}`;
   }
   document.addEventListener("mouseover", e => {
     const el = e.target.closest("[data-tip]");

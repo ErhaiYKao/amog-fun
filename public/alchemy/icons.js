@@ -85,7 +85,10 @@
     },
     mob(P, c, kind) {
       for (let y = 1; y < 15; y++) for (let x = 2; x < 14; x++) P(x, y, shade(c, (x < 4 ? 0.12 : x > 11 ? -0.2 : 0) + (y > 11 ? -0.1 : 0)));
-      const eye = { zombie: "#1d2a17", skeleton: "#111111", spider: "#d42a1f", enderman: "#c77dff" }[kind] || "#000";
+      const eye = { zombie: "#1d2a17", skeleton: "#111111", spider: "#d42a1f", enderman: "#c77dff", piglin: "#2a1a10", blaze: "#2a1a00", ghast: "#555" }[kind] || "#000";
+      if (kind === "piglin") { for (let y = 8; y < 11; y++) for (let x = 6; x < 10; x++) P(x, y, "#f3c3bd"); P(7, 9, "#8a4a44"); P(8, 9, "#8a4a44"); for (let y = 3; y < 9; y++) P(12, y, "#5d9b4a"); }
+      if (kind === "blaze") for (let y = 12; y < 15; y++) for (let x = 2; x < 14; x += 3) P(x, y, "#ff7a1a");
+      if (kind === "ghast") { for (let x = 3; x < 13; x += 2) { P(x, 13, "#d8d4c4"); P(x, 14, "#d8d4c4"); } for (let x = 6; x < 10; x++) P(x, 10, "#555"); }
       if (kind === "spider") { for (const [x, y] of [[4, 5], [6, 5], [9, 5], [11, 5], [5, 7], [10, 7]]) P(x, y, eye); }
       else { P(4, 6, eye); P(5, 6, eye); P(10, 6, eye); P(11, 6, eye); if (kind === "enderman") { P(3, 6, eye); P(12, 6, eye); } }
       if (kind === "zombie") for (let x = 5; x < 11; x++) P(x, 10, shade(c, -0.45));
@@ -344,6 +347,64 @@
         P(x, y, x === 0 || y === 0 || x === 15 || y === 15 || (c !== "#888888" && (x === 1 || y === 1 || x === 14 || y === 14)) ? edge : shade("#b9b9bf", (rnd(x, y) - 0.5) * 0.1));
       SHAPES.hammer((x, y, col) => { if (x > 1 && y > 1 && x < 14 && y < 14) P(x, y, col); }, "#4c4c52");
       P(12, 12, "#d42a1f");
+    },
+    // a steel machine casing with a coloured trim, shared by the machines below; each draws something different inside
+    casing(P, trim, rnd, body = "#8d939b") {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const edge = x === 0 || y === 0 || x === 15 || y === 15;
+        P(x, y, edge ? shade(body, -0.45) : y === 1 || y === 14 ? trim : shade(body, (rnd(x, y) - 0.5) * 0.12 + (x < 3 ? 0.08 : x > 12 ? -0.12 : 0)));
+      }
+    },
+    chammerbox(P, c, __, rnd) { // auto compressed hammer: a heavy press head over a compressed block
+      SHAPES.casing(P, c, rnd, "#6d747f");
+      for (let y = 3; y < 7; y++) for (let x = 3; x < 13; x++) P(x, y, shade("#3d434c", y === 3 ? 0.2 : 0));
+      for (let y = 7; y < 9; y++) for (let x = 7; x < 9; x++) P(x, y, "#2b2f35");
+      for (let y = 9; y < 14; y++) for (let x = 4; x < 12; x++) P(x, y, (x === 4 || y === 9 || x === 11 || y === 13) ? "#4c4c52" : shade("#7b7b7b", (rnd(x, y, 3) - 0.5) * 0.4));
+    },
+    crusher(P, c, __, rnd) { // two toothed rollers
+      SHAPES.casing(P, c, rnd, "#56606d");
+      for (const cx of [5, 10]) for (let y = 3; y < 13; y++) for (let x = cx - 3; x <= cx + 2; x++) {
+        const d = Math.hypot(x - cx + 0.5, y - 7.5);
+        if (d < 3.2) P(x, y, (Math.atan2(y - 7.5, x - cx + 0.5) * 4 / Math.PI + 8) % 2 < 1 && d > 2.2 ? c : shade("#3a3f47", d < 1.2 ? 0.3 : 0));
+      }
+      for (let x = 3; x < 13; x++) P(x, 13, shade("#7b7b7b", (rnd(x, 13) - 0.5) * 0.4)); // gravel falling out
+    },
+    compressor(P, c, __, rnd) { // two plates squeezing inward
+      SHAPES.casing(P, c, rnd, "#8d939b");
+      for (let y = 3; y < 13; y++) { P(3, y, "#3d434c"); P(4, y, "#5a616b"); P(11, y, "#5a616b"); P(12, y, "#3d434c"); }
+      for (let y = 5; y < 11; y++) for (let x = 6; x < 10; x++) P(x, y, shade(c, (x === 6 || y === 5) ? 0.25 : 0));
+      for (const [x, y] of [[5, 7], [5, 8], [10, 7], [10, 8]]) P(x, y, "#f2efe6");
+    },
+    grinder(P, c, __, rnd) { // a saw blade
+      SHAPES.casing(P, c, rnd, "#4a4e56");
+      for (let y = 2; y < 14; y++) for (let x = 2; x < 14; x++) {
+        const d = Math.hypot(x - 7.5, y - 7.5), a = Math.atan2(y - 7.5, x - 7.5);
+        if (d < 5.6 + ((a * 8 / Math.PI + 16) % 2 < 1 ? 0.8 : -0.3)) P(x, y, d < 1.5 ? "#2b2f35" : shade("#c9cdd4", -d * 0.04));
+      }
+      P(7, 7, c); P(8, 8, c); P(13, 13, c);
+    },
+    fuelgen(P, c, __, rnd) { // firebox below, coil and bolt above
+      SHAPES.casing(P, c, rnd, "#5e5248");
+      for (let y = 9; y < 14; y++) for (let x = 3; x < 13; x++) P(x, y, y > 11 ? (rnd(x, y, 7) < 0.5 ? "#ff8c1a" : "#ffd23f") : "#1c1c1f");
+      for (let y = 3; y < 8; y++) for (let x = 3; x < 13; x++) P(x, y, (x + y) % 2 ? "#b87333" : "#8a5426");
+      for (const [x, y] of [[9, 2], [8, 3], [8, 4], [9, 4], [9, 5], [8, 6]]) P(x, y, "#ffe066");
+    },
+    geo(P, c, __, rnd) { // a lava pool with pipes rising out of it
+      SHAPES.block(P, "#2a1f3d", "compressed", rnd);
+      for (let y = 9; y < 14; y++) for (let x = 2; x < 14; x++) P(x, y, shade(rnd(x, y, 4) < 0.5 ? "#ff7a1a" : "#ffb03b", (rnd(x, y, 5) - 0.5) * 0.3));
+      for (const px of [4, 11]) for (let y = 2; y < 9; y++) { P(px, y, "#9aa0a8"); P(px + 1, y, "#6d737b"); }
+      for (let x = 4; x < 13; x++) P(x, 2, "#9aa0a8");
+      P(8, 3, "#ffe066"); P(7, 4, "#ffe066"); P(8, 5, "#ffe066");
+    },
+    infuser(P, c, __, rnd) { // a glass vat of glowing liquid on a steel base
+      SHAPES.casing(P, "#b98be3", rnd, "#6d737b");
+      for (let y = 2; y < 11; y++) for (let x = 4; x < 12; x++) P(x, y, x === 4 || x === 11 ? "#bfe3ec" : y < 5 ? "#2a2f38" : shade(c, (rnd(x, y, 6) - 0.5) * 0.3 + (y === 5 ? 0.3 : 0)));
+      for (let y = 11; y < 14; y++) for (let x = 3; x < 13; x++) P(x, y, shade("#4a4e56", y === 11 ? 0.2 : 0));
+    },
+    flintsteel(P) {
+      for (let y = 4; y < 12; y++) for (let x = 2; x < 7; x++) P(x, y, (x + y) % 3 ? "#3b3b42" : "#55555e");
+      for (let k = 0; k < 7; k++) { P(8 + k, 12 - k, "#dcdcdc"); P(8 + k, 11 - k, "#a9a9b0"); }
+      P(7, 3, "#ffd23f"); P(8, 2, "#ff8c1a");
     },
     autosieve(P, c, __, rnd) {
       const edge = c === "#888888" ? "#5c5c62" : c;
