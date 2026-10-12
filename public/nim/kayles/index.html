@@ -85,6 +85,8 @@
       return { pins, just: m.two ? [m.i, m.i + 1] : [m.i] };
     },
     isP: s => nimsum(s.pins) === 0,
+    // runs that pair up exactly (two runs of 5): the other player just mirrors
+    symmetric: s => { const c = {}; runs(s.pins).forEach(n => (c[n] = (c[n] || 0) + 1)); const v = Object.values(c); return v.length > 0 && v.every(n => n % 2 === 0); },
     describe: m => (m.two ? `bowled pins ${m.i + 1} and ${m.i + 2}` : `bowled pin ${m.i + 1}`),
     render(el, s, ctx) {
       let h = `<div class="lane ${ctx.locked ? "" : "on"}">`;
@@ -106,7 +108,8 @@
     math(s) {
       const r = runs(s.pins);
       if (!r.length) return "";
-      return `<p>Runs of standing pins: $${r.join(", ")}$</p><p>$${r.map(n => `G(${n})`).join(" \\oplus ")} = ${r.map(g).join(" \\oplus ")} = ${nimsum(s.pins)}$</p>`;
+      const total = r.length > 1 ? ` = ${r.map(g).join(" \\oplus ")} = ${nimsum(s.pins)}` : ` = ${nimsum(s.pins)}`;
+      return `<p>Runs of standing pins: $${r.join(", ")}$</p><p>$${r.map(n => `G(${n})`).join(" \\oplus ")}${total}$</p>`;
     },
   });
 })();

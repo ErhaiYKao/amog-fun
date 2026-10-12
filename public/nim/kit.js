@@ -10,7 +10,8 @@
  *   describe(move, who, s)  -> text for the log
  *   math(s, who, opts)      -> HTML (LaTeX ok) for the "show the math" panel
  *   misere(opts)            -> true if the last player to move loses (optional)
- *   prefer(move, s, who)    -> true for moves to favour when several are equally good (optional)
+ *   prefer(move, s, who)    -> true for moves to favour when several are equally good (optional, Amog level only)
+ *   symmetric(s)            -> true if a position is "mirrored" (easy to read); Amog avoids leaving these (optional)
  *   verdict(s, who, opts)   -> HTML replacing the P/N-position line in the math panel (optional; partizan games)
  *   custom: { placeholder, help, parse(text, opts) -> state or error string }  (optional: "custom start" box)
  * })
@@ -144,11 +145,39 @@
       render();
       timer = setTimeout(() => {
         if (id !== gid || over) return;
-        const ms = favour(cfg.moves(s, 1), 1);
-        const wins = favour(cfg.moves(s, 1).filter(m => cfg.isP(cfg.apply(s, m, 1), 0, opts)), 1);
-        const m = opts.level === "hard" ? (wins.length ? pick(wins) : pick(ms)) : (wins.length && Math.random() < 0.35 ? pick(wins) : pick(ms));
-        doMove(m, 1);
+        const ms = cfg.moves(s, 1);
+        doMove(opts.level === "hard" ? amogMove(ms) : noviceMove(ms), 1);
       }, 550 + Math.random() * 250);
+    }
+
+    // who has won if `toMove` is stuck here (null if they still have moves)
+    const stuckWinner = (st, toMove) => (cfg.moves(st, toMove).length ? null : misere() ? toMove : 1 - toMove);
+    // novice: looks two plies ahead. Takes an instant win, avoids handing you one, otherwise plays at random.
+    function noviceMove(ms) {
+      const after = m => cfg.apply(s, m, 1);
+      const wins = ms.filter(m => stuckWinner(after(m), 0) === 1);
+      if (wins.length) return pick(wins);
+      const safe = ms.filter(m => {
+        const n = after(m);
+        if (stuckWinner(n, 0) === 0) return false;
+        return !cfg.moves(n, 0).some(r => stuckWinner(cfg.apply(n, r, 0), 1) === 0);
+      });
+      return pick(safe.length ? safe : ms);
+    }
+    // Amog: plays perfectly. Among winning moves it avoids mirrored positions; when it's losing, it makes you work
+    // for it: no instant wins, no mirrored positions, and as few winning replies as possible.
+    function amogMove(ms) {
+      const sym = m => !!(cfg.symmetric && cfg.symmetric(cfg.apply(s, m, 1)));
+      const wins = favour(ms.filter(m => cfg.isP(cfg.apply(s, m, 1), 0, opts)), 1);
+      if (wins.length) { const plain = wins.filter(m => !sym(m)); return pick(plain.length ? plain : wins); }
+      const scored = ms.map(m => {
+        const n = cfg.apply(s, m, 1), replies = cfg.moves(n, 0);
+        const instant = stuckWinner(n, 0) === 0 || replies.some(r => stuckWinner(cfg.apply(n, r, 0), 1) === 0);
+        const good = replies.filter(r => cfg.isP(cfg.apply(n, r, 0), 1, opts)).length;
+        return { m, score: (instant ? 1e6 : 0) + (sym(m) ? 1e4 : 0) + good };
+      });
+      const best = Math.min(...scored.map(x => x.score));
+      return pick(scored.filter(x => x.score === best).map(x => x.m));
     }
 
     function finish() {

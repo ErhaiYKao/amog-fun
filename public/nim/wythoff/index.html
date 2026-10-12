@@ -56,7 +56,9 @@
     create(o) {
       const n = +o.size;
       let x, y;
-      do { x = Math.floor(n / 2) + Math.floor(Math.random() * Math.ceil(n / 2)); y = Math.floor(n / 2) + Math.floor(Math.random() * Math.ceil(n / 2)); } while (cold(x, y));
+      // never a P-position, and never one move from the corner (on an edge or the diagonal)
+      do { x = Math.floor(n / 2) + Math.floor(Math.random() * Math.ceil(n / 2)); y = Math.floor(n / 2) + Math.floor(Math.random() * Math.ceil(n / 2)); }
+      while (cold(x, y) || x === 0 || y === 0 || x === y);
       return { n, x, y, from: null };
     },
     moves(s) {
@@ -78,6 +80,7 @@
     },
     apply: (s, m) => ({ n: s.n, x: m.x, y: m.y, from: { x: s.x, y: s.y } }),
     isP: s => cold(s.x, s.y),
+    symmetric: s => s.x === s.y && s.x > 0, // on the diagonal: one slide to the corner
     describe: (m, who, s) => `queen ${s.x},${s.y} → ${m.x},${m.y}`,
     render(el, s, ctx) {
       const reach = (x, y) => (x < s.x && y === s.y) || (x === s.x && y < s.y) || (s.x - x === s.y - y && x < s.x);
