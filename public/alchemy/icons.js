@@ -401,6 +401,11 @@
       for (let y = 2; y < 11; y++) for (let x = 4; x < 12; x++) P(x, y, x === 4 || x === 11 ? "#bfe3ec" : y < 5 ? "#2a2f38" : shade(c, (rnd(x, y, 6) - 0.5) * 0.3 + (y === 5 ? 0.3 : 0)));
       for (let y = 11; y < 14; y++) for (let x = 3; x < 13; x++) P(x, y, shade("#4a4e56", y === 11 ? 0.2 : 0));
     },
+    shelf(P, c, _, rnd) {
+      SHAPES.planks(P, c, 0, rnd);
+      const books = ["#8b3a2b", "#2f5a8b", "#3f7a2e", "#c9a227", "#6b3a8b", "#8b3a2b"];
+      for (const row of [2, 9]) for (let k = 0; k < 6; k++) for (let y = row; y < row + 5; y++) P(2 + k * 2, y, shade(books[(k + row) % 6], y === row ? 0.25 : 0));
+    },
     flintsteel(P) {
       for (let y = 4; y < 12; y++) for (let x = 2; x < 7; x++) P(x, y, (x + y) % 3 ? "#3b3b42" : "#55555e");
       for (let k = 0; k < 7; k++) { P(8 + k, 12 - k, "#dcdcdc"); P(8 + k, 11 - k, "#a9a9b0"); }

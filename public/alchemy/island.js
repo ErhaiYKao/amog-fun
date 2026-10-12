@@ -228,9 +228,9 @@
       case "barrel": return t.time > 0 ? `rotting into dirt · ${Math.ceil(t.time)} s` : `compost ${t.fill}/${C.barrel.units}`;
       case "rainBarrel": return t.water >= 1 ? "full of rainwater" : `filling · ${Math.floor(t.water * 100)}%`;
       case "infested": return `next string in ${Math.ceil(C.infested.time - t.t)} s`;
-      case "crucible": return `${t.cobble} cobblestone waiting · ${t.lava} mB lava`;
+      case "crucible": return `${t.cobble} cobblestone waiting · ${Math.round(t.lava)} mB lava`;
       case "cobblegen": { const p = A.tool(s, "pick"); return p ? `mine it from the Work panel (${UI.name(p[0]).toLowerCase()})` : "needs a pickaxe to mine"; }
-      case "autoGen": case "autoGen2": case "autoGen3": return `${C.autoGen[t.id]} cobblestone/s, no pickaxe needed`;
+      case "autoGen": case "autoGen2": case "autoGen3": case "autoGen4": return `${C.autoGen[t.id]} cobblestone/s, no pickaxe needed`;
       case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve":
         return t.tool ? `${UI.name(t.tool).toLowerCase()} · ${t.idle ? "waiting for" : "working on"} ${UI.name(t.sel || s.sel[t.id]).toLowerCase()}` : "empty: insert a tool below";
       case "farmland": return t.seed ? `${UI.name(t.seed).toLowerCase()} · ${Math.floor(t.g * 100)}%` : "pick a seed below";
@@ -252,7 +252,7 @@
     UI.setHTML($("land"), "land", `${used}/${s.island.length} tiles${maxed ? " · full size" : ` · <span title="Every quest and advancement you complete adds a tile">+1 per quest</span>`}`);
     const i = UI.selected, t = s.island[i];
     let h, body = "";
-    if (i < 0 || i >= s.island.length) h = `<span class="meta">Click a building to open it. Drag buildings to move them, or onto the inventory to pick them up. Every quest you complete adds a tile at the dashed square.</span>`;
+    if (i < 0 || i >= s.island.length) h = `<span class="meta">Click a building to open it, drag it to move it.</span>`;
     else if (!t) h = `<span class="meta">Empty land. Drag a building here from your inventory${Object.keys(D.ITEMS).some(id => A.placesAs(id) && s.inv[id] > 0) ? "" : " (craft one first)"}.</span>`;
     else {
       UI.v("tile:st", status(s, t));

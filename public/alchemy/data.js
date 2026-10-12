@@ -74,6 +74,7 @@
     sugarcane: { name: "Sugarcane", icon: ["cane", "#7fbf5a"], desc: "Turns up when sieving sand. Plant it on farmland; it regrows. Paper comes from it." },
     paper: { name: "Paper", icon: ["sheet", "#f2efe6"] },
     book: { name: "Book", icon: ["book", "#8b3a2b"], desc: "Three paper bound in leather. The enchanting table wants one." },
+    bookshelf: { name: "Bookshelf", icon: ["shelf", "#9a6b3a"], desc: "Keep them in your inventory: higher enchantment levels need more of them." },
     obsidian: { name: "Obsidian", icon: ["block", "#2a1f3d", "compressed"], desc: "Water poured onto lava. Very hard: geothermal generators and the last stretches of land need it." },
     glass: { name: "Glass", icon: ["block", "#bfe3ec", "dust"], desc: "Smelted sand. Solar panels and energy cells need it." },
 
@@ -158,6 +159,7 @@
     autoGen: { name: "Auto-Generator Mk I", icon: ["autogen", "#dcdcdc"], place: true, desc: "Mines itself: 0.5 cobblestone/s. No pickaxe needed." },
     autoGen2: { name: "Auto-Generator Mk II", icon: ["autogen", "#f5cc3b"], place: true, desc: "Mines itself: 1.5 cobblestone/s." },
     autoGen3: { name: "Auto-Generator Mk III", icon: ["autogen", "#5ee0d8"], place: true, desc: "Mines itself: 4 cobblestone/s." },
+    autoGen4: { name: "Auto-Generator Mk IV", icon: ["autogen", "#f5a623"], place: true, desc: "Blaze-powered: 10 cobblestone/s." },
     autoHammer: { name: "Auto-Hammer", icon: ["autohammer"], place: true, desc: "Holds its own hammer and takes your best one when placed. Better hammers work faster." },
     autoSieve: { name: "Auto-Sieve", icon: ["autosieve"], place: true, desc: "Holds its own mesh and takes your best one when placed. The mesh decides the drops." },
     alloy: { name: "Alloy Smelter", icon: ["furnace", "#5a6270"], place: true, desc: "Fuses metals into alloys, burning coal from the shared fuel store. Click it to queue recipes." },
@@ -168,7 +170,7 @@
     fuelGenerator: { name: "Fuel Generator", icon: ["fuelgen", "#df963b"], place: true, desc: "40 W; stores 4,000 J. Burns your chosen coal or charcoal only when the grid has room. Click it to pick the fuel." },
     solarGenerator: { name: "Solar Generator", icon: ["solar", "#4678bb"], place: true, desc: "10 W forever under the void's eternal sun. Stores 2,000 J; no fuel required." },
     geothermal: { name: "Geothermal Generator", icon: ["geo", "#ff7a1a"], place: true, desc: "150 W from lava: drinks it from your crucibles (or a lava bucket from your inventory) at 1 mB per 10 J. Stores 8,000 J." },
-    enchantTable: { name: "Enchanting Table", icon: ["enchant"], place: true, desc: "Spend XP levels on Sharpness (swords), Protection (armor), Efficiency (tools and meshes) and Fortune (meshes). Click it to enchant." },
+    enchantTable: { name: "Enchanting Table", icon: ["enchant"], place: true, desc: "Enchant your tools with XP levels." },
     mobGrinder: { name: "Mob Grinder", icon: ["grinder", "#c0392b"], place: true, desc: "40 W: fights a monster every 8 s for its drops and a little XP. Click it to pick which." },
     autoCompressor: { name: "Auto-Compressor", icon: ["compressor", "#e86a9a"], place: true, desc: "Squeezes 9 of a block into its compressed form (or 4 ore pieces into a chunk) every 4 s. Click it to pick which." },
     battery: { name: "Energy Cell", icon: ["battery", "#76cfb3"], place: true, desc: "Adds 20,000 J of shared storage. Every powered machine connects automatically." },
@@ -316,6 +318,7 @@
     { in: { sugarcane: 3 }, out: { paper: 3 } },
     { in: { paper: 3, leather: 1 }, out: { book: 1 } },
     { in: { book: 1, diamond: 2, obsidian: 4, enderPearl: 1 }, out: { enchantTable: 1 }, at: "table" },
+    { in: { planks: 6, book: 3 }, out: { bookshelf: 1 }, at: "table" },
     { in: { steel: 4, ironSword: 1, redAlloy: 2, gear: 2 }, out: { mobGrinder: 1 }, at: "table" },
     { name: "Pour water onto lava", in: { lavaBucket: 1, waterBucket: 1 }, out: { obsidian: 1, bucket: 1, waterBucket: 1 } },
     { in: { steel: 4, gear: 2, redAlloy: 2, cobble: 8 }, out: { crusher: 1 }, at: "table" },
@@ -363,6 +366,7 @@
     { in: { cobblegen: 1, gear: 2, redstone: 4, cobble: 16 }, out: { autoGen: 1 }, at: "table" },
     { in: { autoGen: 1, gear: 2, gold: 4, redstone: 8 }, out: { autoGen2: 1 }, at: "table" },
     { in: { autoGen2: 1, diamond: 2, gold: 4, glowstone: 8 }, out: { autoGen3: 1 }, at: "table" },
+    { in: { autoGen3: 1, blazeRod: 8, diamond: 4, obsidian: 4 }, out: { autoGen4: 1 }, at: "table" },
     { in: { diamond: 3, stick: 2, twine: 2 }, needs: { cast: 1 }, out: { diamondPick: 1 }, at: "table" },
     { in: { diamond: 2, stick: 2, twine: 1 }, out: { diamondHammer: 1 }, at: "table" },
     { in: { diamond: 3, stick: 2, twine: 1 }, out: { diamondAxe: 1 }, at: "table" },
@@ -395,7 +399,7 @@
     { in: { seeds: 1, redstone: 32 }, out: { redstoneSeeds: 1 }, at: "table" },
     { in: { seeds: 1, glowstone: 16 }, out: { glowSeeds: 1 }, at: "table" },
     { in: { seeds: 1, diamond: 8, steel: 4 }, out: { diamondSeeds: 1 }, at: "table" },
-    { in: { diamond: 4, gold: 8, redstone: 8, glowstone: 8, steel: 4 }, needs: { pstone: 1 }, out: { terminal: 1 }, at: "table" },
+    { in: { diamond: 16, gold: 32, steel: 16, redstone: 32, glowstone: 32, blazeRod: 8, ghastTear: 4, enderPearl: 8 }, needs: { pstone: 1 }, out: { terminal: 1 }, at: "table" },
   ];
 
   const QUESTS = [
@@ -426,13 +430,12 @@
     { id: "cast", title: "Pickaxe Cast", text: "Mould a pickaxe cast from clay and fire it.", need: { got: { cast: 1 } } },
     { id: "ironpick", title: "Iron Pickaxe", text: "Cast an iron pickaxe. Every swing at the generators mines far more.", need: { got: { ironPick: 1 } } },
     { id: "auto", title: "Automation", text: "Build an auto-hammer or an auto-sieve. Redstone comes from sieving dust. Each one can be set to its own input, so you can chain them.", need: { anyBuilt: ["autoHammer", "autoSieve"] } },
-    { id: "autogen", title: "Hands-Free Stone", text: "Upgrade a cobblestone generator into an auto-generator. It mines itself, and has its own upgrades.", need: { anyBuilt: ["autoGen", "autoGen2", "autoGen3"] } },
+    { id: "autogen", title: "Hands-Free Stone", text: "Upgrade a cobblestone generator into an auto-generator. It mines itself, and has its own upgrades.", need: { anyBuilt: ["autoGen", "autoGen2", "autoGen3", "autoGen4"] } },
     { id: "heavy", title: "Heavy Machinery", text: "Compress blocks 9 to 1, then build a heavy sieve or a compressed hammer to work them all at once.", need: { gotAny: ["heavySieve", "cHammer"] } },
     { id: "diamond", title: "Diamonds", text: "An iron mesh finds diamonds in gravel.", need: { got: { diamond: 1 } } },
     { id: "alloy", title: "Alloy Smelter", text: "Build an alloy smelter from a furnace, iron and gears. Click it on the island to queue recipes.", need: { built: { alloy: 1 } } },
     { id: "steel", title: "Steel", text: "Alloy iron with coal. Steel is what the automatic heavy machines are made of.", need: { got: { steel: 1 } } },
     { id: "pstone", title: "The Philosopher's Stone", text: "Redstone, glowstone and a diamond. Then transmute.", need: { got: { pstone: 1 } } },
-    { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. Build it to finish.", need: { got: { terminal: 1 } } },
     { id: "power", title: "Watt Now?", text: "Build a fuel or solar generator. All powered machines share one grid: 1 watt supplies 1 joule each second. Click a generator to configure it.", need: { anyBuilt: ["fuelGenerator", "solarGenerator"] } },
     { id: "orepower", title: "Double or Nothing", text: "Build a crusher and an energized smelter. Crush one ore chunk into two dust, then smelt them into two ingots.", need: { built: { crusher: 1, energizedSmelter: 1 } } },
     { id: "infusion", title: "Applied Metallurgy", text: "Build a metallurgic infuser to make alloys faster with less coal and redstone.", need: { built: { infuser: 1 } } },
@@ -450,6 +453,7 @@
     { id: "geo", title: "Hot Rocks", text: "Pour water onto lava for obsidian, then build a geothermal generator. It turns crucible lava into 150 W.", need: { built: { geothermal: 1 } } },
     { id: "compress", title: "Squeeze Play", text: "Build an auto-compressor. Point one at dust, put it between your auto-hammers and an auto heavy sieve, and the dust farm runs itself.", need: { built: { autoCompressor: 1 } } },
     { id: "clips", title: "A Perfectly Harmless Objective", text: "Turn a steel ingot into eight paperclips. They do nothing. Maximizing them is entirely your decision.", need: { got: { paperclip: 8 } } },
+    { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. It takes a bit of everything, from diamonds to ghast tears. Build it to finish.", need: { got: { terminal: 1 } } },
   ];
 
   // the advancement tree: which quests open up which
@@ -460,7 +464,7 @@
     clay: ["hammer"], crucible: ["clay", "charcoal"], gen: ["crucible"], coal: ["hammer"], iron: ["coal", "furnace"],
     farm: ["clay", "charcoal"], cast: ["clay", "charcoal"], ironpick: ["cast", "iron"], auto: ["iron"],
     autogen: ["auto", "gen"], heavy: ["iron"], diamond: ["iron"], alloy: ["iron"], steel: ["alloy"],
-    pstone: ["diamond"], terminal: ["pstone", "steel"], geo: ["power", "steel"], fight: ["cobble"], moo: ["farm"], bookworm: ["moo"], ender: ["fight", "iron"],
+    pstone: ["diamond"], terminal: ["pstone", "steel", "blaze", "tear"], geo: ["power", "steel"], fight: ["cobble"], moo: ["farm"], bookworm: ["moo"], ender: ["fight", "iron"],
     enchant: ["bookworm", "ender", "diamond"], grind: ["fight", "power"], nether: ["ender", "geo"], blaze: ["nether"], tear: ["nether"], compress: ["steel", "heavy"],
     power: ["steel"], orepower: ["power"], infusion: ["power"], forestry: ["power"], storage: ["power"], clips: ["steel"],
   };
@@ -475,7 +479,8 @@
     // enchantments, keyed by id (tools use their kind as the id). n-th level costs cost·n XP levels; past `max`
     // each level also takes a ghast tear, up to `maxTear`. Applies to every tool of that kind, including tools
     // slotted into auto machines (better tools = faster auto-hammers/sieves).
-    enchant: { max: 5, maxTear: 8, perLevel: 0.25, cost: 3, types: {
+    // shelves[n]: bookshelves you must have in your inventory for an enchantment to reach level n
+    enchant: { max: 5, maxTear: 8, perLevel: 0.25, cost: 3, shelves: [0, 0, 0, 4, 8, 12, 15, 15, 15], types: {
       sword: { kind: "sword", name: "Sharpness" }, armor: { kind: "armor", name: "Protection" },
       axe: { kind: "axe", name: "Efficiency" }, crook: { kind: "crook", name: "Efficiency" }, pick: { kind: "pick", name: "Efficiency" },
       hammer: { kind: "hammer", name: "Efficiency" }, chammer: { kind: "chammer", name: "Efficiency" },
@@ -490,8 +495,8 @@
     barrel: { units: 6, time: 8 },
     rain: { time: 30 },
     infested: { time: 15, drops: [["string", 1, 1], ["silkworm", 0.03, 1]] },
-    crucible: { cobble: 4, melt: 10, perCobble: 250, lava: 2000 }, // a bucket is 1000 mB
-    autoGen: { autoGen: 0.5, autoGen2: 1.5, autoGen3: 4 }, // cobblestone per second
+    crucible: { cobble: 4, melt: 10, perCobble: 250, lava: 4000 }, // a bucket is 1000 mB
+    autoGen: { autoGen: 0.5, autoGen2: 1.5, autoGen3: 4, autoGen4: 10 }, // cobblestone per second
     harvester: { watts: 60, time: 10, drops: { log: 4, leaves: 4, sapling: 1 } },
     reserve: { cobble: 16, leaves: 6, seeds: 4, wheat: 8 }, // auto machines and barrels leave this much for crafting, planting (and luring cows)
     offline: 7200, // seconds of progress credited while the tab is closed

@@ -19,6 +19,7 @@
     autoGen: () => ({ acc: 0 }),
     autoGen2: () => ({ acc: 0 }),
     autoGen3: () => ({ acc: 0 }),
+    autoGen4: () => ({ acc: 0 }),
     autoHammer: () => ({ t: 0, tool: null }),
     autoSieve: () => ({ t: 0, tool: null }),
     autoCHammer: () => ({ t: 0, tool: null }),
@@ -470,6 +471,8 @@
     if (!built(s, "enchantTable")) return "needs an enchanting table";
     if (!bestOwned(s, E.kind)) return `needs a ${E.kind === "chammer" ? "compressed hammer" : E.kind}`;
     if (n >= C.enchant.maxTear) return "maxed";
+    const shelves = C.enchant.shelves[n + 1] || 0;
+    if (count(s, "bookshelf") < shelves) return `needs ${shelves} bookshelves`;
     if (n >= C.enchant.max && count(s, "ghastTear") < 1) return "needs a ghast tear";
     if (level(s) < enchantCost(s, type)) return `needs level ${enchantCost(s, type)}`;
     return "";
@@ -696,15 +699,17 @@
           break;
         case "crucible": {
           const K = C.crucible;
-          // only take cobblestone that can still become lava
-          if (s.opt.feedCrucible) while (tile.cobble < K.cobble && count(s, "cobble") > 0 && tile.lava + (tile.cobble + 1) * K.perCobble <= K.lava) { take(s, "cobble", 1); tile.cobble++; }
-          if (tile.cobble > 0 && tile.lava + K.perCobble <= K.lava) {
+          // keep melting until the crucible is full (the last cobblestone tops it off; any excess is lost), so it
+          // never stalls just below full. It only takes as much cobblestone as it still has room for.
+          const room = () => K.lava - tile.lava - tile.cobble * K.perCobble;
+          if (s.opt.feedCrucible) while (tile.cobble < K.cobble && count(s, "cobble") > 0 && room() > 0) { take(s, "cobble", 1); tile.cobble++; }
+          if (tile.cobble > 0 && tile.lava < K.lava) {
             tile.melt += dt / K.melt;
-            while (tile.melt >= 1 && tile.cobble > 0 && tile.lava + K.perCobble <= K.lava) { tile.melt -= 1; tile.cobble--; tile.lava += K.perCobble; }
+            while (tile.melt >= 1 && tile.cobble > 0 && tile.lava < K.lava) { tile.melt -= 1; tile.cobble--; tile.lava = Math.min(K.lava, tile.lava + K.perCobble); }
           } else tile.melt = 0;
           break;
         }
-        case "autoGen": case "autoGen2": case "autoGen3": {
+        case "autoGen": case "autoGen2": case "autoGen3": case "autoGen4": {
           tile.acc += dt * AUTOGEN[tile.id];
           const n = Math.floor(tile.acc);
           if (n > 0) { tile.acc -= n; give(s, "cobble", n); }

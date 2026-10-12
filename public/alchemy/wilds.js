@@ -39,8 +39,7 @@
       </div>
       <div class="row"><button class="go fightbtn" data-act="fight" data-d="d:fight">⚔ Attack <span class="k">8</span></button>
         <button class="mini" data-act="eat" data-d="d:eat" data-tip="steak">Eat steak · <span data-v="i:steak"></span></button></div>
-      ${mobs}
-      <p class="meta">Each click is one swing. While you fight, the monster hits back; stop for a few seconds and you both recover. Get knocked out and you're back in ${K.faint} s, with nothing lost. Better swords and armor are in the crafting list; enchanting makes them stronger still.</p></div>`;
+      ${mobs}</div>`;
   }
 
   function pastureHTML(s) {
@@ -50,7 +49,7 @@
     return `<div class="area"><div class="row"><b>Cow Pasture</b><span class="meta">${s.cows} / ${P.max} cows</span></div>
       <div class="row"><span class="meta">every ${P.every} s each cow gives leather (and often raw beef)</span><div class="bar green grow"><i data-w="w:cow"></i></div></div>
       <div class="row"><button class="mini" data-act="breed" data-d="d:breed">Breed · ${Object.entries(P.breed).map(([k, n]) => `${n} ${esc(name(k).toLowerCase())}`).join(", ")}</button>
-        <span class="meta">barrels leave ${C.reserve.wheat} wheat alone for this</span></div></div>`;
+</div></div>`;
   }
 
   function render() {

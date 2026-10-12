@@ -361,6 +361,8 @@ test('enchantment types: named, mesh Efficiency speeds auto-sieves, ghast tears 
   assert.ok(A.enchant(s, 'meshEff'));                 // the mesh is in the machine; it still counts
   close(A.autoPeriod(s.island[1], s), before / 1.25);
   s.ench.sword = 5; A.give(s, 'diamondSword');
+  assert.equal(A.enchantBlocker(s, 'sword'), 'needs 15 bookshelves');
+  A.give(s, 'bookshelf', 15);
   assert.equal(A.enchantBlocker(s, 'sword'), 'needs a ghast tear');
   A.give(s, 'ghastTear');
   assert.ok(A.enchant(s, 'sword'));
@@ -376,4 +378,22 @@ test('auto-compressor turns 4 ore pieces into a chunk; the Nether opens with obs
   s.xp = A.xpFor(15); s.peak = 15;
   assert.ok(A.setMob(s, 'blaze'));
   assert.ok(!A.setMob(s, 'ghast'));                   // level 18
+});
+
+test('crucibles hold 4000 mB and top off instead of stalling just below full', () => {
+  const s = island('crucible');
+  A.give(s, 'cobble', 100);
+  run(s, 400, 1);
+  assert.equal(s.island[0].lava, 4000);
+  s.island[0].lava = 3900;                            // not a multiple of 250: still fills
+  run(s, 30, 1);
+  assert.equal(s.island[0].lava, 4000);
+});
+test('enchantment levels III+ need bookshelves in the inventory', () => {
+  const s = island('enchantTable');
+  A.give(s, 'ironSword'); s.xp = A.xpFor(40);
+  assert.ok(A.enchant(s, 'sword')); assert.ok(A.enchant(s, 'sword'));
+  assert.equal(A.enchantBlocker(s, 'sword'), 'needs 4 bookshelves');
+  A.give(s, 'bookshelf', 4);
+  assert.ok(A.enchant(s, 'sword'));
 });

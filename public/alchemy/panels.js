@@ -261,7 +261,7 @@
       slots += `<div class="unit" style="grid-column: span 2"><span>${job ? (job.stalled ? (S.watts ? "waiting for energy" : `needs ${HEAT[rec.heat]} heat`) : esc(st === "furnace" ? `${name(job.id)} → ${name(rec.out)}` : `→ ${name(rec.out)}`)) : "idle"}</span><div class="bar warm"><i data-w="${st}w:${i}"></i></div></div>`;
     }
     const rows = rowsFor(s, st).map(x => ({ ...x, inMachine: true })).sort((a, b) => !!a.hid - !!b.hid || b.ok - a.ok);
-    return `<p class="meta">${n > 1 ? `all ${n} of them share one queue, one job each at a time` : "one job at a time"}</p><div class="units">${slots}</div>` +
+    return `<div class="units">${slots}</div>` +
       (q.length ? `<div class="row meta">queued: ${esc(q.map(j => `${j.n} × ${name(S.rec(j.id).out)}`).join(", "))} <button class="mini" data-act="clearq:${st}">clear</button></div>` : "") +
       `<h3>Recipes</h3><div class="recipes">${rows.map(x => rowHTML(s, x, "")).join("") || `<p class="empty">Nothing you have can go in here yet.</p>`}</div>`;
   }
@@ -281,12 +281,12 @@
     UI.v("energy:bar", capacity ? s.energy / capacity : 0);
     UI.v("energy:flow", `${s.power.generated.toFixed(1)} W generated · ${s.power.used.toFixed(1)} W used`);
     return `<h3>Energy grid</h3><div class="row"><b data-v="energy:stored"></b><span class="meta" data-v="energy:flow"></span></div><div class="bar"><i data-w="energy:bar"></i></div>` +
-      `<p class="meta">Every powered building connects automatically. Generators pause at full storage; queued machines draw first, then harvesters.${capacity ? "" : " Place a fuel or solar generator to supply energy."}</p>`;
+      (capacity ? "" : `<p class="meta">Place a generator to supply energy.</p>`);
   }
 
   // auto-make: tables and furnace-like machines can each be set to make one thing whenever they can
   function autoMakeHTML(s, t, i) {
-    if (!s.quests.auto) return `<h3>Auto-make</h3><p class="meta">Unlocks with the Automation quest: set this machine to make one item whenever the ingredients are there.</p>`;
+    if (!s.quests.auto) return `<h3>Auto-make</h3><p class="meta">Unlocks with the Automation quest.</p>`;
     const opts = t.id === "table"
       ? RECIPES.filter(r => A.visible(s, r)).map(r => craftRow(s, r)).map(x => [x.key, x.title + (x.outN > 1 ? ` ×${x.outN}` : "")])
       : rowsFor(s, t.id).map(x => [x.id, x.title]);
@@ -294,8 +294,7 @@
     const out = t.auto && outOf(t.auto);
     if (out) UI.v(`m${i}:auto`, `you have ${UI.fmt(A.count(s, out))} / ${t.limit || C.autocraft.limit}`);
     return `<h3>Auto-make</h3><div class="row"><select data-autosel="${i}"><option value="">off</option>${opts.map(([k, l]) => `<option value="${esc(k)}" ${t.auto === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>` +
-      `<label class="meta">until I have <input type="number" min="1" max="99999" data-autolimit="${i}" value="${t.limit || C.autocraft.limit}"></label>${out ? `<span class="meta" data-v="m${i}:auto"></span>` : ""}</div>` +
-      `<p class="meta">${t.id === "table" ? "Crafts one batch a second" : "Starts a job whenever this machine is idle and nothing is queued"}, whenever the ingredients are in your inventory. Set each machine to something different.</p>`;
+      `<label class="meta">until I have <input type="number" min="1" max="99999" data-autolimit="${i}" value="${t.limit || C.autocraft.limit}"></label>${out ? `<span class="meta" data-v="m${i}:auto"></span>` : ""}</div>`;
   }
 
   function machineBody(s, t, i) {
@@ -315,17 +314,16 @@
       const others = A.built(s, id) > 1 ? `<div class="row"><span class="meta">set all ${A.built(s, id)}</span><div class="chips">${chips(`auto:${id}`, null)}</div></div>` : "";
       const speed = t.tool && cfg.kind !== "mesh" ? ` <span class="meta">${A.autoPeriod(t, UI.s).toFixed(1)} s each</span>` : "";
       const wait = t.idle ? `<p class="meta">${t.tool ? `waiting for ${esc(name(sel).toLowerCase())}${C.reserve[sel] ? ` (it leaves ${C.reserve[sel]} for crafting)` : ""}` : `needs a ${kindName}: insert one from your inventory`}</p>` : "";
-      return `<div class="unitrow">${slot}${insert}${speed}</div><div class="unitrow"><span class="meta">input</span><div class="chips">${chips(`autot:${i}`, sel)}</div><div class="bar"><i data-w="m${i}:bar"></i></div></div>${wait}${others}` +
-        `<p class="meta">${cfg.kind === "mesh" ? "The mesh inside decides the drops." : "Better hammers work faster."} Manual work uses the best one left in your inventory.</p>`;
+      return `<div class="unitrow">${slot}${insert}${speed}</div><div class="unitrow"><span class="meta">input</span><div class="chips">${chips(`autot:${i}`, sel)}</div><div class="bar"><i data-w="m${i}:bar"></i></div></div>${wait}${others}`;
     }
     if (D.POWER[id]) {
       const cfg = D.POWER[id];
       let ctl = "";
       if (cfg.watts) {
-        const lava = cfg.lavaPerJ ? ` · ${Math.floor(s.island.reduce((a, c) => a + (c && c.id === "crucible" ? c.lava : 0), 0) + (s.lavaTank || 0)).toLocaleString()} mB of lava on hand, ${s.inv.lavaBucket || 0} lava bucket${s.inv.lavaBucket === 1 ? "" : "s"}` : "";
+        const lava = cfg.lavaPerJ ? ` · ${Math.round(s.island.reduce((a, c) => a + (c && c.id === "crucible" ? c.lava : 0), 0) + (s.lavaTank || 0)).toLocaleString()} mB of lava on hand, ${s.inv.lavaBucket || 0} lava bucket${s.inv.lavaBucket === 1 ? "" : "s"}` : "";
         UI.v(`m${i}:power`, `${(t.output || 0).toFixed(1)} / ${cfg.watts} W${cfg.fuels ? ` · ${Math.ceil(t.fuelJ)} J of loaded fuel left` : ""}${lava}`);
         const fuel = cfg.fuels ? Object.entries(cfg.fuels).map(([f, joules]) => `<button class="chip" data-act="genfuel:${i}:${f}" aria-pressed="${t.fuel === f}" data-tip="${f}">${img(f, "sm")}${name(f)} · ${joules.toLocaleString()} J</button>`).join("") : "";
-        ctl = `<div class="unitrow"><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled !== false}">${t.enabled === false ? "Resume" : "Pause"}</button><span class="meta" data-v="m${i}:power"></span></div>${fuel ? `<div class="chips">${fuel}</div><p class="meta">It feeds the selected fuel from your inventory only when the grid has room; switching finishes the loaded item first.</p>` : ""}`;
+        ctl = `<div class="unitrow"><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled !== false}">${t.enabled === false ? "Resume" : "Pause"}</button><span class="meta" data-v="m${i}:power"></span></div>${fuel ? `<div class="chips">${fuel}</div>` : ""}`;
       }
       return ctl + gridHTML(s);
     }
@@ -334,7 +332,7 @@
         UI.v(`m${i}:bar`, t.p);
         UI.v(`m${i}:st`, t.status || "waiting for a grown tree");
         return `<div class="unitrow"><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled}">${t.enabled ? "Pause" : "Resume"}</button><span class="meta" data-v="m${i}:st"></span><div class="bar green"><i data-w="m${i}:bar"></i></div></div>` +
-          `<p class="meta">Each harvest uses ${C.harvester.watts * C.harvester.time} J for 4 logs, 4 leaves and a sapling, then replants; trees regrow in ${C.tree.grow} s.</p>` + gridHTML(s);
+          gridHTML(s);
       case "barrel":
         UI.v(`m${i}:bar`, t.time > 0 ? 1 - t.time / C.barrel.time : t.fill / C.barrel.units);
         UI.v(`m${i}:st`, t.time > 0 ? `rotting into dirt · ${Math.ceil(t.time)} s` : `compost ${t.fill}/${C.barrel.units}`);
@@ -351,7 +349,7 @@
       }
       case "crucible":
         UI.v(`m${i}:bar`, t.lava / C.crucible.lava);
-        UI.v(`m${i}:st`, `${t.cobble} cobblestone melting · ${t.lava} mB lava`);
+        UI.v(`m${i}:st`, `${t.cobble} cobblestone melting · ${Math.round(t.lava)} mB lava`);
         UI.v("d:lava", !(A.lavaCrucible(s) && A.count(s, "bucket") > 0));
         return unit(`m${i}:st`, `m${i}:bar`, "warm") + `<div class="row"><label><input type="checkbox" data-opt="feedCrucible" ${s.opt.feedCrucible ? "checked" : ""}> melt cobblestone</label><button class="mini" data-act="bucket:lava" data-d="d:lava">Fill a bucket · 1000 mB</button></div>`;
       case "farmland": {
@@ -359,8 +357,7 @@
         UI.v(`m${i}:bar`, t.seed ? t.g : 0);
         UI.v(`m${i}:st`, t.seed ? `${name(t.seed)} · ${Math.floor(t.g * 100)}%` : t.sel ? `no ${name(t.sel).toLowerCase()} to plant` : "empty");
         return `<div class="chips">${seeds.map(sd => `<button class="chip" data-act="seed:${i}:${sd}" aria-pressed="${t.sel === sd}" data-tip="${sd}">${img(sd, "sm")}<span data-v="i:${sd}"></span></button>`).join("")}<button class="chip" style="padding-left:9px" data-act="seed:${i}:" aria-pressed="${!t.sel}">none</button></div>` +
-          unit(`m${i}:st`, `m${i}:bar`, "green") + `<label class="meta"><input type="checkbox" data-fert="${i}" ${t.fert ? "checked" : ""}> use bone meal (each crop starts half grown) · <span data-v="i:boneMeal"></span> left</label>` +
-          `<p class="meta">A planted seed stays and regrows forever; switching seeds hands the old one back.</p>`;
+          unit(`m${i}:st`, `m${i}:bar`, "green") + `<label class="meta"><input type="checkbox" data-fert="${i}" ${t.fert ? "checked" : ""}> use bone meal (each crop starts half grown) · <span data-v="i:boneMeal"></span> left</label>`;
       }
       case "autoCompressor": {
         const map = C.compress.map;
@@ -368,7 +365,7 @@
         const [out, n] = map[t.sel] || [t.sel, 9];
         UI.v(`m${i}:st`, t.idle ? `waiting for ${n} ${name(t.sel).toLowerCase()}${C.reserve[t.sel] ? ` (it leaves ${C.reserve[t.sel]} for crafting)` : ""}` : `${n} ${name(t.sel)} → ${name(out)}`);
         return `<div class="chips">${Object.keys(map).filter(k => s.seen[k]).map(k => `<button class="chip" data-act="compress:${i}:${k}" aria-pressed="${t.sel === k}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span></button>`).join("")}</div>` +
-          unit(`m${i}:st`, `m${i}:bar`) + `<p class="meta">Every ${C.compress.time} s it squeezes 9 blocks into 1 (or 4 ore pieces into a chunk). Set several to different blocks, or chain one after your auto-hammers and before an auto heavy sieve.</p>`;
+          unit(`m${i}:st`, `m${i}:bar`);
       }
       case "infested":
         UI.v(`m${i}:bar`, t.t / C.infested.time);
@@ -377,22 +374,23 @@
         return `<p class="meta">${t.grow < 1 ? `Growing (${Math.floor(t.grow * 100)}%).` : `Drops leaves every ${C.tree.litter} s. Chop it or shake it from the Work panel.`} Picking it up gives the sapling back${t.grow >= 1 ? ", plus 2 logs" : ""}.</p>`;
       case "cobblegen": {
         const p = A.tool(s, "pick"), n = A.built(s, "cobblegen");
-        return `<p class="meta">${p ? `Mine it from the Work panel (key 5): ${esc(name(p[0]).toLowerCase())} + ${n} generator${n === 1 ? "" : "s"} = ${p[1] + n} power per swing.` : "You need a pickaxe to mine it."}</p>`;
+        return `<p class="meta">${p ? `${p[1] + n} power per swing (key 5)` : "Needs a pickaxe."}</p>`;
       }
-      case "autoGen": case "autoGen2": case "autoGen3":
-        return `<p class="meta">Mines ${C.autoGen[id]} cobblestone per second by itself. Upgrade it in the crafting list.</p>`;
+      case "autoGen": case "autoGen2": case "autoGen3": case "autoGen4":
+        return `<p class="meta">${C.autoGen[id]} cobblestone/s</p>`;
       case "table":
-        return `<p class="meta">Recipes marked "at a table" in the crafting list need one of these on the island.</p>` + autoMakeHTML(s, t, i);
+        return autoMakeHTML(s, t, i);
       case "enchantTable": {
         const L = A.level(s), ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
-        const EFFECT = { sword: "damage", armor: "protection", meshEff: "sieving speed (manual and auto-sieves)", meshFortune: "drop chances" };
+        const EFFECT = { sword: "damage", armor: "protection", meshEff: "speed", meshFortune: "drops" };
         const rows = Object.entries(C.enchant.types).map(([type, E]) => [type, E, A.bestOwned(s, E.kind)]).filter(([, , tl]) => tl).map(([type, E, tl]) => {
-          const n = A.enchLevel(s, type), why = A.enchantBlocker(s, type), per = Math.round((E.perLevel || C.enchant.perLevel) * 100);
-          const label = why === "maxed" ? "maxed" : why === "needs a ghast tear" ? `${A.enchantCost(s, type)} levels + a ghast tear` : `${A.enchantCost(s, type)} levels${n >= C.enchant.max ? " + a ghast tear" : ""}`;
-          return `<div class="unitrow">${img(tl[0], "sm")}<b>${E.name}${n ? " " + ROMAN[n] : ""}</b><span class="meta">${esc(name(tl[0]).toLowerCase())} · +${per}% ${EFFECT[type] || "power"} per level${n ? ` (now ×${A.enchMult(s, type).toFixed(2)})` : ""}</span>` +
+          const n = A.enchLevel(s, type), why = A.enchantBlocker(s, type);
+          // the button says what's missing (bookshelves, a ghast tear), otherwise the level cost
+          const label = why === "maxed" ? "maxed" : why && !why.startsWith("needs level") ? why : `${A.enchantCost(s, type)} levels`;
+          return `<div class="unitrow">${img(tl[0], "sm")}<b>${E.name}${n ? " " + ROMAN[n] : ""}</b><span class="meta">${esc(name(tl[0]).toLowerCase())}${n ? ` · ×${A.enchMult(s, type).toFixed(2)} ${EFFECT[type] || "power"}` : ""}</span>` +
             `<button class="mini" data-act="enchant:${type}" ${why ? "disabled" : ""} title="${esc(why)}">${n ? "Upgrade" : "Enchant"} · ${label}</button></div>`;
         }).join("");
-        return `<p class="meta">You are level <b>${L}</b> (${Math.floor(s.xp)} XP). Enchantments apply to every tool of that kind you own, including ones slotted into auto-hammers and auto-sieves. Past V, each level also takes a ghast tear from the Nether. Levels come from fighting in the Wilds; spending them never locks a monster again.</p>` +
+        return `<p class="meta">Level <b>${L}</b> · ${A.count(s, "bookshelf")} bookshelves</p>` +
           (rows || `<p class="meta">You have no enchantable tools yet.</p>`);
       }
       case "mobGrinder": {
@@ -401,10 +399,10 @@
         const open = Object.keys(D.MOBS).filter(m => A.mobOpen(s, m));
         return `<div class="chips">${open.map(m => `<button class="chip" style="padding-left:4px" data-act="grind:${i}:${m}" aria-pressed="${t.sel === m}">${img(m, "sm")}${D.MOBS[m].name}</button>`).join("") || `<span class="meta">unlock the Dark Platform to pick a monster</span>`}</div>` +
           `<div class="unitrow"><button class="mini" data-act="power:${i}" aria-pressed="${t.enabled}">${t.enabled ? "Pause" : "Resume"}</button><span class="meta" data-v="m${i}:st"></span><div class="bar"><i data-w="m${i}:bar"></i></div></div>` +
-          `<p class="meta">${C.grinder.watts} W: one ${esc(D.MOBS[A.mobOpen(s, t.sel) ? t.sel : "zombie"].name.toLowerCase())} every ${C.grinder.time} s for its drops and ${C.grinder.xp} XP. It can grind any monster you can fight yourself.</p>` + gridHTML(s);
+          gridHTML(s);
       }
       case "sieve": case "heavySieve":
-        return `<p class="meta">Each one adds sieving power to the ${id === "sieve" ? "Sieve" : "Heavy sieve"} button in the Work panel.</p>`;
+        return "";
       default:
         return ITEMS[id].desc ? `<p class="meta">${esc(ITEMS[id].desc)}</p>` : "";
     }
