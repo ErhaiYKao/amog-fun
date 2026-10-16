@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coin Flip Court · amog.fun</title>
+<meta name="description" content="Type a sequence of coin flips and Coin Flip Court runs a battery of randomness tests on it, then shows its most suspicious features with exact p-values.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='32' cy='32' r='20' fill='%23c8f04a'/><circle cx='32' cy='32' r='14' fill='none' stroke='%230a0a0f' stroke-width='3'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/math.js" defer></script>
+<script src="/coin-flips/stats.js"></script>
+<style>
+  .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
+  .head p { margin: 0 0 18px; color: #d3cfc5; max-width: 62ch; }
+  .box { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  textarea { width: 100%; min-height: 96px; resize: vertical; background: var(--bg); color: var(--ink); border: 1px solid var(--line-2); border-radius: 10px;
+    padding: 10px 12px; font-family: var(--mono); font-size: 15px; letter-spacing: .08em; line-height: 1.5; }
+  textarea:focus { outline: none; border-color: var(--g1); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .mini { font-family: var(--mono); font-size: 13px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; }
+  .mini:hover { border-color: var(--muted); }
+  .mini.face { width: 42px; padding: 7px 0; font-weight: 500; }
+  .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  label.meta { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .grow { flex: 1; }
+
+  .strip { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 14px; }
+  .strip i { width: 12px; height: 12px; border-radius: 50%; background: var(--g1); opacity: .9; transition: opacity .15s, transform .15s; }
+  .strip i.t { background: var(--g2); }
+  .strip.focus i { opacity: .18; }
+  .strip.focus i.on { opacity: 1; transform: scale(1.15); }
+  @media (max-width: 600px) { .strip i { width: 9px; height: 9px; } }
+
+  .verdict { margin: 22px 0 8px; }
+  .verdict h2 { font-family: var(--display); font-weight: 400; font-size: 36px; line-height: 1.1; margin: 0 0 4px; }
+  .verdict p { margin: 0; color: #d3cfc5; max-width: 70ch; }
+  .verdict.bad h2 { color: var(--g2); } .verdict.meh h2 { color: #f5c04a; } .verdict.ok h2 { color: var(--g3); }
+
+  .results { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; }
+  .results li { display: grid; grid-template-columns: 158px minmax(0, 1fr); gap: 4px 14px; align-items: center; padding: 10px 14px;
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; cursor: default; }
+  .results li.loc { cursor: pointer; }
+  .results li:hover, .results li.sel { border-color: var(--line-2); background: var(--bg-3); }
+  .results .p { font-family: var(--mono); font-size: 15px; white-space: nowrap; }
+  .results .p small { color: var(--muted); font-size: 11px; }
+  .results .what { font-size: 16.5px; }
+  .results .what b { font-weight: 600; }
+  .results .bar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .results .bar i { display: block; height: 100%; background: var(--c, var(--g3)); }
+  .results li.top { border-color: color-mix(in srgb, var(--c) 55%, var(--line)); }
+  @media (max-width: 600px) { .results li { grid-template-columns: 1fr; } }
+  .empty { color: var(--muted); font-style: italic; margin-top: 18px; }
+
+  .theory { max-width: 760px; margin: 56px 0 40px; }
+  .theory h2 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0 0 10px; }
+  .theory p, .theory li { color: #d3cfc5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="head">
+    <div class="sig">coinflips : {H, T}* → [0, 1]</div>
+    <h1>Coin Flip Court</h1>
+    <p>Enter some coin flips, real or made up. The court runs every test it knows and reports the most suspicious things about your sequence.</p>
+  </div>
+
+  <div class="box">
+    <textarea id="seq" spellcheck="false" autocomplete="off" placeholder="HTTHHTHTTTHH…  (H/T or 1/0, anything else is ignored)"></textarea>
+    <div class="row">
+      <button class="mini face" data-add="H">H</button><button class="mini face" data-add="T">T</button>
+      <button class="mini" id="undo">undo</button><button class="mini" id="clear">clear</button>
+      <span class="grow"></span>
+      <button class="mini" id="real">+100 real flips</button>
+      <button class="mini" id="fake">a human's "random"</button>
+    </div>
+    <div class="row">
+      <span class="meta" id="count"></span><span class="grow"></span>
+      <label class="meta"><input type="checkbox" id="both"> show both tails</label>
+    </div>
+    <div class="strip" id="strip"></div>
+  </div>
+
+  <div id="out"></div>
+
+  <section class="theory">
+    <h2>How the court works</h2>
+    <p>Each test computes one number from your sequence (say, the longest run of heads) and asks how often $n$ fair, independent flips would produce something at least that extreme. That probability is the $p$-value. The court sorts the tests by $p$-value, so the top row is the most exceptional thing about your flips.</p>
+    <p>Most are exact. Head counts are binomial, and since each pair of neighbours differs with probability $\tfrac12$, the number of chunks is $1 + \operatorname{Bin}(n-1, \tfrac12)$. Longest runs, alternating stretches and the biggest lead come from a dynamic program over "how long is the current run" (or "how far ahead is heads"), which drains probability into the "it happened" state step by step, so even $p = 2^{-199}$ comes out exactly. Palindromes and pattern counts have no tidy formula, so the court flips a few thousand fair sequences of the same length and counts (marked <span class="mono">sim</span>).</p>
+    <p>Be careful with the verdict. Run eighteen one-sided tests on genuinely random flips and the smallest $p$ will often be below $0.05$. The verdict therefore multiplies the smallest $p$ by the number of tails it looked at (Bonferroni), which is conservative but honest. Humans are usually caught by switching too often: too many chunks, runs that are too short, and too few distinct patterns. Real coins are streakier than people expect.</p>
+  </section>
+</div>
+<script>
+(function () {
+  "use strict";
+  const C = window.CoinFlips, $ = id => document.getElementById(id);
+  const seq = $("seq"), out = $("out"), strip = $("strip");
+  const KEY = "amog.coin-flips.";
+  const store = { get: k => { try { return localStorage.getItem(KEY + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(KEY + k, v); } catch {} } };
+  seq.value = store.get("seq") || "";
+  $("both").checked = store.get("both") === "1";
+
+  // phrasing per test: [noun shown with x, "at least" words, "at most" words]
+  const WORDS = {
+    heads: x => [`<b>${x}</b> heads`, "this many heads or more", "this few heads or fewer"],
+    runs: x => [`<b>${x}</b> chunks of identical flips`, "this many chunks or more", "this few chunks or fewer"],
+    run: x => [`longest run of identical flips: <b>${x}</b>`, "a run this long or longer", "no run longer than this"],
+    runH: x => [`longest run of heads: <b>${x}</b>`, "a heads run this long or longer", "no heads run longer than this"],
+    runT: x => [`longest run of tails: <b>${x}</b>`, "a tails run this long or longer", "no tails run longer than this"],
+    alt: x => [`longest alternating stretch: <b>${x}</b>`, "alternating this long or longer", "never alternating longer than this"],
+    lead: x => [`biggest lead either side ever had: <b>${x}</b>`, "a lead this big or bigger", "never a bigger lead than this"],
+    pal: x => [`longest palindrome: <b>${x}</b> flips`, "a palindrome this long or longer", "no palindrome longer than this"],
+    blocks: (x, r) => [`<b>${x}</b> of the ${r.of} possible ${Math.log2(r.of)}-flip patterns show up`, "this many patterns or more", "this few patterns or fewer"],
+  };
+  const fmtP = p => {
+    if (p >= 0.995) return "1";
+    if (p >= 0.001) return p.toFixed(p >= 0.1 ? 2 : 3);
+    if (p === 0) return "&lt; 10<sup>−300</sup>";
+    const e = Math.floor(Math.log10(p)), m = p / 10 ** e;
+    return `${m.toFixed(1)} × 10<sup>${String(e).replace("-", "−")}</sup>`;
+  };
+  const color = p => p < 0.001 ? "var(--g2)" : p < 0.05 ? "#f5c04a" : "var(--g3)";
+
+  let flips = [], results = [], timer = 0, sel = -1;
+  function drawStrip(at) {
+    strip.classList.toggle("focus", !!at);
+    const [a, l] = at || [0, 0];
+    strip.innerHTML = flips.length > 1500 ? "" : flips.map((v, i) => `<i class="${v ? "" : "t"}${at && i >= a && i < a + l ? " on" : ""}" title="${i + 1}: ${v ? "H" : "T"}"></i>`).join("");
+  }
+  function update() {
+    flips = C.parse(seq.value);
+    store.set("seq", seq.value.slice(0, 20000));
+    const h = flips.reduce((a, v) => a + v, 0);
+    $("count").textContent = flips.length ? `${flips.length} flips · ${h} H · ${flips.length - h} T` : "";
+    clearTimeout(timer);
+    if (flips.length > C.MAX) { out.innerHTML = `<p class="empty">The court only hears cases up to ${C.MAX} flips.</p>`; drawStrip(); return; }
+    if (flips.length < 8) { out.innerHTML = `<p class="empty">The court needs at least 8 flips to hear a case.</p>`; drawStrip(); return; }
+    timer = setTimeout(() => { results = C.analyse(flips); sel = -1; render(); }, flips.length > 800 ? 250 : 60);
+  }
+  function render() {
+    const both = $("both").checked;
+    const rows = [];
+    for (const r of results) {
+      const w = WORDS[r.id](r.x, r);
+      const ge = { r, p: r.ge, tail: w[1], noun: w[0] }, le = { r, p: r.le, tail: w[2], noun: w[0] };
+      if (both) rows.push(ge, le); else rows.push(r.ge <= r.le ? ge : le);
+    }
+    rows.sort((a, b) => a.p - b.p);
+    const tested = results.length * 2, best = rows[0], adj = Math.min(1, best.p * tested);
+    const [cls, title] = adj < 0.001 ? ["bad", "Amog does not believe these flips are random."] : adj < 0.05 ? ["meh", "Suspicious, but the court will allow it."] : ["ok", "Plausibly a fair coin."];
+    const lead = best.noun.replace(/<\/?b>/g, "");
+    out.innerHTML = `<div class="verdict ${cls}"><h2>${title}</h2>
+      <p>Most exceptional: ${lead} (${best.tail}, p = ${fmtP(best.p)}). Corrected for looking at ${tested} tails: p ≈ ${fmtP(adj)}.</p></div>
+      <ul class="results">${rows.map((x, i) => `<li class="${x.r.at ? "loc" : ""}${i === 0 ? " top" : ""}" data-i="${i}" style="--c:${color(x.p)}">
+        <span class="p">p = ${fmtP(x.p)}${x.r.sim ? ` <small title="estimated from ${x.r.sim} simulated sequences">sim</small>` : ""}</span>
+        <span class="what">${x.noun} <span class="meta">· ${x.tail}</span></span>
+        <span class="bar"><i style="width:${Math.min(100, -Math.log10(Math.max(x.p, 1e-300)) / 6 * 100)}%"></i></span></li>`).join("")}</ul>`;
+    out._rows = rows;
+    drawStrip(best.r.at);
+  }
+  out.addEventListener("click", e => {
+    const li = e.target.closest("li[data-i]"); if (!li) return;
+    const i = +li.dataset.i, row = out._rows[i];
+    out.querySelectorAll("li.sel").forEach(x => x.classList.remove("sel"));
+    if (sel === i || !row.r.at) { sel = -1; drawStrip(out._rows[0].r.at); return; }
+    sel = i; li.classList.add("sel"); drawStrip(row.r.at);
+  });
+
+  const add = s => { seq.value += s; update(); };
+  document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => add(b.dataset.add));
+  $("undo").onclick = () => { seq.value = seq.value.replace(/[HTht01][^HTht01]*$/, ""); update(); };
+  $("clear").onclick = () => { seq.value = ""; update(); };
+  $("real").onclick = () => { const a = new Uint8Array(100); crypto.getRandomValues(a); add([...a].map(b => b & 1 ? "H" : "T").join("")); };
+  // what people type when asked to be random: switches about 70% of the time, so the runs stay short
+  $("fake").onclick = () => {
+    const a = new Uint32Array(100); crypto.getRandomValues(a);
+    let c = a[0] & 1, s = "";
+    for (const r of a) { if (r / 2 ** 32 < 0.7) c ^= 1; s += c ? "H" : "T"; }
+    seq.value = s; update();
+  };
+  $("both").onchange = () => { store.set("both", $("both").checked ? "1" : "0"); if (results.length && flips.length >= 8) render(); };
+  seq.addEventListener("input", update);
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("textarea, input") || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toUpperCase();
+    if (k === "H" || k === "T") { e.preventDefault(); add(k); }
+    else if (e.key === "Backspace") { e.preventDefault(); $("undo").click(); }
+  });
+  update();
+})();
+</script>
+</body>
+</html>

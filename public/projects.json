@@ -22,6 +22,16 @@
     ]
   },
   {
+    "slug": "coin-flips",
+    "title": "Coin Flip Court",
+    "signature": "coinflips : {H, T}* → [0, 1]",
+    "blurb": "Type in some coin flips, real or invented. The court runs a battery of randomness tests (runs, streaks, alternations, palindromes, patterns) and tells you the most suspicious thing about them, with exact $p$-values.",
+    "tags": [
+      "trinket",
+      "probability"
+    ]
+  },
+  {
     "slug": "blog",
     "title": "The Blog",
     "signature": "blog : Coffee → Theorems",
