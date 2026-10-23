@@ -1,5 +1,15 @@
 [
   {
+    "slug": "omegamac",
+    "title": "Omegamac",
+    "signature": "omegamac : Brain × [0, 120] → ℕ",
+    "blurb": "Zetamac, continued to the end of the alphabet. Two minutes of arithmetic, powers, $\\varphi(n)$, $\\Omega(n)$, gcds, $\\binom{n}{k}$ and derangements against the clock. Choose a preset or build your own, share it as a link, and try to beat your best.",
+    "tags": [
+      "game",
+      "math"
+    ]
+  },
+  {
     "slug": "palinode",
     "title": "Palinode",
     "signature": "palinode : Certainty → ?",
@@ -25,7 +35,7 @@
     "slug": "coin-flips",
     "title": "Coin Flip Court",
     "signature": "coinflips : {H, T}* → [0, 1]",
-    "blurb": "Type in some coin flips, real or invented. The court runs a battery of randomness tests (runs, streaks, alternations, palindromes, patterns) and tells you the most suspicious thing about them, with exact $p$-values.",
+    "blurb": "Type in some coin flips or dice rolls, real or invented. The court runs a battery of randomness tests (runs, streaks, alternations, palindromes, repeats, sums) and tells you the most suspicious thing about them, with exact $p$-values.",
     "tags": [
       "trinket",
       "probability"

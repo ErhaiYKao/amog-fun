@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omegamac · amog.fun</title>
+<meta name="description" content="A zetamac-style mental math trainer: arithmetic, powers and roots, totients, prime factors, gcd and lcm, factorials, binomials and derangements against the clock, with shareable presets and high scores.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><text x='32' y='48' font-size='44' text-anchor='middle' fill='%234fd6e8' font-family='Georgia,serif'>%CE%A9</text></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/math.js" defer></script>
+<script src="/omegamac/gen.js"></script>
+<style>
+  .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
+  .head p { margin: 0 0 18px; color: #d3cfc5; max-width: 64ch; }
+  .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .mini { font-family: var(--mono); font-size: 13px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; }
+  .mini:hover { border-color: var(--muted); }
+  .mini:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1; }
+
+  .game { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px 22px; }
+  .hud { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-family: var(--mono); font-size: 14px; color: var(--muted); }
+  .hud b { color: var(--ink); font-weight: 500; }
+  .hud .lab { color: var(--faint); text-align: center; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .game.play .hud .left b { color: var(--g1); }
+  .game.play .hud .left.low b { color: var(--g2); }
+  .stage { min-height: 230px; display: grid; place-items: center; text-align: center; }
+  .stage > div { display: none; }
+  .game.idle .s-idle, .game.play .s-play, .game.done .s-done { display: block; }
+  .stage > div { max-width: 100%; }
+  .prob { font-size: clamp(30px, 8vw, 60px); line-height: 1.2; min-height: 1.4em; margin: 6px 0 14px; white-space: nowrap; overflow-x: auto; overflow-y: hidden; }
+  .prob .katex { font-size: 1em; }
+  #ans { font-family: var(--mono); font-size: 30px; width: min(280px, 80vw); text-align: center; padding: 8px 12px; border-radius: 12px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line-2); }
+  #ans:focus { outline: none; border-color: var(--g1); }
+  .bump { animation: bump .18s; } @keyframes bump { 50% { transform: scale(1.18); color: var(--g3); } }
+  .big { font-family: var(--display); font-size: 64px; line-height: 1; margin: 4px 0 6px; }
+  .best { color: #d3cfc5; margin: 0 0 14px; }
+  .best .nb { color: var(--g3); }
+  .s-idle p, .s-done p.meta { margin: 12px 0 0; }
+
+  .panel { margin-top: 22px; }
+  .panel h2 { font-family: var(--display); font-weight: 400; font-size: 32px; margin: 0 0 8px; }
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  fieldset:disabled { opacity: .55; }
+  .chip.on { border-color: var(--g1); color: var(--g1); }
+  .chip .x { margin-left: 8px; color: var(--faint); }
+  .chip .x:hover { color: var(--g2); }
+  select, .txt { font-family: var(--mono); font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); }
+  .txt { width: 170px; }
+  #msg { min-height: 1.4em; margin-top: 6px; word-break: break-all; }
+
+  .secs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 12px; margin-top: 12px; }
+  .sec { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px 6px; }
+  .sech { font-family: var(--display); font-size: 25px; display: flex; gap: 10px; align-items: center; cursor: pointer; margin-bottom: 4px; }
+  .ty { border-top: 1px solid var(--line); padding: 8px 0; display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); gap: 2px 12px; align-items: baseline; }
+  .tyl { display: flex; gap: 8px; align-items: baseline; cursor: pointer; font-size: 16.5px; }
+  .def { font-size: 15px; color: #d3cfc5; min-width: 0; overflow-x: auto; }
+  .fs { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .f i { font-family: var(--serif); font-size: 15px; color: var(--ink); margin-right: 5px; }
+  .f input { font-family: var(--mono); font-size: 13px; width: 66px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); }
+  .f input.wide { width: 118px; }
+  .f input:focus { outline: none; border-color: var(--g1); }
+  .f .dash { margin: 0 4px; }
+  .ty.off .def, .ty.off .fs, .ty.off .nm { opacity: .45; }
+  .warn { grid-column: 2; display: none; font-family: var(--mono); font-size: 12px; color: var(--g2); }
+  .ty.bad .warn { display: block; }
+  @media (max-width: 600px) { .ty { grid-template-columns: 1fr; } .fs, .warn { grid-column: 1; } .def, .fs, .warn { padding-left: 24px; } }
+  input[type=checkbox] { accent-color: var(--g1); }
+
+  .board { overflow-x: auto; }
+  table { border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+  th, td { padding: 6px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; font-family: var(--serif); font-size: 16px; }
+  th { color: var(--muted); font-weight: 400; }
+  td.cur, th.cur { color: var(--g1); }
+  tr.cur td:first-child { color: var(--g1); }
+  td.none { color: var(--faint); }
+
+  .theory { max-width: 760px; margin: 56px 0 40px; }
+  .theory h2 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0 0 10px; }
+  .theory p { color: #d3cfc5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="head">
+    <div class="sig">omegamac : Brain × [0, 120] → ℕ</div>
+    <h1>Omegamac</h1>
+    <p>Zetamac, continued to the end of the alphabet. Answer as many questions as you can before the clock runs out; the next one appears the instant your answer is right, no Enter needed. Pick a preset or choose your own problem types below.</p>
+  </div>
+
+  <div class="game idle" id="game">
+    <div class="hud"><span class="left" id="leftw">Seconds left: <b id="left">120</b></span><span class="lab" id="lab"></span><span>Score: <b id="score">0</b></span></div>
+    <div class="stage">
+      <div class="s-idle">
+        <button class="btn primary" id="go">Start</button>
+        <p class="meta">Enter ↵ to start · Esc to give up mid-run</p>
+      </div>
+      <div class="s-play">
+        <div class="prob" id="prob"></div>
+        <input id="ans" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="answer">
+      </div>
+      <div class="s-done">
+        <div class="meta">score</div>
+        <div class="big" id="final">0</div>
+        <p class="best" id="bestline"></p>
+        <button class="btn primary" id="again">Again</button>
+        <p class="meta">or press Enter ↵</p>
+      </div>
+    </div>
+  </div>
+
+  <fieldset id="cfg">
+    <section class="panel">
+      <h2>Presets</h2>
+      <div class="row" id="chips"></div>
+      <div class="row" style="margin-top:12px">
+        <label class="meta">time <select id="dur"></select></label>
+        <span class="grow"></span>
+        <button class="mini" id="share">copy share link</button>
+        <input class="txt" id="pname" maxlength="40" placeholder="name this preset">
+        <button class="mini" id="savep">save preset</button>
+      </div>
+      <div class="meta" id="msg"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Problem types</h2>
+      <div class="meta">Bounds are inclusive. Every answer is a non-negative integer.</div>
+      <div class="secs" id="secs"></div>
+    </section>
+  </fieldset>
+
+  <section class="panel">
+    <h2>High scores</h2>
+    <div class="meta" style="margin-bottom:8px">Best score per preset and duration, kept in this browser. Save a custom setup as a preset to list it here.</div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="theory">
+    <h2>How Amog picks the numbers</h2>
+    <p>Arithmetic works like zetamac: operands are uniform within your bounds, subtraction is addition run backwards, $(a + b) - a$, and division is multiplication run backwards, $ab \div a$, so every answer is a whole number. Exponents, logarithms, $P(n, k)$ and $\binom{n}{k}$ have a cap: Amog first picks a base (or $n$) uniformly from those that have at least one valid question under the cap, then a valid exponent (or $k$).</p>
+    <p>Asking about random numbers would be dull. A random $n$ below $1000$ is prime about one time in six, and $\varphi(p) = p - 1$ is no challenge. So for $\varphi$, $\Omega$, $\omega$, $\operatorname{sopfr}$ and $\operatorname{sopf}$, Amog usually draws $n$ with probability proportional to $d(n)^2$, where $d(n)$ is the number of divisors, which makes $720$ about $225$ times likelier than a prime. In the other $15\%$ of draws he picks uniformly, so primes still appear now and then (about $3\%$ of the time on $[2, 1000]$).</p>
+    <p>For $\gcd$ and $\operatorname{lcm}$ he first chooses a common factor $g$ with weight $g\,(m - 2)$, where $m$ is the number of multiples of $g$ in range, then takes two different multiples of $g$, avoiding pairs where one divides the other. On $[2, 200]$ the average $\gcd$ is about $26$, compared with $3.5$ for a random pair. Again, $15\%$ of pairs are uniform, so coprime pairs still show up.</p>
+    <p>Each correct answer scores one point, and wrong answers cost nothing: the box just waits. Share links contain the whole setup, so a friend who opens yours plays exactly the same game.</p>
+  </section>
+</div>
+<script>
+(function () {
+  "use strict";
+  const O = window.Omegamac, $ = id => document.getElementById(id);
+  const KEY = "amog.omegamac.v1";
+  let db = {};
+  try { db = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
+  if (!Array.isArray(db.presets)) db.presets = [];
+  if (!db.scores || typeof db.scores !== "object") db.scores = {};
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const msg = (html, ms = 4000) => { $("msg").innerHTML = html; clearTimeout(msg.t); if (ms) msg.t = setTimeout(() => $("msg").innerHTML = "", ms); };
+
+  let S, sharedName = "";
+  function fromHash() {
+    const h = O.decode(location.hash);
+    if (!h) return false;
+    S = h.settings; sharedName = h.name;
+    if (sharedName && !current().saved) { $("pname").value = sharedName; msg(`Shared preset “${esc(sharedName)}”. Save it to keep it on your scoreboard.`, 0); }
+    return true;
+  }
+  // which preset the current settings are (built-in, saved, or neither)
+  function current() {
+    const key = O.typesKey(S), b = O.PRESETS.find(p => p.key === key);
+    if (b) return { name: b.name, key, builtin: true };
+    const c = db.presets.find(p => p.key === key);
+    if (c) return { name: c.name, key, saved: true };
+    return { name: sharedName || "custom (unsaved)", key };
+  }
+  const best = (d, key) => db.scores[d + "|" + key] || 0;
+
+  // ---- settings UI ----
+  const secs = $("secs");
+  secs.innerHTML = O.SECTIONS.map(sec => `<div class="sec"><label class="sech"><input type="checkbox" data-sec="${sec.id}">${sec.name}</label>${O.TYPES.filter(t => t.sec === sec.id).map(t => {
+    let i = 0;
+    const inp = (f, cls = "") => `<input type="number" inputmode="numeric" class="${cls}" data-t="${t.id}" data-i="${i++}" min="${f.min}" max="${f.max}" aria-label="${t.name} ${f.n}">`;
+    const fields = t.f.map(f => "v" in f ? `<span class="f"><i>${f.n} ≤</i>${inp(f, "wide")}</span>`
+      : `<span class="f"><i>${f.n}</i>${inp(f)}<span class="dash">–</span>${inp(f)}</span>`).join("");
+    return `<div class="ty" data-row="${t.id}"><label class="tyl"><input type="checkbox" data-on="${t.id}"><span class="nm">${t.name}</span></label>
+      <div class="def">${t.def}</div><div class="fs">${fields}</div><div class="warn">no question fits these bounds, so it's skipped</div></div>`;
+  }).join("")}</div>`).join("");
+  if (window.amogMath) amogMath(secs); // otherwise math.js (deferred) renders the whole body, these rows included
+
+  function fill() {
+    secs.querySelectorAll("input[data-i]").forEach(el => el.value = S.t[el.dataset.t].p[+el.dataset.i]);
+    secs.querySelectorAll("input[data-on]").forEach(el => el.checked = S.t[el.dataset.on].on);
+    const dur = $("dur");
+    dur.innerHTML = [...new Set([...O.DURATIONS, S.d])].sort((a, b) => a - b).map(d => `<option value="${d}"${d === S.d ? " selected" : ""}>${d} s</option>`).join("");
+  }
+  function sync() {
+    const N = O.normalize(S), cur = current();
+    for (const sec of O.SECTIONS) {
+      const ids = O.TYPES.filter(t => t.sec === sec.id).map(t => t.id), on = ids.filter(id => S.t[id].on).length;
+      const box = secs.querySelector(`[data-sec="${sec.id}"]`);
+      box.checked = on === ids.length; box.indeterminate = on > 0 && on < ids.length;
+    }
+    for (const t of O.TYPES) {
+      const row = secs.querySelector(`[data-row="${t.id}"]`);
+      row.classList.toggle("off", !S.t[t.id].on);
+      row.classList.toggle("bad", S.t[t.id].on && !O.feasible(N, t.id));
+    }
+    const chips = O.PRESETS.map(p => `<button class="mini chip${p.key === cur.key ? " on" : ""}" data-p="${p.id}">${esc(p.name)}</button>`)
+      .concat(db.presets.map((p, i) => `<button class="mini chip${p.key === cur.key ? " on" : ""}" data-c="${i}">${esc(p.name)}<span class="x" data-del="${i}" title="delete preset">×</span></button>`));
+    $("chips").innerHTML = chips.join("");
+    const b = best(N.d, cur.key);
+    $("lab").textContent = `${cur.name} · ${N.d} s${b ? ` · best ${b}` : ""}`;
+    if (state !== "play") $("left").textContent = N.d;
+    const enc = O.encode(N, cur.saved ? cur.name : (!cur.builtin && sharedName) || "");
+    history.replaceState(null, "", "#" + enc);
+    db.last = enc; persist();
+    board(N, cur);
+  }
+  function board(N, cur) {
+    const rows = O.PRESETS.map(p => ({ name: p.name, key: p.key })).concat(db.presets);
+    const ds = new Set([N.d]);
+    for (const k of Object.keys(db.scores)) { const [d, key] = [+k.slice(0, k.indexOf("|")), k.slice(k.indexOf("|") + 1)]; if (rows.some(r => r.key === key)) ds.add(d); }
+    const cols = [...ds].sort((a, b) => a - b);
+    $("board").innerHTML = `<table><tr><th>preset</th>${cols.map(d => `<th class="${d === N.d ? "cur" : ""}">${d} s</th>`).join("")}</tr>
+      ${rows.map(r => `<tr class="${r.key === cur.key ? "cur" : ""}"><td>${esc(r.name)}</td>${cols.map(d => { const v = best(d, r.key); return `<td class="${v ? "" : "none"} ${d === N.d && r.key === cur.key ? "cur" : ""}">${v || "·"}</td>`; }).join("")}</tr>`).join("")}</table>`;
+  }
+  const readNum = v => v === "" ? NaN : Number(v);
+  secs.addEventListener("input", e => {
+    const el = e.target;
+    if (el.dataset.i != null) { S.t[el.dataset.t].p[+el.dataset.i] = readNum(el.value); sync(); }
+  });
+  secs.addEventListener("change", e => {
+    const el = e.target;
+    if (el.dataset.on) S.t[el.dataset.on].on = el.checked;
+    else if (el.dataset.sec) O.TYPES.filter(t => t.sec === el.dataset.sec).forEach(t => S.t[t.id].on = el.checked);
+    else if (el.dataset.i != null) S = O.normalize(S);
+    fill(); sync();
+  });
+  $("dur").onchange = e => { S.d = +e.target.value; sync(); };
+  $("chips").addEventListener("click", e => {
+    const del = e.target.closest("[data-del]"), chip = e.target.closest(".chip");
+    if (del) {
+      const p = db.presets[+del.dataset.del];
+      if (p && confirm(`Delete the preset “${p.name}”? Its high scores are kept, but won't be listed.`)) { db.presets.splice(+del.dataset.del, 1); persist(); sync(); }
+      return;
+    }
+    if (!chip) return;
+    const d = S.d;
+    S = chip.dataset.p ? O.presetSettings(chip.dataset.p) : O.decode(db.presets[+chip.dataset.c].key).settings;
+    S.d = d; sharedName = ""; fill(); sync();
+  });
+  function savePreset() {
+    S = O.normalize(S);
+    const key = O.typesKey(S);
+    if (!key) return msg("Enable at least one problem type first.");
+    const b = O.PRESETS.find(p => p.key === key);
+    if (b) return msg(`That's exactly the built-in “${esc(b.name)}” preset, which is already on the scoreboard.`);
+    const name = $("pname").value.trim().slice(0, 40) || `Custom ${db.presets.length + 1}`;
+    db.presets = db.presets.filter(p => p.name !== name && p.key !== key);
+    db.presets.push({ name, key });
+    if (db.presets.length > 40) db.presets.shift();
+    sharedName = ""; $("pname").value = "";
+    fill(); sync(); msg(`Saved “${esc(name)}”.`);
+  }
+  $("savep").onclick = savePreset;
+  $("pname").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); savePreset(); } });
+  $("share").onclick = () => {
+    const url = location.href;
+    const shown = () => msg(`<span class="mono" style="user-select:all">${esc(url)}</span>`, 0);
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => msg("Link copied: " + `<span class="mono" style="user-select:all">${esc(url)}</span>`, 8000), shown); else shown();
+  };
+
+  // ---- the game ----
+  const game = $("game"), ans = $("ans"), probEl = $("prob");
+  let state = "idle", prob = null, score = 0, end = 0, tick = 0, doneAt = 0, playS = null;
+  function show() {
+    if (window.katex) { try { katex.render(prob.tex, probEl, { throwOnError: false }); return; } catch {} }
+    probEl.textContent = prob.plain;
+  }
+  function setState(s) { state = s; game.className = "game " + s; $("cfg").disabled = s === "play"; }
+  function start() {
+    S = O.normalize(S); fill(); sync();
+    playS = S;
+    const first = O.next(playS);
+    if (!first) { msg("Nothing to play: enable a problem type whose bounds allow at least one question."); $("cfg").scrollIntoView({ behavior: "smooth" }); return; }
+    prob = first; score = 0; $("score").textContent = 0;
+    end = performance.now() + playS.d * 1000;
+    setState("play"); show(); ans.value = ""; ans.focus();
+    clearInterval(tick); tick = setInterval(update, 100); update();
+  }
+  function update() {
+    const ms = end - performance.now(), left = Math.max(0, Math.ceil(ms / 1000));
+    $("left").textContent = left;
+    $("leftw").classList.toggle("low", left <= 10);
+    if (ms <= 0) finish(false);
+  }
+  function finish(abort) {
+    clearInterval(tick); ans.blur();
+    $("leftw").classList.remove("low");
+    if (abort) { setState("idle"); sync(); return; }
+    const key = O.typesKey(playS), prev = best(playS.d, key), cur = current();
+    if (score > prev) { db.scores[playS.d + "|" + key] = score; persist(); }
+    $("final").textContent = score;
+    $("bestline").innerHTML = score > prev && prev ? `<span class="nb">New best</span> for ${esc(cur.name)} at ${playS.d} s (was ${prev}).`
+      : score > prev ? `<span class="nb">First score</span> for ${esc(cur.name)} at ${playS.d} s.`
+      : `Best for ${esc(cur.name)} at ${playS.d} s: ${prev}.`;
+    if (cur.key && !cur.builtin && !cur.saved) $("bestline").innerHTML += " Save this setup as a preset to list it on the scoreboard.";
+    doneAt = performance.now();
+    setState("done"); sync();
+  }
+  ans.addEventListener("input", () => {
+    if (state !== "play" || !O.check(prob, ans.value)) return;
+    score++;
+    const sc = $("score"); sc.textContent = score; sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump");
+    prob = O.next(playS, Math.random, prob); show(); ans.value = "";
+  });
+  $("go").onclick = start;
+  $("again").onclick = start;
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && state === "play") { e.preventDefault(); finish(true); return; }
+    if (e.key !== "Enter" || state === "play" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest && e.target.closest("input, button, select, textarea")) return;
+    if (state === "done" && performance.now() - doneAt < 700) return;
+    e.preventDefault(); start();
+  });
+  window.addEventListener("hashchange", () => { if (state !== "play" && fromHash()) { fill(); sync(); } });
+
+  if (!fromHash()) { const l = db.last && O.decode(db.last); S = l ? l.settings : O.presetSettings("basic"); }
+  fill(); sync();
+})();
+</script>
+</body>
+</html>
