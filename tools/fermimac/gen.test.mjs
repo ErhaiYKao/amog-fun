@@ -76,8 +76,29 @@ test("tolerances", () => {
   assert.ok(!F.check("fermi", p, "0")); assert.ok(!F.check("fermi", p, "junk"));
 });
 
+test("FermiGuessr points: 5000 × smaller/larger", () => {
+  const p = { answer: 1000 };
+  assert.equal(F.points(p, "1000"), 5000); assert.equal(F.points(p, "2000"), 2500); assert.equal(F.points(p, "500"), 2500);
+  assert.equal(F.points(p, "10k"), 500); assert.equal(F.points(p, "1100"), 4545); assert.equal(F.points(p, "junk"), 0); assert.equal(F.points(p, "0"), 0);
+  assert.equal(F.score("guessr", p, "2000"), 2500); assert.equal(F.score("fermi", p, "2000"), 1); assert.equal(F.score("fermi", p, "2100"), 0);
+});
+
+test("FermiGuessr replay: fixed rounds, may finish early, points recomputed on the server", () => {
+  const run = newRun(game, "guessr", 120, 0), r = F.makeRun("guessr", run.s), answers = [], times = [];
+  let pts = 0;
+  for (let i = 0; i < 10; i++) { const q = r.next(), g = q.answer * (1 + i / 10); answers.push(String(g)); times.push(2000 + i * 3000); pts += F.points(q, g); }
+  const last = times[9];
+  assert.deepEqual(verifyRun(run, answers, times, run.iat + last + 500), { ok: true, score: pts, ms: last }); // done early: fine
+  assert.equal(verifyRun(run, answers, times, run.iat + last - 5000).ok, false);                          // before its last guess
+  assert.equal(verifyRun(run, [...answers, "1"], [...times, last + 1000], run.iat + 120500).ok, false);  // an 11th round
+  // out of time after 4 rounds: the whole clock has to have run
+  assert.equal(verifyRun(run, answers.slice(0, 4), times.slice(0, 4), run.iat + 30000).ok, false);
+  assert.ok(verifyRun(run, answers.slice(0, 4), times.slice(0, 4), run.iat + 120500).ok);
+  assert.equal(verifyRun(run, answers, times.map(t => t + 120e3), run.iat + 300e3).ok, false);          // guesses after time ran out
+});
+
 test("leaderboard replay scores the guesses that landed", () => {
-  for (const p of F.PRESETS) {
+  for (const p of F.PRESETS.filter(p => !p.rounds)) {
     const run = newRun(game, p.id, 60, 0), r = F.makeRun(p.id, run.s), answers = [], times = [];
     let hits = 0;
     for (let i = 0; i < 60; i++) {

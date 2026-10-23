@@ -115,6 +115,7 @@
   <section class="theory">
     <h2>How to be roughly right</h2>
     <p><b>Feynman</b> and <b>Sharp</b> ask math questions: powers, roots, logs, trig, factorials, primes and friends. Your guess counts if it's within 10% (Feynman) or 2% (Sharp) of the true value. <b>Fermi</b> asks about the world, from the distance to the Moon to the number of ants on Earth, and anything within a factor of 2 counts, because nobody knows how many dogs there are to 10%.</p>
+    <p><b>FermiGuessr</b> is Fermi played like GeoGuessr: ten questions against the clock, and every guess scores $5000 \times \frac{\text{smaller}}{\text{larger}}$ of your guess and the truth. Spot on is 5,000, off by a factor of 2 is 2,500, and off by 10 is 500, so a perfect game is 50,000. Finish all ten early and you keep your time; run out and the rest score nothing.</p>
     <p>Some tools that help:</p>
     <ul>
       <li>Logs: $\ln 2 \approx 0.693$, $\ln 10 \approx 2.303$, $\log_{10} 2 \approx 0.301$, $\log_{10} 3 \approx 0.477$. So $e^{x} = 10^{x / 2.303}$, and $2^{10} \approx 10^3$.</li>
@@ -180,7 +181,7 @@
     if (r) { ranked = { token: r.token, preset: playP.id, name: playP.name, d: playD }; seed = r.seed; }
     else fb.textContent = "";
     run = F.makeRun(playP.id, seed); prob = run.next();
-    score = tried = 0; $("score").textContent = 0; $("tried").textContent = "";
+    score = tried = 0; $("score").textContent = 0; $("tried").textContent = playP.rounds ? ` · round 1/${playP.rounds}` : "";
     log = { answers: [], times: [] };
     fb.innerHTML = r ? "" : `<span class="meta">Couldn't reach the leaderboard, so this run is unranked.</span>`;
     t0 = performance.now(); end = t0 + playD * 1000;
@@ -200,13 +201,15 @@
     const t = Math.round(performance.now() - t0);
     if (log.times.length && t - log.times[log.times.length - 1] < 250) return; // same pace limit as the server
     log.answers.push(ans.value.trim()); log.times.push(t);
-    const hit = F.check(playP.id, prob, g);
+    const add = F.score(playP.id, prob, g), rounds = playP.rounds, hit = rounds ? add >= F.MAX_POINTS / 2 : add > 0;
     tried++;
-    if (hit) { score++; const sc = $("score"); sc.textContent = score; sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump"); }
-    $("tried").textContent = ` / ${tried}`;
+    if (add) { score += add; const sc = $("score"); sc.textContent = score.toLocaleString("en-US"); sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump"); }
+    $("tried").textContent = rounds ? ` · round ${Math.min(tried + 1, rounds)}/${rounds}` : ` / ${tried}`;
     const what = prob.tex ? `$${prob.tex} \\approx$` : esc(prob.text) + ":";
-    fb.innerHTML = `<span class="${hit ? "hit" : "miss"}">${hit ? "✓" : "✗"}</span> ${what} ${F.fmt(prob.answer)} <span class="meta">· you said ${F.fmt(g)}</span>`;
+    const mark = rounds ? `+${add.toLocaleString("en-US")}` : hit ? "✓" : "✗";
+    fb.innerHTML = `<span class="${hit ? "hit" : "miss"}">${mark}</span> ${what} ${F.fmt(prob.answer)} <span class="meta">· you said ${F.fmt(g)}</span>`;
     if (window.amogMath) amogMath(fb);
+    if (rounds && tried >= rounds) return finish(false);
     prob = run.next(); show(); ans.value = "";
   }
   function finish(abort) {
@@ -215,10 +218,11 @@
     if (abort) { ranked = null; setState("idle"); sync(); return; }
     const k = `${playP.id}|${playD}`, prev = db.scores[k] || 0;
     if (score > prev) { db.scores[k] = score; persist(); }
-    $("final").textContent = score;
-    $("bestline").innerHTML = (score > prev && prev ? `<span class="nb">New best</span> for ${playP.name} at ${playD} s (was ${prev}).`
-      : score > prev ? `<span class="nb">First score</span> for ${playP.name} at ${playD} s.` : `Best for ${playP.name} at ${playD} s: ${prev}.`)
-      + (tried ? ` ${score} of ${tried} guesses landed.` : "");
+    const n = x => x.toLocaleString("en-US");
+    $("final").textContent = n(score);
+    $("bestline").innerHTML = (score > prev && prev ? `<span class="nb">New best</span> for ${playP.name} at ${playD} s (was ${n(prev)}).`
+      : score > prev ? `<span class="nb">First score</span> for ${playP.name} at ${playD} s.` : `Best for ${playP.name} at ${playD} s: ${n(prev)}.`)
+      + (!tried ? "" : playP.rounds ? ` ${tried} of ${playP.rounds} rounds, ${n(Math.round(score / tried))} points a guess.` : ` ${score} of ${tried} guesses landed.`);
     doneAt = performance.now();
     setState("done"); sync();
     const row = $("submit");

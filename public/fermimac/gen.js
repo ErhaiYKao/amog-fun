@@ -145,7 +145,10 @@
     { id: "feynman", name: "Feynman", kind: "math", tol: 0.10, blurb: "math, within 10%" },
     { id: "sharp", name: "Sharp", kind: "math", tol: 0.02, blurb: "math, within 2%" },
     { id: "fermi", name: "Fermi", kind: "fermi", factor: 2, blurb: "the world, within a factor of 2" },
+    // GeoGuessr-style: a fixed number of rounds in the time bank, points for how close each guess is
+    { id: "guessr", name: "FermiGuessr", kind: "fermi", rounds: 10, blurb: "10 questions, up to 5,000 points each" },
   ];
+  const MAX_POINTS = 5000;
   const DURATIONS = [60, 120, 300];
   const preset = id => PRESETS.find(p => p.id === id);
 
@@ -181,6 +184,14 @@
     return P.kind === "fermi" ? Math.max(g / prob.answer, prob.answer / g) <= P.factor * (1 + 1e-12)
       : Math.abs(g / prob.answer - 1) <= P.tol * (1 + 1e-12);
   }
+  // FermiGuessr: 5000 × (smaller / larger), so exact = 5000, off by ×2 = 2500, off by ×10 = 500
+  function points(prob, guess) {
+    const g = typeof guess === "number" ? guess : parseGuess(guess);
+    if (!(g > 0) || !Number.isFinite(g)) return 0;
+    return Math.round(MAX_POINTS * Math.min(g / prob.answer, prob.answer / g));
+  }
+  // what one guess adds to the score: points in FermiGuessr, else 1 for a hit
+  const score = (presetId, prob, guess) => preset(presetId).rounds ? points(prob, guess) : check(presetId, prob, guess) ? 1 : 0;
   // 4 significant figures; scientific notation outside [0.001, 10^7)
   function fmt(x, html = true) {
     if (x >= 1e7 || x < 1e-3) {
@@ -191,5 +202,5 @@
     return s >= 1000 ? s.toLocaleString("en-US", { maximumFractionDigits: 3 }) : String(s);
   }
 
-  root.Fermimac = { PRESETS, DURATIONS, MATH, FERMI, PI, NTH, preset, makeRun, parseGuess, check, fmt, mulberry32, harmonic, fib, choose, fact };
+  root.Fermimac = { PRESETS, DURATIONS, MAX_POINTS, MATH, FERMI, PI, NTH, preset, makeRun, parseGuess, check, points, score, fmt, mulberry32, harmonic, fib, choose, fact };
 })(typeof window !== "undefined" ? window : globalThis);
