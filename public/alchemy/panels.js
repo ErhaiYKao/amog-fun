@@ -42,6 +42,7 @@
     for (const [m, mb] of Object.entries(D.MOBS)) if (mb.drops.some(d => d[0] === id))
       add(`fighting ${/^[AEIOU]/.test(mb.name) ? "an" : "a"} ${mb.name.toLowerCase()} ${mb.area === "nether" ? "in the Nether" : "on the Dark Platform"} (the Wilds), or a mob grinder set to it`);
     if (C.pasture.drops.some(d => d[0] === id)) add("the cow pasture (the Wilds)");
+    if (C.pasture.sheep.drops.some(d => d[0] === id)) add("sheep in the pasture (the Wilds)");
     return out;
   }
   UI.sources = sources;
@@ -242,11 +243,12 @@
     const el = e.target;
     if (el.dataset.autosel !== undefined) A.setAuto(UI.s, +el.dataset.autosel, el.value || null);
     else if (el.dataset.autolimit !== undefined) A.setAuto(UI.s, +el.dataset.autolimit, undefined, +el.value || C.autocraft.limit);
+    else if (el.dataset.autocap !== undefined) A.setAuto(UI.s, +el.dataset.autocap, undefined, undefined, !el.checked);
     else if (el.dataset.fert !== undefined) { const t = UI.s.island[+el.dataset.fert]; if (t) t.fert = el.checked; }
     else return;
     UI.render();
   });
-  $("craftn").addEventListener("input", e => { UI.amount = Math.max(1, Math.min(999, e.target.value | 0 || 1)); UI.render(); });
+  $("craftn").addEventListener("input", e => { UI.amount = Math.max(1, Math.min(C.craftMax, e.target.value | 0 || 1)); UI.render(); });
 
   // ---------- the machine panel: click a building on the island to open it ----------
   const unit = (text, bar, cls = "") => `<div class="unit"><span data-v="${text}"></span><div class="bar ${cls}"><i data-w="${bar}"></i></div></div>`;
@@ -292,9 +294,9 @@
       : rowsFor(s, t.id).map(x => [x.id, x.title]);
     const outOf = key => t.id === "table" ? Object.keys((RECIPES.find(r => r.key === key) || { out: {} }).out)[0] : A.STATIONS[t.id].rec(key)?.out;
     const out = t.auto && outOf(t.auto);
-    if (out) UI.v(`m${i}:auto`, `you have ${UI.fmt(A.count(s, out))} / ${t.limit || C.autocraft.limit}`);
+    if (out) UI.v(`m${i}:auto`, `you have ${UI.fmt(A.count(s, out))}${t.uncapped ? "" : ` / ${t.limit || C.autocraft.limit}`}`);
     return `<h3>Auto-make</h3><div class="row"><select data-autosel="${i}"><option value="">off</option>${opts.map(([k, l]) => `<option value="${esc(k)}" ${t.auto === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>` +
-      `<label class="meta">until I have <input type="number" min="1" max="99999" data-autolimit="${i}" value="${t.limit || C.autocraft.limit}"></label>${out ? `<span class="meta" data-v="m${i}:auto"></span>` : ""}</div>`;
+      `<label class="meta"><input type="checkbox" data-autocap="${i}" ${t.uncapped ? "" : "checked"}> until I have</label><input type="number" min="1" max="99999" data-autolimit="${i}" value="${t.limit || C.autocraft.limit}" ${t.uncapped ? "disabled" : ""}>${out ? `<span class="meta" data-v="m${i}:auto"></span>` : ""}</div>`;
   }
 
   function machineBody(s, t, i) {

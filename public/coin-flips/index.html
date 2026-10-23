@@ -20,7 +20,12 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
   .mini { font-family: var(--mono); font-size: 13px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; }
   .mini:hover { border-color: var(--muted); }
-  .mini.face { width: 42px; padding: 7px 0; font-weight: 500; }
+  .mini.face { width: 42px; padding: 7px 0; font-weight: 500; margin-right: 8px; }
+  #faces { display: contents; }
+  .modes { margin: 0 0 10px; }
+  .modes .mini.on { border-color: var(--g1); color: var(--g1); }
+  select.mini { appearance: none; padding-right: 13px; }
+  .modes.coin #sides { display: none; }
   .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
   label.meta { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
   .grow { flex: 1; }
@@ -28,6 +33,8 @@
   .strip { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 14px; }
   .strip i { width: 12px; height: 12px; border-radius: 50%; background: var(--g1); opacity: .9; transition: opacity .15s, transform .15s; }
   .strip i.t { background: var(--g2); }
+  .strip i.d { width: 14px; height: 14px; border-radius: 3px; background: hsl(var(--h) 75% 58%); color: var(--bg); font: 600 10px/14px var(--mono); text-align: center; font-style: normal; }
+  @media (max-width: 600px) { .strip i.d { width: 12px; height: 12px; line-height: 12px; font-size: 9px; } }
   .strip.focus i { opacity: .18; }
   .strip.focus i.on { opacity: 1; transform: scale(1.15); }
   @media (max-width: 600px) { .strip i { width: 9px; height: 9px; } }
@@ -63,13 +70,20 @@
   <div class="head">
     <div class="sig">coinflips : {H, T}* → [0, 1]</div>
     <h1>Coin Flip Court</h1>
-    <p>Enter some coin flips, real or made up. The court runs every test it knows and reports the most suspicious things about your sequence.</p>
+    <p>Enter some coin flips or dice rolls, real or made up. The court runs every test it knows and reports the most suspicious things about your sequence.</p>
   </div>
 
   <div class="box">
-    <textarea id="seq" spellcheck="false" autocomplete="off" placeholder="HTTHHTHTTTHH…  (H/T or 1/0, anything else is ignored)"></textarea>
+    <div class="row modes">
+      <button class="mini" data-mode="coin">coins</button><button class="mini" data-mode="dice">dice</button>
+      <select class="mini" id="sides" title="sides on the die">
+        <option value="3">d3</option><option value="4">d4</option><option value="5">d5</option><option value="6">d6</option>
+        <option value="7">d7</option><option value="8">d8</option><option value="9">d9</option>
+      </select>
+    </div>
+    <textarea id="seq" spellcheck="false" autocomplete="off"></textarea>
     <div class="row">
-      <button class="mini face" data-add="H">H</button><button class="mini face" data-add="T">T</button>
+      <span id="faces"></span>
       <button class="mini" id="undo">undo</button><button class="mini" id="clear">clear</button>
       <span class="grow"></span>
       <button class="mini" id="real">+100 real flips</button>
@@ -87,8 +101,9 @@
   <section class="theory">
     <h2>How the court works</h2>
     <p>Each test computes one number from your sequence (say, the longest run of heads) and asks how often $n$ fair, independent flips would produce something at least that extreme. That probability is the $p$-value. The court sorts the tests by $p$-value, so the top row is the most exceptional thing about your flips.</p>
-    <p>Most are exact. Head counts are binomial, and since each pair of neighbours differs with probability $\tfrac12$, the number of chunks is $1 + \operatorname{Bin}(n-1, \tfrac12)$. Longest runs, alternating stretches and the biggest lead come from a dynamic program over "how long is the current run" (or "how far ahead is heads"), which drains probability into the "it happened" state step by step, so even $p = 2^{-199}$ comes out exactly. Palindromes and pattern counts have no tidy formula, so the court flips a few thousand fair sequences of the same length and counts (marked <span class="mono">sim</span>).</p>
-    <p>Be careful with the verdict. Run eighteen one-sided tests on genuinely random flips and the smallest $p$ will often be below $0.05$. The verdict therefore multiplies the smallest $p$ by the number of tails it looked at (Bonferroni), which is conservative but honest. Humans are usually caught by switching too often: too many chunks, runs that are too short, and too few distinct patterns. Real coins are streakier than people expect.</p>
+    <p>Most are exact. Head counts are binomial, and since each pair of neighbours differs with probability $\tfrac12$, the number of chunks is $1 + \operatorname{Bin}(n-1, \tfrac12)$. Longest runs, alternating stretches and the biggest lead come from a dynamic program over "how long is the current run" (or "how far ahead is heads"), which drains probability into the "it happened" state step by step, so even $p = 2^{-199}$ comes out exactly. Palindromes and pattern counts have no tidy formula, so the court flips a few thousand fair sequences of the same length and counts (marked <span class="mono">sim</span>). A simulation can't see below one in a few thousand, so for very long palindromes the court switches to counting: the longest palindrome is at least $L$ exactly when some window of length $L$ or $L+1$ is one, and a window of length $\ell$ is a palindrome with probability $2^{-\lfloor \ell/2 \rfloor}$. Adding those up overcounts only when two palindromes overlap, which forces a short period and almost never happens, so the sum is accurate to a couple of percent once it is small (marked <span class="mono">bound</span>).</p>
+    <p>Dice get their own tests. The sum of the rolls and the variance about the middle face are sums of independent scores, so their distributions are exact convolutions; the sum of the jumps $|x_i - x_{i+1}|$ is a Markov chain on the last face. The most and least common faces come from splitting the rolls one face at a time (the count of the next face is $\operatorname{Bin}(\text{rolls left}, \tfrac{1}{\text{faces left}})$), and repeats are $\operatorname{Bin}(n-1, \tfrac1k)$. People inventing dice rolls avoid repeats and keep the faces suspiciously even.</p>
+    <p>Be careful with the verdict. Run sixteen or eighteen one-sided tests on genuinely random flips and the smallest $p$ will often be below $0.05$. The verdict therefore multiplies the smallest $p$ by the number of tails it looked at (Bonferroni), which is conservative but honest. Humans are usually caught by switching too often: too many chunks, runs that are too short, and too few distinct patterns. Real coins are streakier than people expect.</p>
   </section>
 </div>
 <script>
@@ -98,20 +113,29 @@
   const seq = $("seq"), out = $("out"), strip = $("strip");
   const KEY = "amog.coin-flips.";
   const store = { get: k => { try { return localStorage.getItem(KEY + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(KEY + k, v); } catch {} } };
-  seq.value = store.get("seq") || "";
   $("both").checked = store.get("both") === "1";
+  // coins, or a k-sided die (faces 1..k); each mode keeps its own sequence
+  let dice = store.get("mode") === "dice", k = +store.get("sides") || 6;
+  const unit = () => dice ? "rolls" : "flips", seqKey = () => dice ? "dice" : "seq";
 
+  const f2 = v => v.toFixed(2);
   // phrasing per test: [noun shown with x, "at least" words, "at most" words]
   const WORDS = {
     heads: x => [`<b>${x}</b> heads`, "this many heads or more", "this few heads or fewer"],
     runs: x => [`<b>${x}</b> chunks of identical flips`, "this many chunks or more", "this few chunks or fewer"],
-    run: x => [`longest run of identical flips: <b>${x}</b>`, "a run this long or longer", "no run longer than this"],
+    run: x => [`longest run of identical ${unit()}: <b>${x}</b>`, "a run this long or longer", "no run longer than this"],
     runH: x => [`longest run of heads: <b>${x}</b>`, "a heads run this long or longer", "no heads run longer than this"],
     runT: x => [`longest run of tails: <b>${x}</b>`, "a tails run this long or longer", "no tails run longer than this"],
     alt: x => [`longest alternating stretch: <b>${x}</b>`, "alternating this long or longer", "never alternating longer than this"],
     lead: x => [`biggest lead either side ever had: <b>${x}</b>`, "a lead this big or bigger", "never a bigger lead than this"],
-    pal: x => [`longest palindrome: <b>${x}</b> flips`, "a palindrome this long or longer", "no palindrome longer than this"],
+    pal: x => [`longest palindrome: <b>${x}</b> ${unit()}`, "a palindrome this long or longer", "no palindrome longer than this"],
     blocks: (x, r) => [`<b>${x}</b> of the ${r.of} possible ${Math.log2(r.of)}-flip patterns show up`, "this many patterns or more", "this few patterns or fewer"],
+    sum: (x, r) => [`sum of the rolls: <b>${x}</b> (average ${f2(r.mean)}, fair ${(k + 1) / 2})`, "a sum this big or bigger", "a sum this small or smaller"],
+    spread: (x, r) => [`variance about the middle: <b>${f2(r.show)}</b> (fair ${f2(r.fair)})`, "rolls this spread out or more", "rolls this bunched up or more so"],
+    most: (x, r) => [`most common face (${r.face}) came up <b>${x}</b> times`, "a face this common or more", "no face more common than this"],
+    least: (x, r) => [`least common face (${r.face}) came up <b>${x}</b> times`, "a face this rare or rarer", "no face rarer than this"],
+    rep: x => [`<b>${x}</b> repeats of the roll before`, "this many repeats or more", "this few repeats or fewer"],
+    jump: (x, r) => [`average jump between neighbouring rolls: <b>${f2(r.show)}</b> (fair ${f2(r.fair)})`, "jumps this big or bigger", "jumps this small or smaller"],
   };
   const fmtP = p => {
     if (p >= 0.995) return "1";
@@ -126,17 +150,20 @@
   function drawStrip(at) {
     strip.classList.toggle("focus", !!at);
     const [a, l] = at || [0, 0];
-    strip.innerHTML = flips.length > 1500 ? "" : flips.map((v, i) => `<i class="${v ? "" : "t"}${at && i >= a && i < a + l ? " on" : ""}" title="${i + 1}: ${v ? "H" : "T"}"></i>`).join("");
+    const on = i => at && i >= a && i < a + l ? " on" : "";
+    strip.innerHTML = flips.length > 1500 ? "" : dice
+      ? flips.map((v, i) => `<i class="d${on(i)}" style="--h:${190 - (v - 1) / (k - 1) * 200}" title="${i + 1}: ${v}">${v}</i>`).join("")
+      : flips.map((v, i) => `<i class="${v ? "" : "t"}${on(i)}" title="${i + 1}: ${v ? "H" : "T"}"></i>`).join("");
   }
   function update() {
-    flips = C.parse(seq.value);
-    store.set("seq", seq.value.slice(0, 20000));
-    const h = flips.reduce((a, v) => a + v, 0);
-    $("count").textContent = flips.length ? `${flips.length} flips · ${h} H · ${flips.length - h} T` : "";
+    flips = dice ? C.parseDice(seq.value, k) : C.parse(seq.value);
+    store.set(seqKey(), seq.value.slice(0, 20000));
+    const n = flips.length, h = flips.reduce((a, v) => a + v, 0), max = dice ? C.MAX_DICE : C.MAX;
+    $("count").textContent = !n ? "" : dice ? `${n} rolls · average ${(h / n).toFixed(2)}` : `${n} flips · ${h} H · ${n - h} T`;
     clearTimeout(timer);
-    if (flips.length > C.MAX) { out.innerHTML = `<p class="empty">The court only hears cases up to ${C.MAX} flips.</p>`; drawStrip(); return; }
-    if (flips.length < 8) { out.innerHTML = `<p class="empty">The court needs at least 8 flips to hear a case.</p>`; drawStrip(); return; }
-    timer = setTimeout(() => { results = C.analyse(flips); sel = -1; render(); }, flips.length > 800 ? 250 : 60);
+    if (n > max) { out.innerHTML = `<p class="empty">The court only hears cases up to ${max} ${unit()}.</p>`; drawStrip(); return; }
+    if (n < 8) { out.innerHTML = `<p class="empty">The court needs at least 8 ${unit()} to hear a case.</p>`; drawStrip(); return; }
+    timer = setTimeout(() => { results = dice ? C.analyseDice(flips, k) : C.analyse(flips); sel = -1; render(); }, n > (dice ? 200 : 800) ? 250 : 60);
   }
   function render() {
     const both = $("both").checked;
@@ -148,12 +175,13 @@
     }
     rows.sort((a, b) => a.p - b.p);
     const tested = results.length * 2, best = rows[0], adj = Math.min(1, best.p * tested);
-    const [cls, title] = adj < 0.001 ? ["bad", "Amog does not believe these flips are random."] : adj < 0.05 ? ["meh", "Suspicious, but the court will allow it."] : ["ok", "Plausibly a fair coin."];
+    const [cls, title] = adj < 0.001 ? ["bad", `Amog does not believe these ${unit()} are random.`] : adj < 0.05 ? ["meh", "Suspicious, but the court will allow it."] : ["ok", dice ? `Plausibly a fair d${k}.` : "Plausibly a fair coin."];
     const lead = best.noun.replace(/<\/?b>/g, "");
     out.innerHTML = `<div class="verdict ${cls}"><h2>${title}</h2>
-      <p>Most exceptional: ${lead} (${best.tail}, p = ${fmtP(best.p)}). Corrected for looking at ${tested} tails: p ≈ ${fmtP(adj)}.</p></div>
+      <p>Most exceptional: ${lead} (${best.tail}, p ${best.r.sim && !best.r.bound && best.p * (best.r.sim + 1) < 1.5 ? "&lt;" : "="} ${fmtP(best.p)}). Corrected for looking at ${tested} tails: p ≈ ${fmtP(adj)}.</p></div>
       <ul class="results">${rows.map((x, i) => `<li class="${x.r.at ? "loc" : ""}${i === 0 ? " top" : ""}" data-i="${i}" style="--c:${color(x.p)}">
-        <span class="p">p = ${fmtP(x.p)}${x.r.sim ? ` <small title="estimated from ${x.r.sim} simulated sequences">sim</small>` : ""}</span>
+        <span class="p">p ${x.r.sim && !(x.p === x.r.ge && x.r.bound) && x.p * (x.r.sim + 1) < 1.5 ? "&lt;" : "="} ${fmtP(x.p)}${x.p === x.r.ge && x.r.bound ? ` <small title="union bound over palindromic windows, within a couple of percent here">bound</small>`
+          : x.r.sim ? ` <small title="estimated from ${x.r.sim} simulated sequences">sim</small>` : ""}</span>
         <span class="what">${x.noun} <span class="meta">· ${x.tail}</span></span>
         <span class="bar"><i style="width:${Math.min(100, -Math.log10(Math.max(x.p, 1e-300)) / 6 * 100)}%"></i></span></li>`).join("")}</ul>`;
     out._rows = rows;
@@ -168,26 +196,51 @@
   });
 
   const add = s => { seq.value += s; update(); };
-  document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => add(b.dataset.add));
-  $("undo").onclick = () => { seq.value = seq.value.replace(/[HTht01][^HTht01]*$/, ""); update(); };
+  const faces = () => dice ? Array.from({ length: k }, (_, i) => String(i + 1)) : ["H", "T"];
+  const rand = m => { const a = new Uint32Array(1); crypto.getRandomValues(a); return Math.floor(a[0] / 2 ** 32 * m); };
+  function setMode() {
+    document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", (b.dataset.mode === "dice") === dice));
+    document.querySelector(".modes").classList.toggle("coin", !dice);
+    $("sides").value = k;
+    $("faces").innerHTML = faces().map(c => `<button class="mini face" data-add="${c}">${c}</button>`).join("");
+    seq.placeholder = dice ? `3615242…  (digits 1–${k}, anything else is ignored)` : "HTTHHTHTTTHH…  (H/T or 1/0, anything else is ignored)";
+    $("real").textContent = dice ? "+100 real rolls" : "+100 real flips";
+    seq.value = store.get(seqKey()) || "";
+    results = []; update();
+  }
+  document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
+    dice = b.dataset.mode === "dice"; store.set("mode", dice ? "dice" : "coin"); setMode();
+  });
+  $("sides").onchange = () => { k = +$("sides").value; store.set("sides", k); setMode(); };
+  $("faces").onclick = e => { const b = e.target.closest("[data-add]"); if (b) add(b.dataset.add); };
+  $("undo").onclick = () => { seq.value = seq.value.replace(dice ? /\d\D*$/ : /[HTht01][^HTht01]*$/, ""); update(); };
   $("clear").onclick = () => { seq.value = ""; update(); };
-  $("real").onclick = () => { const a = new Uint8Array(100); crypto.getRandomValues(a); add([...a].map(b => b & 1 ? "H" : "T").join("")); };
-  // what people type when asked to be random: switches about 70% of the time, so the runs stay short
+  $("real").onclick = () => add(Array.from({ length: 100 }, () => dice ? 1 + rand(k) : rand(2) ? "H" : "T").join(""));
+  // what people type when asked to be random. Coins: switch about 70% of the time, so the runs stay short.
+  // Dice: hardly ever repeat the last roll, and reach for whichever face has been neglected, so the counts come out too even.
   $("fake").onclick = () => {
-    const a = new Uint32Array(100); crypto.getRandomValues(a);
-    let c = a[0] & 1, s = "";
-    for (const r of a) { if (r / 2 ** 32 < 0.7) c ^= 1; s += c ? "H" : "T"; }
+    let s = "";
+    if (!dice) { let c = rand(2); for (let i = 0; i < 100; i++) { if (rand(10) < 7) c ^= 1; s += c ? "H" : "T"; } }
+    else {
+      const cnt = Array(k).fill(0); let last = 0;
+      for (let i = 0; i < 100; i++) {
+        const w = cnt.map((c, j) => (j + 1 === last ? 0.15 : 1) * Math.exp(-(c - i / k) * 0.9));
+        let r = Math.random() * w.reduce((a, x) => a + x, 0), j = 0;
+        while ((r -= w[j]) > 0 && j < k - 1) j++;
+        cnt[j]++; last = j + 1; s += last;
+      }
+    }
     seq.value = s; update();
   };
   $("both").onchange = () => { store.set("both", $("both").checked ? "1" : "0"); if (results.length && flips.length >= 8) render(); };
   seq.addEventListener("input", update);
   document.addEventListener("keydown", e => {
-    if (e.target.closest("textarea, input") || e.metaKey || e.ctrlKey || e.altKey) return;
-    const k = e.key.toUpperCase();
-    if (k === "H" || k === "T") { e.preventDefault(); add(k); }
+    if (e.target.closest("textarea, input, select") || e.metaKey || e.ctrlKey || e.altKey) return;
+    const c = e.key.toUpperCase();
+    if (faces().includes(c)) { e.preventDefault(); add(c); }
     else if (e.key === "Backspace") { e.preventDefault(); $("undo").click(); }
   });
-  update();
+  setMode();
 })();
 </script>
 </body>

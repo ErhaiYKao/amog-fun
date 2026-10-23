@@ -1,5 +1,5 @@
 /* Alchemy — the Wilds: places off the island that cost no tiles. The Dark Platform and the Nether (fight monsters
- * for XP and drops: swords hit harder, armor blocks hits, steak heals) and the cow pasture (leather and beef). */
+ * for XP and drops: swords hit harder, armor blocks hits, steak heals) and the pasture (cows: leather and beef; sheep: wool). */
 (function () {
   "use strict";
   const UI = window.AlchemyUI, { A, D, $ } = UI;
@@ -42,14 +42,18 @@
       ${mobs}</div>`;
   }
 
+  const costText = cost => Object.entries(cost).map(([k, n]) => `${n} ${esc(name(k).toLowerCase())}`).join(", ");
+  function herdHTML(s, kind, P, timer, gives) {
+    const n = s[kind], cost = A.breedCost(s, kind);
+    UI.v(`w:${kind}`, n ? s[timer] / P.every : 0);
+    UI.v(`d:breed:${kind}`, n >= P.max || Object.entries(cost).some(([k, m]) => A.count(s, k) < m));
+    return `<div class="row"><span class="meta grow">${n} / ${P.max} ${kind} · every ${P.every} s each gives ${gives}</span>
+      <button class="mini" data-act="breed:${kind}" data-d="d:breed:${kind}">${n ? "Breed" : `Lure ${P.start} ${kind}`} · ${costText(cost)}</button></div>
+      <div class="row"><div class="bar green grow"><i data-w="w:${kind}"></i></div></div>`;
+  }
   function pastureHTML(s) {
-    const P = C.pasture;
-    UI.v("w:cow", s.cowT / P.every);
-    UI.v("d:breed", s.cows >= P.max || Object.entries(P.breed).some(([k, n]) => A.count(s, k) < n));
-    return `<div class="area"><div class="row"><b>Cow Pasture</b><span class="meta">${s.cows} / ${P.max} cows</span></div>
-      <div class="row"><span class="meta">every ${P.every} s each cow gives leather (and often raw beef)</span><div class="bar green grow"><i data-w="w:cow"></i></div></div>
-      <div class="row"><button class="mini" data-act="breed" data-d="d:breed">Breed · ${Object.entries(P.breed).map(([k, n]) => `${n} ${esc(name(k).toLowerCase())}`).join(", ")}</button>
-</div></div>`;
+    return `<div class="area"><div class="row"><b>Pasture</b></div>
+      ${herdHTML(s, "cows", C.pasture, "cowT", "leather (often raw beef)")}${herdHTML(s, "sheep", C.pasture.sheep, "sheepT", "wool")}</div>`;
   }
 
   function render() {
@@ -78,7 +82,7 @@
     fight: () => swing(),
     eat: () => A.eat(UI.s),
     mob: ([id]) => A.setMob(UI.s, id),
-    breed: () => A.breed(UI.s),
+    breed: ([kind]) => A.breed(UI.s, kind || "cows"),
   });
   let lastKey = 0;
   document.addEventListener("keydown", e => {

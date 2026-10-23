@@ -68,6 +68,7 @@
     ghastTear: { name: "Ghast Tear", icon: ["gem", "#e8f4f8"], desc: "From ghasts in the Nether. The enchanting table can go past V with one tear per extra level." },
     flintSteel: { name: "Flint and Steel", icon: ["flintsteel"], desc: "Lights a Nether portal." },
     enderPearl: { name: "Ender Pearl", icon: ["ball", "#1f8f7a"], desc: "Endermen drop it. An enchanting table needs one." },
+    wool: { name: "Wool", icon: ["block", "#eeeae0", "dust"], desc: "From the pasture's sheep. Pulls apart into 4 string." },
     leather: { name: "Leather", icon: ["hide", "#8b5a2b"], desc: "From the cow pasture. Armor and books." },
     rawBeef: { name: "Raw Beef", icon: ["lump", "#c0504d"], desc: "From the cow pasture. Cook it in a furnace." },
     steak: { name: "Steak", icon: ["lump", "#7a4a2a"], desc: "Eat it on the Dark Platform to heal 8 HP." },
@@ -93,6 +94,8 @@
     diamond: { name: "Diamond", icon: ["gem", "#5ee0d8"] },
     gear: { name: "Iron Gear", icon: ["gear", "#c9c9c9"] },
     steel: { name: "Steel Ingot", icon: ["ingot", "#7d8591"], desc: "Iron and coal, alloyed. The stuff heavy machinery is made of." },
+    steelBlock: { name: "Block of Steel", icon: ["block", "#7d8591", "compressed"], desc: "Nine steel ingots. Late-game machines are built from these." },
+    darkSteel: { name: "Dark Steel Ingot", icon: ["ingot", "#4a4e5c"], desc: "Steel alloyed with obsidian." },
     redAlloy: { name: "Redstone Alloy", icon: ["ingot", "#c0392b"], desc: "Iron soaked in redstone. Wires the heavy auto-machines." },
     paperclip: { name: "Paperclip", icon: ["paperclip", "#c9cdd4"], desc: "Eight per steel ingot. Does absolutely nothing. How many is enough?" },
     ironDust: { name: "Iron Dust", icon: ["pile", "#d8af93"], desc: "Smelts into an iron ingot. A crusher turns one ore chunk into two of these." },
@@ -106,6 +109,7 @@
     redstoneSeeds: { name: "Redstone Seeds", icon: ["seeds", "#d42a1f"], desc: "Plant on farmland. Grows redstone." },
     glowSeeds: { name: "Glowstone Seeds", icon: ["seeds", "#f2d25e"], desc: "Plant on farmland. Grows glowstone dust." },
     diamondSeeds: { name: "Diamond Seeds", icon: ["seeds", "#5ee0d8"], desc: "Plant on farmland. Grows a diamond, very slowly." },
+    blazeSeeds: { name: "Blaze Seeds", icon: ["seeds", "#f5a623"], desc: "Plant on farmland. Grows blaze rods, slowly." },
 
     // clay work
     castRaw: { name: "Unfired Pickaxe Cast", icon: ["cast", "#a8b3c1"], desc: "Fire it in a furnace (charcoal heat)." },
@@ -138,9 +142,11 @@
     stoneSword: { name: "Stone Sword", icon: ["sword", "#8f8f8f"] },
     ironSword: { name: "Iron Sword", icon: ["sword", "#dcdcdc"] },
     diamondSword: { name: "Diamond Sword", icon: ["sword", "#5ee0d8"] },
+    darkSteelSword: { name: "Dark Steel Sword", icon: ["sword", "#4a4e5c"] },
     leatherArmor: { name: "Leather Armor", icon: ["armor", "#8b5a2b"] },
     ironArmor: { name: "Iron Armor", icon: ["armor", "#dcdcdc"] },
     diamondArmor: { name: "Diamond Armor", icon: ["armor", "#5ee0d8"] },
+    darkSteelArmor: { name: "Dark Steel Armor", icon: ["armor", "#4a4e5c"] },
     cHammer: { name: "Compressed Hammer", icon: ["hammer", "#6d747f"], desc: "Smashes compressed blocks: 9 at a time." },
     diamondCHammer: { name: "Diamond Compressed Hammer", icon: ["hammer", "#3fb8b0"] },
     pstone: { name: "Philosopher's Stone", icon: ["gem", "#e0243f", "glow"], desc: "Enables transmutation. Not used up." },
@@ -172,7 +178,7 @@
     geothermal: { name: "Geothermal Generator", icon: ["geo", "#ff7a1a"], place: true, desc: "150 W from lava: drinks it from your crucibles (or a lava bucket from your inventory) at 1 mB per 10 J. Stores 8,000 J." },
     enchantTable: { name: "Enchanting Table", icon: ["enchant"], place: true, desc: "Enchant your tools with XP levels." },
     mobGrinder: { name: "Mob Grinder", icon: ["grinder", "#c0392b"], place: true, desc: "40 W: fights a monster every 8 s for its drops and a little XP. Click it to pick which." },
-    autoCompressor: { name: "Auto-Compressor", icon: ["compressor", "#e86a9a"], place: true, desc: "Squeezes 9 of a block into its compressed form (or 4 ore pieces into a chunk) every 4 s. Click it to pick which." },
+    autoCompressor: { name: "Auto-Compressor", icon: ["compressor", "#e86a9a"], place: true, desc: "Squeezes 9 of a block into its compressed form (or 4 ore pieces into a chunk) every second. Click it to pick which." },
     battery: { name: "Energy Cell", icon: ["battery", "#76cfb3"], place: true, desc: "Adds 20,000 J of shared storage. Every powered machine connects automatically." },
     crusher: { name: "Crusher", icon: ["crusher", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Click it to queue jobs." },
     energizedSmelter: { name: "Energized Smelter", icon: ["furnace", "#4fd6e8"], place: true, desc: "20 W. Smelts with electricity, twice as fast as a furnace. No heat or fuel requirement." },
@@ -229,6 +235,7 @@
   const ALLOY = {
     steel: { in: { iron: 1, coal: 2 }, n: 1, time: 12, heat: 3 },
     redAlloy: { in: { iron: 1, redstone: 4 }, n: 1, time: 10, heat: 3 },
+    darkSteel: { in: { steel: 2, obsidian: 1 }, n: 1, time: 15, heat: 3 },
   };
 
   const POWER = {
@@ -253,6 +260,7 @@
     infuser: { watts: 40, recipes: {
       steel: { in: { iron: 1, coal: 1 }, out: "steel", n: 1, time: 6 },
       redAlloy: { in: { iron: 1, redstone: 2 }, out: "redAlloy", n: 1, time: 5 },
+      darkSteel: { in: { steel: 1, obsidian: 1 }, out: "darkSteel", n: 1, time: 8 },
     } },
   };
 
@@ -264,6 +272,7 @@
     redstoneSeeds: { grow: 60, drops: [["redstone", 1, 2]] },
     glowSeeds: { grow: 90, drops: [["glowstone", 1, 1]] },
     diamondSeeds: { grow: 480, drops: [["diamond", 1, 1]] },
+    blazeSeeds: { grow: 300, drops: [["blazeRod", 1, 1]] },
     sugarcane: { grow: 40, drops: [["sugarcane", 1, 2]] },
   };
 
@@ -303,7 +312,7 @@
     { in: { steel: 4, gear: 2, redAlloy: 2 }, out: { fuelGenerator: 1 }, at: "table" },
     { in: { steel: 2, gold: 4, redAlloy: 4, glowstone: 4, glass: 8 }, out: { solarGenerator: 1 }, at: "table" },
     { in: { steel: 4, gold: 2, redAlloy: 4, glass: 4 }, out: { battery: 1 }, at: "table" },
-    { in: { obsidian: 8, steel: 6, redAlloy: 4, gear: 4 }, out: { geothermal: 1 }, at: "table" },
+    { in: { obsidian: 8, steelBlock: 1, redAlloy: 4, gear: 4 }, out: { geothermal: 1 }, at: "table" },
     { in: { steel: 2, gear: 2, redAlloy: 2, cCobble: 2 }, out: { autoCompressor: 1 }, at: "table" },
     // the wilds
     { in: { planks: 2, stick: 1 }, out: { woodSword: 1 }, at: "table" },
@@ -315,11 +324,14 @@
     { in: { diamond: 12, leather: 2 }, out: { diamondArmor: 1 }, at: "table" },
     { in: { bone: 1 }, out: { boneMeal: 3 } },
     { in: { iron: 1, flint: 1 }, out: { flintSteel: 1 } },
+    { in: { wool: 1 }, out: { string: 4 } },
+    { in: { diamondSword: 1, darkSteel: 3, blazeRod: 1 }, out: { darkSteelSword: 1 }, at: "table" },
+    { in: { diamondArmor: 1, darkSteel: 8 }, out: { darkSteelArmor: 1 }, at: "table" },
     { in: { sugarcane: 3 }, out: { paper: 3 } },
     { in: { paper: 3, leather: 1 }, out: { book: 1 } },
     { in: { book: 1, diamond: 2, obsidian: 4, enderPearl: 1 }, out: { enchantTable: 1 }, at: "table" },
     { in: { planks: 6, book: 3 }, out: { bookshelf: 1 }, at: "table" },
-    { in: { steel: 4, ironSword: 1, redAlloy: 2, gear: 2 }, out: { mobGrinder: 1 }, at: "table" },
+    { in: { steelBlock: 1, ironSword: 1, redAlloy: 2, gear: 2 }, out: { mobGrinder: 1 }, at: "table" },
     { name: "Pour water onto lava", in: { lavaBucket: 1, waterBucket: 1 }, out: { obsidian: 1, bucket: 1, waterBucket: 1 } },
     { in: { steel: 4, gear: 2, redAlloy: 2, cobble: 8 }, out: { crusher: 1 }, at: "table" },
     { in: { steel: 4, redAlloy: 2, cobble: 8 }, out: { energizedSmelter: 1 }, at: "table" },
@@ -366,7 +378,7 @@
     { in: { cobblegen: 1, gear: 2, redstone: 4, cobble: 16 }, out: { autoGen: 1 }, at: "table" },
     { in: { autoGen: 1, gear: 2, gold: 4, redstone: 8 }, out: { autoGen2: 1 }, at: "table" },
     { in: { autoGen2: 1, diamond: 2, gold: 4, glowstone: 8 }, out: { autoGen3: 1 }, at: "table" },
-    { in: { autoGen3: 1, blazeRod: 8, diamond: 4, obsidian: 4 }, out: { autoGen4: 1 }, at: "table" },
+    { in: { autoGen3: 1, blazeRod: 8, diamond: 4, obsidian: 4, steelBlock: 2 }, out: { autoGen4: 1 }, at: "table" },
     { in: { diamond: 3, stick: 2, twine: 2 }, needs: { cast: 1 }, out: { diamondPick: 1 }, at: "table" },
     { in: { diamond: 2, stick: 2, twine: 1 }, out: { diamondHammer: 1 }, at: "table" },
     { in: { diamond: 3, stick: 2, twine: 1 }, out: { diamondAxe: 1 }, at: "table" },
@@ -377,7 +389,7 @@
     { name: "Transmute", in: { iron: 4 }, needs: { pstone: 1 }, out: { gold: 1 } },
     { name: "Transmute", in: { gold: 4 }, needs: { pstone: 1 }, out: { diamond: 1 } },
     // compressed blocks, both ways
-    ...[["dirt", "cDirt"], ["cobble", "cCobble"], ["gravel", "cGravel"], ["sand", "cSand"], ["dust", "cDust"]].flatMap(([b, c]) => [
+    ...[["dirt", "cDirt"], ["cobble", "cCobble"], ["gravel", "cGravel"], ["sand", "cSand"], ["dust", "cDust"], ["steel", "steelBlock"]].flatMap(([b, c]) => [
       { in: { [b]: 9 }, out: { [c]: 1 } },
       { name: "Uncompress", in: { [c]: 1 }, out: { [b]: 9 } },
     ]),
@@ -398,8 +410,9 @@
     { in: { seeds: 1, gold: 8 }, out: { goldSeeds: 1 }, at: "table" },
     { in: { seeds: 1, redstone: 32 }, out: { redstoneSeeds: 1 }, at: "table" },
     { in: { seeds: 1, glowstone: 16 }, out: { glowSeeds: 1 }, at: "table" },
-    { in: { seeds: 1, diamond: 8, steel: 4 }, out: { diamondSeeds: 1 }, at: "table" },
-    { in: { diamond: 16, gold: 32, steel: 16, redstone: 32, glowstone: 32, blazeRod: 8, ghastTear: 4, enderPearl: 8 }, needs: { pstone: 1 }, out: { terminal: 1 }, at: "table" },
+    { in: { seeds: 1, diamond: 8, steelBlock: 1 }, out: { diamondSeeds: 1 }, at: "table" },
+    { in: { seeds: 1, blazeRod: 12, steelBlock: 1 }, out: { blazeSeeds: 1 }, at: "table" },
+    { in: { diamond: 16, gold: 32, steelBlock: 4, darkSteel: 4, redstone: 32, glowstone: 32, blazeRod: 8, ghastTear: 4, enderPearl: 8 }, needs: { pstone: 1 }, out: { terminal: 1 }, at: "table" },
   ];
 
   const QUESTS = [
@@ -443,12 +456,15 @@
     { id: "storage", title: "Potential Energy", text: "Build an energy cell to store 20,000 more joules for later.", need: { built: { battery: 1 } } },
     { id: "fight", title: "First Blood", text: "Unlock the Dark Platform in the Wilds, craft a sword and fight a zombie.", need: { got: { rottenFlesh: 1 } } },
     { id: "moo", title: "Moo", text: "Unlock the cow pasture in the Wilds. Cows give leather and beef; feed them wheat to breed more.", need: { area: "pasture" } },
+    { id: "baa", title: "Baa", text: "Lure two sheep into the pasture with wheat. Wool pulls apart into string.", need: { got: { wool: 1 } } },
     { id: "bookworm", title: "Bookworm", text: "Sieve sand for sugarcane, grow it on farmland, and bind three paper in leather into a book.", need: { got: { book: 1 } } },
     { id: "ender", title: "The End?", text: "Reach level 10 and take an ender pearl from an enderman. Bring armor.", need: { got: { enderPearl: 1 } } },
     { id: "enchant", title: "Enchanted", text: "Build an enchanting table and spend XP levels enchanting a tool.", need: { enchanted: 1 } },
     { id: "nether", title: "Through the Portal", text: "Ten obsidian and a flint and steel open the Nether in the Wilds.", need: { area: "nether" } },
     { id: "blaze", title: "Hot Property", text: "Reach level 15 and take a blaze rod from a blaze. It's superb fuel.", need: { got: { blazeRod: 1 } } },
     { id: "tear", title: "Crying Shame", text: "Reach level 18 and bring back a ghast tear. It lets enchantments go past V.", need: { got: { ghastTear: 1 } } },
+    { id: "darksteel", title: "Dark Arts", text: "Alloy steel with obsidian into dark steel. It upgrades diamond swords and armor.", need: { got: { darkSteel: 1 } } },
+    { id: "blazefarm", title: "Hellfire Harvest", text: "Make blaze seeds and plant them on farmland.", need: { got: { blazeSeeds: 1 } } },
     { id: "grind", title: "Grind Time", text: "Build a powered mob grinder to farm monster drops while you do other things.", need: { built: { mobGrinder: 1 } } },
     { id: "geo", title: "Hot Rocks", text: "Pour water onto lava for obsidian, then build a geothermal generator. It turns crucible lava into 150 W.", need: { built: { geothermal: 1 } } },
     { id: "compress", title: "Squeeze Play", text: "Build an auto-compressor. Point one at dust, put it between your auto-hammers and an auto heavy sieve, and the dust farm runs itself.", need: { built: { autoCompressor: 1 } } },
@@ -464,7 +480,7 @@
     clay: ["hammer"], crucible: ["clay", "charcoal"], gen: ["crucible"], coal: ["hammer"], iron: ["coal", "furnace"],
     farm: ["clay", "charcoal"], cast: ["clay", "charcoal"], ironpick: ["cast", "iron"], auto: ["iron"],
     autogen: ["auto", "gen"], heavy: ["iron"], diamond: ["iron"], alloy: ["iron"], steel: ["alloy"],
-    pstone: ["diamond"], terminal: ["pstone", "steel", "blaze", "tear"], geo: ["power", "steel"], fight: ["cobble"], moo: ["farm"], bookworm: ["moo"], ender: ["fight", "iron"],
+    pstone: ["diamond"], terminal: ["pstone", "steel", "blaze", "tear", "darksteel"], geo: ["power", "steel"], fight: ["cobble"], moo: ["farm"], baa: ["moo"], bookworm: ["moo"], darksteel: ["geo", "alloy"], blazefarm: ["blaze"], ender: ["fight", "iron"],
     enchant: ["bookworm", "ender", "diamond"], grind: ["fight", "power"], nether: ["ender", "geo"], blaze: ["nether"], tear: ["nether"], compress: ["steel", "heavy"],
     power: ["steel"], orepower: ["power"], infusion: ["power"], forestry: ["power"], storage: ["power"], clips: ["steel"],
   };
@@ -475,7 +491,9 @@
     // land: every completed quest/advancement adds a tile (no buying land); the 9×7 map holds 63
     land: { max: 63, perQuest: 1 },
     combat: { hp: 20, regen: 1, faint: 10, fist: 1, armorPct: 0.04, armorMax: 0.8, levelXp: 10, steakHeal: 8, calm: 4 },
-    pasture: { start: 2, max: 12, every: 40, breed: { wheat: 2 }, drops: [["leather", 1, 1], ["rawBeef", 0.6, 1]] },
+    // cows come with the pasture; sheep are lured in (lure brings `start` of them), then bred like cows
+    pasture: { start: 2, max: 12, every: 40, breed: { wheat: 2 }, drops: [["leather", 1, 1], ["rawBeef", 0.6, 1]],
+      sheep: { lure: { wheat: 6 }, start: 2, max: 12, every: 30, breed: { wheat: 2 }, drops: [["wool", 1, 1], ["wool", 0.25, 1]] } },
     // enchantments, keyed by id (tools use their kind as the id). n-th level costs cost·n XP levels; past `max`
     // each level also takes a ghast tear, up to `maxTear`. Applies to every tool of that kind, including tools
     // slotted into auto machines (better tools = faster auto-hammers/sieves).
@@ -488,9 +506,10 @@
       meshFortune: { kind: "mesh", name: "Fortune", perLevel: 0.1 },     // +10% drop chances per level
     } },
     grinder: { watts: 40, time: 8, xp: 1 }, // grinds any monster you could fight (level and area)
+    craftMax: 64, // the most one click crafts (the ×max button and the amount box)
     autocraft: { time: 1, limit: 64 }, // tables and machines set to auto-make an item, unlocked by the Automation quest
-    compress: { time: 4, map: { dirt: ["cDirt", 9], cobble: ["cCobble", 9], gravel: ["cGravel", 9], sand: ["cSand", 9], dust: ["cDust", 9],
-      ironPiece: ["ironChunk", 4], goldPiece: ["goldChunk", 4] } }, // input -> [output, how many in]
+    compress: { time: 1, map: { dirt: ["cDirt", 9], cobble: ["cCobble", 9], gravel: ["cGravel", 9], sand: ["cSand", 9], dust: ["cDust", 9],
+      ironPiece: ["ironChunk", 4], goldPiece: ["goldChunk", 4], steel: ["steelBlock", 9] } }, // input -> [output, how many in]
     tree: { grow: 45, litter: 20, drops: [["leaves", 1, 1], ["sapling", 0.12, 1], ["stick", 0.06, 1]] },
     barrel: { units: 6, time: 8 },
     rain: { time: 30 },
@@ -507,8 +526,8 @@
       pick: [["stonePick", 1], ["ironPick", 3], ["diamondPick", 6]], // mining power per swing (plus 1 per generator)
       mesh: [["stringMesh", 1], ["flintMesh", 2], ["ironMesh", 3], ["diamondMesh", 4]],
       chammer: [["cHammer", 3], ["diamondCHammer", 6]],
-      sword: [["woodSword", 2], ["stoneSword", 3], ["ironSword", 5], ["diamondSword", 8]], // damage per hit
-      armor: [["leatherArmor", 4], ["ironArmor", 10], ["diamondArmor", 16]], // each point blocks 4% of a hit
+      sword: [["woodSword", 2], ["stoneSword", 3], ["ironSword", 5], ["diamondSword", 8], ["darkSteelSword", 11]], // damage per hit
+      armor: [["leatherArmor", 4], ["ironArmor", 10], ["diamondArmor", 16], ["darkSteelArmor", 19]], // each point blocks 4% of a hit
     },
     meshLuck: [0, 1, 1.25, 1.5, 1.8], // drop chance multiplier per mesh tier
   };

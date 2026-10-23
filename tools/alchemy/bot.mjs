@@ -87,6 +87,12 @@ function need(id, n, d = 0) {
     if (s.cows < 6 && A.count(s, "wheat") >= 2) A.breed(s);
     wait(); return false;
   }
+  if (id === "wool") {
+    if (!area("pasture", d)) return false;
+    if (!s.sheep && !need("wheat", A.DATA.CONFIG.pasture.sheep.lure.wheat, d + 1)) return false;
+    if (!s.sheep) A.breed(s, "sheep");
+    wait(); return false;
+  }
   if (id === "string") { if (needBuilt("infested", 1, d + 1)) wait(); return false; }
   if (id === "dirt") { if (needBuilt("barrel", A.free(s) ? Math.min(3, 1 + Math.floor(s.island.length / 8)) : 1, d + 1)) { if (A.grownTrees(s)) click("leaves"); else wait(); } return false; }
   if (id === "cobble" && A.built(s, "cobblegen") && A.tool(s, "pick")) { click("mine"); return false; }

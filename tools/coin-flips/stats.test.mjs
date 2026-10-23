@@ -46,6 +46,51 @@ test("simulated tails are seeded and sane", () => {
   for (const r of a) assert.ok(r.ge + r.le >= 1 - 1e-9, r.id); // the two tails overlap at x
 });
 
+test("far palindrome tails come from a tight bound, not the simulation floor", () => {
+  for (const n of [16, 20]) {
+    const counts = new Float64Array(n + 2);
+    for (const f of all(n)) counts[C.longestPalindrome(f)]++;
+    let ge = 0;
+    for (let L = n; L >= 2; L--) {
+      ge += counts[L] / 2 ** n; // exact P(longest >= L)
+      const u = C.palBound(n, L, 2);
+      assert.ok(u >= ge - 1e-15, `bound below truth n=${n} L=${L}`);
+      if (u < 0.01) assert.ok(u <= ge * 1.02, `bound loose n=${n} L=${L}: ${u} vs ${ge}`);
+    }
+  }
+  const pal = C.analyse(C.parse("H".repeat(100)), { sims: 50 }).find(r => r.id === "pal");
+  assert.ok(pal.bound && pal.ge < 1e-12 && pal.ge > 0, `palindrome of 100: ${pal.ge}`);
+});
+
+const allDice = (n, k) => Array.from({ length: k ** n }, (_, m) => Array.from({ length: n }, (_, i) => 1 + Math.floor(m / k ** i) % k));
+test("dice: exact tests match enumeration", () => {
+  for (const [k, maxN] of [[3, 7], [4, 6], [6, 5]]) for (let n = 1; n <= maxN; n++) {
+    const seqs = allDice(n, k);
+    const counts = g => { const c = Array(k).fill(0); for (const v of g) c[v - 1]++; return c; };
+    const sp = C.spreadScores(k);
+    const fns = {
+      sum: g => g.reduce((a, v) => a + v, 0), spread: g => g.reduce((a, v) => a + sp.w[v - 1], 0),
+      most: g => Math.max(...counts(g)), least: g => Math.min(...counts(g)), rep: C.repeats, run: g => C.longestRun(g), jump: C.jumps,
+    };
+    for (const f of seqs.filter((_, i) => i % 11 === 0)) {
+      for (const r of C.analyseDice(f, k, { sims: 10 }).filter(r => !r.sim)) {
+        let ge = 0, le = 0; for (const g of seqs) { const v = fns[r.id](g); if (v >= r.x) ge++; if (v <= r.x) le++; }
+        close(r.ge, ge / seqs.length, `d${k} ${r.id} >= ${f.join("")}`);
+        close(r.le, le / seqs.length, `d${k} ${r.id} <= ${f.join("")}`);
+      }
+    }
+  }
+  assert.deepEqual(C.parseDice("1 2 7 6 0 3", 6), [1, 2, 6, 3]);
+});
+
+test("dice: tiny p-values and speed at the length cap", () => {
+  const r = C.analyseDice(Array(300).fill(6), 6, { sims: 50 });
+  assert.ok(r.find(x => x.id === "sum").ge > 0 && r.find(x => x.id === "sum").ge < 1e-200);
+  close(r.find(x => x.id === "run").ge / 6 ** -299, 1, "300 sixes in a row");
+  const f = Array.from({ length: C.MAX_DICE }, (_, i) => 1 + (i * 7 + (i >> 3)) % 9);
+  const t = Date.now(); C.analyseDice(f, 9); assert.ok(Date.now() - t < 5000, `d9 x ${C.MAX_DICE} took ${Date.now() - t} ms`);
+});
+
 test("where each stretch is", () => {
   const f = C.parse("THHHTHTHTTHTHHT");
   assert.deepEqual(C.where(f, "run"), [1, 3]);

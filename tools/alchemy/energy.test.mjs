@@ -157,7 +157,7 @@ test('old saves migrate without changing legacy machines, inventory or recipe pr
   delete s.energy; delete s.power;
   for (const st of Object.keys(D.ELECTRIC)) { delete s[A.STATIONS[st].q]; delete s[A.STATIONS[st].sl]; }
   const saved = A.serialize(s), revived = A.revive(saved);
-  assert.equal(revived.v, 7);
+  assert.equal(revived.v, 8);
   assert.equal(revived.energy, 0);
   assert.deepEqual(revived.island, s.island);
   assert.deepEqual(revived.inv, s.inv);
@@ -396,4 +396,59 @@ test('enchantment levels III+ need bookshelves in the inventory', () => {
   assert.equal(A.enchantBlocker(s, 'sword'), 'needs 4 bookshelves');
   A.give(s, 'bookshelf', 4);
   assert.ok(A.enchant(s, 'sword'));
+});
+test('one click crafts at most a stack of 64', () => {
+  const s = island('table');
+  A.give(s, 'log', 100);
+  const planks = D.RECIPES.find(r => r.out.planks && r.in.log);
+  assert.equal(A.maxCraft(s, planks), 64);
+  assert.equal(A.craft(s, planks, 500), 64);
+  assert.equal(s.inv.log, 36);
+});
+test('auto-make can be uncapped: it keeps going while ingredients last', () => {
+  const s = island('table');
+  s.quests.auto = 1;
+  A.give(s, 'log', 30);
+  const planks = D.RECIPES.find(r => r.out.planks && r.in.log);
+  assert.ok(A.setAuto(s, 0, planks.key, 8, true));
+  run(s, 40, 0.5);
+  assert.equal(s.inv.log, 0);
+  assert.equal(s.inv.planks, 120);
+  A.setAuto(s, 0, undefined, undefined, false); // back to "until I have 8": nothing more to do
+  assert.equal(A.autoLimit(s.island[0]), 8);
+});
+test('steel blocks: crafted, compressed automatically, needed late', () => {
+  const s = island('autoCompressor');
+  s.island[0].sel = 'steel';
+  A.give(s, 'steel', 20);
+  run(s, 2.05, 0.05);
+  assert.equal(s.inv.steelBlock, 2);
+  assert.equal(s.inv.steel, 2);
+  for (const out of ['terminal', 'autoGen4', 'geothermal']) assert.ok(D.RECIPES.find(r => r.out[out]).in.steelBlock, out);
+});
+test('sheep: lured with wheat, bred, and sheared for wool', () => {
+  const s = island();
+  A.give(s, 'planks', 32); A.give(s, 'stick', 16); A.give(s, 'wheat', 20);
+  assert.ok(A.unlockArea(s, 'pasture'));
+  const P = D.CONFIG.pasture.sheep;
+  assert.deepEqual(A.breedCost(s, 'sheep'), P.lure);
+  assert.ok(A.breed(s, 'sheep'));
+  assert.equal(s.sheep, P.start);
+  assert.ok(A.breed(s, 'sheep'));
+  assert.equal(s.sheep, P.start + 1);
+  run(s, P.every + 0.1, 1);
+  assert.ok(s.inv.wool >= P.start + 1);
+  assert.equal(A.craft(s, D.RECIPES.find(r => r.in.wool), 1), 1);
+  assert.ok(s.inv.string >= 4);
+  // old saves get an empty flock
+  const old = JSON.parse(A.serialize(A.create(0))); delete old.sheep; delete old.sheepT; old.v = 7;
+  assert.equal(A.revive(JSON.stringify(old)).sheep, 0);
+});
+test('dark steel upgrades the best sword and armor', () => {
+  const s = island();
+  A.give(s, 'diamondSword'); A.give(s, 'diamondArmor');
+  const before = [A.swordDmg(s), A.armorBlock(s)];
+  A.give(s, 'darkSteelSword'); A.give(s, 'darkSteelArmor');
+  assert.ok(A.swordDmg(s) > before[0] && A.armorBlock(s) > before[1]);
+  assert.ok(D.ALLOY.darkSteel && D.ELECTRIC.infuser.recipes.darkSteel);
 });

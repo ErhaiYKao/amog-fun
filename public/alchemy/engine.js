@@ -43,14 +43,14 @@
 
   function create(now = Date.now()) {
     const s = {
-      v: 7, t: now, start: now, won: 0, clicks: 0,
+      v: 8, t: now, start: now, won: 0, clicks: 0,
       inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {}, hide: {},
       sel: { sieve: "dirt", hammer: "cobble", chammer: "cCobble", hsieve: "cGravel", autoHammer: "cobble", autoSieve: "gravel", autoCHammer: "cCobble", autoHeavySieve: "cGravel" },
       opt: { feedBarrels: true, compostSaplings: false, feedCrucible: true },
       fuel: [0, 0, 0, 0], queue: [], slots: [], aqueue: [], aslots: [], fold: {}, ev: [],
       energy: 0, power: { generated: 0, used: 0 },
       areas: {}, hp: C.combat.hp, xp: 0, mob: { id: "zombie", hp: MOBS.zombie.hp }, hitT: 0, calmT: 99, faintT: 0, kills: {},
-      cows: 0, cowT: 0, ench: {},
+      cows: 0, cowT: 0, sheep: 0, sheepT: 0, ench: {},
     };
     for (const st of Object.values(STATIONS)) { s[st.q] = []; s[st.sl] = []; }
     for (let i = 0; i < C.start.land; i++) s.island.push(null);
@@ -171,7 +171,7 @@
   }
 
   function maxCraft(s, r) {
-    let m = 999;
+    let m = C.craftMax; // at most a stack at a time
     for (const id in r.in) m = Math.min(m, Math.floor(count(s, id) / r.in[id]));
     for (let n = m; n > 0; n--) if (recipeState(s, r, n).ok) return n;
     return 0;
@@ -350,12 +350,13 @@
   // ---------- auto-crafting: a machine set to auto-make something starts a job whenever its slot is idle,
   // the queue is empty, the ingredients are there and you have fewer than its limit ----------
   const autoOn = s => !!s.quests.auto;
+  const autoLimit = t => t.uncapped ? Infinity : t.limit || C.autocraft.limit;
   function autoJob(s, st, i) {
     if (!autoOn(s)) return;
     const t = s.island.filter(x => x && x.id === st)[i]; // the i-th machine of this kind runs slot i
     if (!t || !t.auto) return;
     const rec = STATIONS[st].rec(t.auto);
-    if (!rec || count(s, rec.out) >= (t.limit || C.autocraft.limit) || stationMax(s, st, t.auto) < 1) return;
+    if (!rec || count(s, rec.out) >= autoLimit(t) || stationMax(s, st, t.auto) < 1) return;
     for (const k in rec.in) take(s, k, rec.in[k]);
     s[STATIONS[st].sl][i] = { id: t.auto, p: 0, auto: true };
   }
@@ -367,15 +368,17 @@
     while (t.t >= C.autocraft.time) {
       t.t -= C.autocraft.time;
       const out = Object.keys(r.out)[0];
-      if (count(s, out) >= (t.limit || C.autocraft.limit) || !recipeState(s, r).ok) { t.t = 0; break; }
+      if (count(s, out) >= autoLimit(t) || !recipeState(s, r).ok) { t.t = 0; break; }
       craft(s, r, 1);
     }
   }
-  function setAuto(s, i, recipe, limit) {
+  // limit: make until you have this many; uncapped: ignore the limit and keep making while ingredients last
+  function setAuto(s, i, recipe, limit, uncapped) {
     const t = s.island[i];
     if (!t || !(t.id === "table" || STATIONS[t.id])) return false;
     if (recipe !== undefined) t.auto = recipe || null;
     if (limit !== undefined) t.limit = Math.max(1, Math.min(99999, limit | 0));
+    if (uncapped !== undefined) t.uncapped = !!uncapped;
     return true;
   }
 
@@ -442,17 +445,24 @@
       if (s.hp <= 0) { s.hp = 0; s.faintT = K.faint; s.mob.hp = m.hp; s.hitT = 0; emit(s, "faint", m.name, {}); break; }
     }
   }
-  function breed(s) {
-    const cost = C.pasture.breed;
-    if (!s.areas.pasture || s.cows >= C.pasture.max || Object.entries(cost).some(([k, n]) => count(s, k) < n)) return false;
+  // the pasture's herds: cows come with it, sheep have to be lured in first (the lure brings `start` of them)
+  const HERDS = { cows: C.pasture, sheep: C.pasture.sheep };
+  const breedCost = (s, kind) => s[kind] || !HERDS[kind].lure ? HERDS[kind].breed : HERDS[kind].lure;
+  function breed(s, kind = "cows") {
+    const P = HERDS[kind], cost = P && breedCost(s, kind);
+    if (!P || !s.areas.pasture || s[kind] >= P.max || Object.entries(cost).some(([k, n]) => count(s, k) < n)) return false;
     for (const [k, n] of Object.entries(cost)) take(s, k, n);
-    s.cows++;
+    s[kind] = s[kind] || !P.lure ? s[kind] + 1 : P.start;
     return true;
   }
   function tickPasture(s, dt) {
-    if (!s.areas.pasture || !s.cows) return;
-    s.cowT += dt;
-    while (s.cowT >= C.pasture.every) { s.cowT -= C.pasture.every; for (let k = 0; k < s.cows; k++) roll(s, C.pasture.drops); }
+    if (!s.areas.pasture) return;
+    for (const [kind, P] of Object.entries(HERDS)) {
+      if (!s[kind]) continue;
+      const T = kind === "cows" ? "cowT" : kind + "T";
+      s[T] += dt;
+      while (s[T] >= P.every) { s[T] -= P.every; for (let k = 0; k < s[kind]; k++) roll(s, P.drops); }
+    }
   }
   // your best tool of a kind, counting ones slotted into auto machines (for enchanting)
   function bestOwned(s, kind) {
@@ -822,6 +832,7 @@
     if (s.v < 5) s.v = 5; // v5: buildings can sit in the inventory; nothing on the island changes
     if (s.v < 6) s.v = 6; // v6: land comes from quests (growLand below), the wilds; new fields filled from create()
     if (s.v < 7) { s.peak = Math.max(s.peak || 0, Math.floor(Math.sqrt((s.xp || 0) / C.combat.levelXp))); s.v = 7; } // v7: peak level
+    if (s.v < 8) s.v = 8; // v8: sheep in the pasture (fields filled from create()); auto-make can be uncapped
     s.ev = [];
     growLand(s); // land owed for quests already done
     return s;
@@ -844,7 +855,7 @@
     cost, recipeState, maxCraft, craft, visible, hidden, toolKind, landTarget, demolish, pickUp, place, move, placesAs, isPlace, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
     insertTool, pullTool, autoPeriod, setSeed, setAuto, unlockArea, level, xpFor, swordDmg, armorBlock, setMob, attack, eat,
-    breed, enchant, enchantCost, enchantBlocker, enchLevel, bestOwned, enchMult, peakLevel, mobOpen, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
+    breed, breedCost, autoLimit, enchant, enchantCost, enchantBlocker, enchLevel, bestOwned, enchMult, peakLevel, mobOpen, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
   };
   root.Alchemy = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
