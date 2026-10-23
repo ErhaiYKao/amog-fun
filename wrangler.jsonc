@@ -2,13 +2,23 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "amog-fun",
   "compatibility_date": "2026-06-01",
-  // Pure static site: every folder in ./public is a route.
+  // Static site: every folder in ./public is a route.
   // public/foo/index.html  ->  https://amog.fun/foo
+  // The Worker (worker/index.js) only runs for /api/*; everything else is served straight from the assets,
+  // so page loads never count as Worker requests.
+  "main": "worker/index.js",
   "assets": {
     "directory": "./public",
+    "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
   },
+  // Omegamac leaderboard. Schema in migrations/; apply with: npx wrangler d1 migrations apply amog-fun --remote
+  // Secret OMEGAMAC_SECRET (signs run tokens) is set with wrangler secret put; locally it lives in .dev.vars.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "amog-fun", "database_id": "b858b3e2-0bf8-4ef8-ab37-e0fdea9834a2" }
+  ],
   "routes": [
     { "pattern": "amog.fun", "custom_domain": true },
     { "pattern": "www.amog.fun", "custom_domain": true }
