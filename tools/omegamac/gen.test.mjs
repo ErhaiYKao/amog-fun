@@ -101,6 +101,15 @@ test("no immediate repeats", () => {
   for (let i = 0; i < 3000; i++) { const pr = O.next(s, rng, prev); assert.notEqual(pr.tex, prev?.tex); prev = pr; }
 });
 
+test("Alphamac stays high school, and the unfamiliar functions are explained", () => {
+  const s = O.presetSettings("alpha"), rng = O.mulberry32(11), max = {};
+  for (let i = 0; i < 5000; i++) { const p = O.next(s, rng); max[p.type] = Math.max(max[p.type] || 0, p.answer, ...p.args); }
+  assert.deepEqual(Object.keys(max).sort(), ["add", "cbrt", "cube", "div", "fact", "gcd", "lcm", "log", "mul", "pow", "sq", "sqrt", "sub"]);
+  assert.ok(max.sq <= 400 && max.sqrt <= 400 && max.cube <= 1000 && max.cbrt <= 1000 && max.pow <= 1000 && max.log <= 1000 && max.fact <= 720);
+  for (const id of ["log", "phi", "tau", "sigma", "gcd", "lcm", "fact", "perm", "comb", "der"])
+    assert.ok(O.TYPES.find(t => t.id === id).about.length >= 2, id);
+});
+
 test("URL encode/decode round-trips", () => {
   const rng = O.mulberry32(3);
   for (const pr of O.PRESETS) {

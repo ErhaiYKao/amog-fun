@@ -37,6 +37,18 @@
     "featured": 4
   },
   {
+    "slug": "alphamac",
+    "title": "Alphamac",
+    "signature": "alphamac : HighSchool × [0, 120] → ℕ",
+    "blurb": "Omegamac from the start of the alphabet: arithmetic, squares and cubes and their roots, powers and logs up to 1000, gcds, lcms and factorials up to $6!$, against the clock. A ranked preset with its own leaderboard.",
+    "tags": [
+      "game",
+      "math"
+    ],
+    "group": "clock",
+    "short": "High-school mental math against the clock."
+  },
+  {
     "slug": "palinode",
     "title": "Palinode",
     "signature": "palinode : Certainty → ?",

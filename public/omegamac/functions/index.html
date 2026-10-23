@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omegamac functions · amog.fun</title>
+<meta name="description" content="What every Omegamac problem type means, from logarithms to Euler's totient, divisor counts and sums, gcd, lcm, permutations, binomials and derangements, with worked examples and shortcuts.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><text x='32' y='46' font-size='40' text-anchor='middle' fill='%234fd6e8' font-family='Georgia,serif'>%CF%89</text></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/math.js" defer></script>
+<script src="/omegamac/gen.js"></script>
+<style>
+  .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(40px, 7vw, 64px); line-height: 1; margin: 6px 0 10px; }
+  .head p { margin: 0 0 10px; color: #d3cfc5; max-width: 66ch; }
+  .toc { font-family: var(--mono); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 18px 0 8px; }
+  .toc a { color: var(--muted); text-decoration: none; } .toc a:hover { color: var(--ink); }
+  main { max-width: 760px; }
+  h2 { font-family: var(--display); font-weight: 400; font-size: 34px; margin: 44px 0 4px; }
+  .fn { padding: 14px 0 10px; border-bottom: 1px dashed var(--line); scroll-margin-top: 16px; }
+  .fn h3 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 0 0 2px; }
+  .fn h3 a { color: inherit; text-decoration: none; }
+  .fn .def { font-family: var(--mono); font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  .fn .def .katex { font-size: 1.15em; color: var(--ink); }
+  .fn p { color: #d3cfc5; margin: 6px 0; }
+  .fn:target { background: linear-gradient(90deg, #4fd6e812, transparent 70%); }
+  .fn:target h3 { color: var(--g1); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/omegamac/">← omegamac</a></nav></header>
+  <div class="head">
+    <div class="sig">about : Type → Prose</div>
+    <h1>Omegamac functions</h1>
+    <p>Every kind of problem <a href="/omegamac/">Omegamac</a> can ask, what it means, and how to get it fast. When one of the less familiar ones comes up mid-run, its name under the playfield links here.</p>
+  </div>
+  <nav class="toc" id="toc"></nav>
+  <main id="fns"></main>
+  <footer class="footer"><span>amog.fun/omegamac/functions</span><span>a glossary is a function too</span></footer>
+</div>
+<script>
+(() => {
+  const O = window.Omegamac;
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  document.getElementById("toc").innerHTML = O.TYPES.map(t => `<a href="#${t.id}">${esc(t.name)}</a>`).join("");
+  document.getElementById("fns").innerHTML = O.SECTIONS.map(s => `<h2>${esc(s.name)}</h2>` + O.TYPES.filter(t => t.sec === s.id).map(t =>
+    `<section class="fn" id="${t.id}"><h3><a href="#${t.id}">${esc(t.name)}</a></h3><div class="def">${t.def}</div>${(t.about || []).map(p => `<p>${p}</p>`).join("")}</section>`).join("")).join("");
+})();
+</script>
+</body>
+</html>

@@ -4,7 +4,9 @@
  * A run is a preset + a seed: makeRun(presetId, seed).next() gives the problems in order, and they don't depend on
  * your guesses (one guess per problem, right or wrong it moves on), so the server can replay a run from its seed.
  * Problems: { type, tex (KaTeX, math only), text (plain), answer (a positive real) }.
- * Presets: math within a relative tolerance, or Fermi questions within a factor. */
+ * Presets: math within a relative tolerance, or GeoGuessr-style rounds (math or Fermi questions) scored by closeness.
+ * Bigger answers get more slack (slack(): 1 + log10(answer)/15 above 1): a factor of 3 on the mass of the Earth is a
+ * better guess than a factor of 3 on the area of your skin, and 10% of C(31, 17) is harder to hit than 10% of ln 99999. */
 (function (root) {
   "use strict";
 
@@ -69,7 +71,7 @@
     ], rng)() },
   ];
 
-  // ---------- Fermi questions: [question, answer]. Values as of the mid-2020s, rounded; ×2 tolerance covers the rest.
+  // ---------- Fermi questions: [question, answer]. Values as of the mid-2020s, rounded.
   const FERMI = [
     // space
     ["Distance from the Earth to the Moon, in km", 384400], ["Distance from the Earth to the Sun, in km", 1.496e8],
@@ -144,8 +146,8 @@
   const PRESETS = [
     { id: "feynman", name: "Feynman", kind: "math", tol: 0.10, blurb: "math, within 10%" },
     { id: "sharp", name: "Sharp", kind: "math", tol: 0.02, blurb: "math, within 2%" },
-    { id: "fermi", name: "Fermi", kind: "fermi", factor: 2, blurb: "the world, within a factor of 2" },
     // GeoGuessr-style: a fixed number of rounds in the time bank, points for how close each guess is
+    { id: "mathguessr", name: "MathGuessr", kind: "math", rounds: 10, blurb: "10 math problems, up to 5,000 points each" },
     { id: "guessr", name: "FermiGuessr", kind: "fermi", rounds: 10, blurb: "10 questions, up to 5,000 points each" },
   ];
   const MAX_POINTS = 5000;
@@ -177,20 +179,22 @@
     if (!mult) return NaN;
     return parseFloat(m[1]) * 10 ** (+m[2] || 0) * mult;
   }
-  // relative error |g/a - 1| for math, factor max(g/a, a/g) for Fermi
+  // how much extra slack an answer gets for being big: 1 up to 1, then +1 for every 15 orders of magnitude
+  const slack = a => 1 + Math.max(0, Math.log10(a)) / 15;
+  // a hit: relative error |g/a - 1| within the preset's tolerance times the slack
   function check(presetId, prob, guess) {
     const P = preset(presetId), g = typeof guess === "number" ? guess : parseGuess(guess);
     if (!(g > 0) || !Number.isFinite(g)) return false;
-    return P.kind === "fermi" ? Math.max(g / prob.answer, prob.answer / g) <= P.factor * (1 + 1e-12)
-      : Math.abs(g / prob.answer - 1) <= P.tol * (1 + 1e-12);
+    return Math.abs(g / prob.answer - 1) <= P.tol * slack(prob.answer) * (1 + 1e-12);
   }
-  // FermiGuessr: 5000 × (smaller / larger), so exact = 5000, off by ×2 = 2500, off by ×10 = 500
+  // the Guessr modes: 5000 × (smaller / larger)^(1 / slack). Up to an answer of 1: exact = 5000, off by ×2 = 2500,
+  // off by ×10 = 500. For the mass of the Earth (slack 2.65), off by ×2 still scores 3,850.
   function points(prob, guess) {
     const g = typeof guess === "number" ? guess : parseGuess(guess);
     if (!(g > 0) || !Number.isFinite(g)) return 0;
-    return Math.round(MAX_POINTS * Math.min(g / prob.answer, prob.answer / g));
+    return Math.round(MAX_POINTS * Math.min(g / prob.answer, prob.answer / g) ** (1 / slack(prob.answer)));
   }
-  // what one guess adds to the score: points in FermiGuessr, else 1 for a hit
+  // what one guess adds to the score: points in the Guessr modes, else 1 for a hit
   const score = (presetId, prob, guess) => preset(presetId).rounds ? points(prob, guess) : check(presetId, prob, guess) ? 1 : 0;
   // 4 significant figures; scientific notation outside [0.001, 10^7)
   function fmt(x, html = true) {
@@ -202,5 +206,5 @@
     return s >= 1000 ? s.toLocaleString("en-US", { maximumFractionDigits: 3 }) : String(s);
   }
 
-  root.Fermimac = { PRESETS, DURATIONS, MAX_POINTS, MATH, FERMI, PI, NTH, preset, makeRun, parseGuess, check, points, score, fmt, mulberry32, harmonic, fib, choose, fact };
+  root.Fermimac = { slack, PRESETS, DURATIONS, MAX_POINTS, MATH, FERMI, PI, NTH, preset, makeRun, parseGuess, check, points, score, fmt, mulberry32, harmonic, fib, choose, fact };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -48,7 +48,7 @@ test("the Fermi bank is sane and a run deals every question before repeating", (
   assert.ok(F.FERMI.length >= 100);
   assert.equal(new Set(F.FERMI.map(q => q.text)).size, F.FERMI.length);
   for (const q of F.FERMI) assert.ok(q.answer > 0 && Number.isFinite(q.answer) && q.text.length > 8, q.text);
-  const r = F.makeRun("fermi", 42), seen = new Set();
+  const r = F.makeRun("guessr", 42), seen = new Set();
   for (let i = 0; i < F.FERMI.length; i++) seen.add(r.next().text);
   assert.equal(seen.size, F.FERMI.length);
 });
@@ -68,19 +68,35 @@ test("guesses parse in every common notation", () => {
   for (const s of ["", "abc", "1.2.3", "-5", "4q", "e5"]) assert.ok(Number.isNaN(F.parseGuess(s)), s);
 });
 
-test("tolerances", () => {
-  const p = { answer: 100 };
-  assert.ok(F.check("feynman", p, "109.9")); assert.ok(F.check("feynman", p, "90.1")); assert.ok(!F.check("feynman", p, "111"));
-  assert.ok(F.check("sharp", p, "101.9")); assert.ok(!F.check("sharp", p, "103"));
-  assert.ok(F.check("fermi", p, "200")); assert.ok(F.check("fermi", p, "50")); assert.ok(!F.check("fermi", p, "201")); assert.ok(!F.check("fermi", p, "49"));
-  assert.ok(!F.check("fermi", p, "0")); assert.ok(!F.check("fermi", p, "junk"));
+test("tolerances, with slack for big answers", () => {
+  const p = { answer: 1 }; // slack 1: the plain tolerance
+  assert.ok(F.check("feynman", p, "1.099")); assert.ok(F.check("feynman", p, "0.901")); assert.ok(!F.check("feynman", p, "1.11"));
+  assert.ok(F.check("sharp", p, "1.019")); assert.ok(!F.check("sharp", p, "1.03"));
+  assert.ok(!F.check("feynman", p, "0")); assert.ok(!F.check("feynman", p, "junk"));
+  assert.equal(F.slack(0.001), 1); assert.equal(F.slack(1e15), 2); assert.ok(Math.abs(F.slack(5.97e24) - 2.6517) < 1e-4);
+  const big = { answer: 1e15 }; // slack 2: 20% in Feynman
+  assert.ok(F.check("feynman", big, "1.19e15")); assert.ok(!F.check("feynman", big, "1.21e15"));
+  assert.ok(F.check("feynman", { answer: 265182525 }, String(265182525 * 1.15))); // C(31, 17): about 16%
+  assert.ok(!F.check("feynman", { answer: Math.log(99999) }, String(Math.log(99999) * 1.15)));
 });
 
-test("FermiGuessr points: 5000 × smaller/larger", () => {
-  const p = { answer: 1000 };
-  assert.equal(F.points(p, "1000"), 5000); assert.equal(F.points(p, "2000"), 2500); assert.equal(F.points(p, "500"), 2500);
-  assert.equal(F.points(p, "10k"), 500); assert.equal(F.points(p, "1100"), 4545); assert.equal(F.points(p, "junk"), 0); assert.equal(F.points(p, "0"), 0);
-  assert.equal(F.score("guessr", p, "2000"), 2500); assert.equal(F.score("fermi", p, "2000"), 1); assert.equal(F.score("fermi", p, "2100"), 0);
+test("Guessr points: 5000 × (smaller/larger)^(1/slack)", () => {
+  const p = { answer: 1 };
+  assert.equal(F.points(p, "1"), 5000); assert.equal(F.points(p, "2"), 2500); assert.equal(F.points(p, "0.5"), 2500);
+  assert.equal(F.points(p, "10"), 500); assert.equal(F.points(p, "1.1"), 4545); assert.equal(F.points(p, "junk"), 0); assert.equal(F.points(p, "0"), 0);
+  assert.equal(F.points({ answer: 1e15 }, "2e15"), 3536); assert.equal(F.points({ answer: 5.97e24 }, String(5.97e24 * 2)), 3850);
+  assert.ok(F.points({ answer: 1000 }, "2000") > 2500);
+  assert.equal(F.score("guessr", p, "2"), 2500); assert.equal(F.score("mathguessr", p, "2"), 2500);
+  assert.equal(F.score("feynman", p, "1.05"), 1); assert.equal(F.score("feynman", p, "1.2"), 0);
+  assert.equal(F.preset("fermi"), undefined); // cut in #23
+});
+
+test("MathGuessr deals math problems and replays like FermiGuessr", () => {
+  const run = newRun(game, "mathguessr", 60, 0), r = F.makeRun("mathguessr", run.s), answers = [], times = [];
+  let pts = 0;
+  for (let i = 0; i < 10; i++) { const q = r.next(); assert.ok(q.tex, "a math problem"); answers.push(String(q.answer * 1.5)); times.push(3000 + i * 4000); pts += F.points(q, q.answer * 1.5); }
+  assert.deepEqual(verifyRun(run, answers, times, run.iat + times[9] + 500), { ok: true, score: pts, ms: times[9] });
+  assert.equal(verifyRun(run, [...answers, "1"], [...times, times[9] + 1000], run.iat + 60500).ok, false);
 });
 
 test("FermiGuessr replay: fixed rounds, may finish early, points recomputed on the server", () => {

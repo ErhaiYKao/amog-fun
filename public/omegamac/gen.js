@@ -140,14 +140,11 @@
       gen: powGen((b, e) => P([b, b ** e], `\\log_{${b}} ${b ** e}`, `log_${b} ${b ** e}`, e)) },
 
     { id: "phi", sec: "nt", name: "Totient", def: "$\\varphi(n) = \\#\\{1 \\le k \\le n : \\gcd(k, n) = 1\\}$",
-      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\varphi", "φ", phi),
-      help: "$\\varphi(n)$ counts $1 \\le k \\le n$ sharing no factor with $n$. $\\varphi(p) = p - 1$ for a prime, and $\\varphi(n) = n \\prod_{p \\mid n} (1 - \\tfrac1p)$: $\\varphi(12) = 12 \\cdot \\tfrac12 \\cdot \\tfrac23 = 4$." },
+      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\varphi", "φ", phi) },
     { id: "tau", sec: "nt", name: "Number of divisors", def: "$d(n)$, how many positive divisors $n$ has: $d(12) = 6$",
-      f: [R("n", 2, 200, 1, 1e5)], gen: one("d", "d", tau),
-      help: "$d(n)$ counts the numbers that divide $n$ exactly. Write $n = p_1^{a_1} \\cdots p_k^{a_k}$; then $d(n) = (a_1 + 1) \\cdots (a_k + 1)$, so $d(72) = d(2^3 \\cdot 3^2) = 4 \\cdot 3 = 12$." },
+      f: [R("n", 2, 200, 1, 1e5)], gen: one("d", "d", tau) },
     { id: "sigma", sec: "nt", name: "Sum of divisors", def: "$\\sigma(n)$, the sum of the positive divisors: $\\sigma(12) = 1 + 2 + 3 + 4 + 6 + 12 = 28$",
-      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\sigma", "σ", sigma),
-      help: "$\\sigma(n)$ adds up every number that divides $n$, including $1$ and $n$. It multiplies over prime powers: $\\sigma(p^a) = 1 + p + \\cdots + p^a$, so $\\sigma(12) = \\sigma(4)\\,\\sigma(3) = 7 \\cdot 4 = 28$." },
+      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\sigma", "σ", sigma) },
     { id: "gcd", sec: "nt", name: "GCD", def: "$\\gcd(a, b)$, $a \\ne b$",
       f: [R("a, b", 2, 200, 1, 1e5)],
       gen: (p, rng) => { const [a, b] = pickPair(p[0], p[1], rng); return P([a, b], `\\gcd(${a}, ${b})`, `gcd(${a}, ${b})`, gcd(a, b)); } },
@@ -160,17 +157,62 @@
       gen: (p, rng) => { const n = ri(p[0], p[1], rng); return P([n], `${n}!`, `${n}!`, fact(n)); } },
     { id: "perm", sec: "comb", name: "Permutations", def: "$P(n, k) = \\frac{n!}{(n - k)!}$, $k \\le n$, at most max",
       f: [R("n", 3, 10, 0, 60), R("k", 1, 4, 0, 60), V("max", 10000, 1, 1e12)],
-      gen: kGen(perm, (n, k) => P([n, k], `P(${n}, ${k})`, `P(${n}, ${k})`, perm(n, k))),
-      help: "$P(n, k)$ is the number of ways to line up $k$ of $n$ different things, in order: $n$ choices for the first, $n - 1$ for the second, and so on, so $P(5, 2) = 5 \\cdot 4 = 20$." },
+      gen: kGen(perm, (n, k) => P([n, k], `P(${n}, ${k})`, `P(${n}, ${k})`, perm(n, k))) },
     { id: "comb", sec: "comb", name: "Combinations", def: "$\\binom{n}{k} = \\frac{n!}{k!\\,(n - k)!}$, $k \\le n$, at most max",
       f: [R("n", 4, 12, 0, 60), R("k", 2, 5, 0, 60), V("max", 1000, 1, 1e12)],
-      gen: kGen(choose, (n, k) => P([n, k], `\\dbinom{${n}}{${k}}`, `C(${n}, ${k})`, choose(n, k))),
-      help: "$\\binom{n}{k}$ is the number of ways to choose $k$ of $n$ things when order doesn't matter: $P(n, k) / k!$, so $\\binom{5}{2} = 20 / 2 = 10$." },
+      gen: kGen(choose, (n, k) => P([n, k], `\\dbinom{${n}}{${k}}`, `C(${n}, ${k})`, choose(n, k))) },
     { id: "der", sec: "comb", name: "Derangements", def: "$!n$ = permutations of $n$ things with no fixed point: $!4 = 9$",
-      help: "$!n$ counts the ways to shuffle $n$ letters so that none lands back in its own envelope. $!1 = 0$, $!2 = 1$, $!3 = 2$, and $!n = (n - 1)(!(n - 1) + !(n - 2))$; it's always the nearest whole number to $n!/e$.",
       f: [R("n", 1, 5, 0, 18)],
       gen: (p, rng) => { const n = ri(p[0], p[1], rng); return P([n], `!${n}`, `!${n}`, derange(n)); } },
   ];
+  // the functions page (omegamac/functions/): paragraphs explaining a type. A type with them gets its name, linked
+  // there, under the playfield when it comes up.
+  const ABOUT = {
+    log: [
+      "$\\log_b x$ asks which power of $b$ gives $x$: $\\log_2 1024 = 10$ because $2^{10} = 1024$, and $\\log_{10} 1000 = 3$.",
+      "Here $x$ is always an exact power of $b$, so it's really a question about powers you know: $2^{10} = 1024$, $3^5 = 243$, $3^6 = 729$, $4^5 = 1024$, $5^4 = 625$, $6^3 = 216$, $7^3 = 343$. If you know $\\log_b x = e$, then $\\log_{b^2} x = e / 2$: $\\log_4 1024 = 5$.",
+    ],
+    phi: [
+      "$\\varphi(n)$, Euler's totient, counts the numbers $1 \\le k \\le n$ that share no prime factor with $n$: $\\varphi(12) = 4$, from $1, 5, 7, 11$.",
+      "For a prime every smaller number counts, so $\\varphi(p) = p - 1$. For a prime power only the multiples of $p$ fail: $\\varphi(p^a) = p^a - p^{a - 1}$. And $\\varphi$ is multiplicative, $\\varphi(mn) = \\varphi(m)\\,\\varphi(n)$ when $\\gcd(m, n) = 1$, so you can work prime by prime. All together, $\\varphi(n) = n \\prod_{p \\mid n} \\left(1 - \\tfrac1p\\right)$: take away a $\\tfrac1p$ share for each prime $p$ dividing $n$.",
+      "Example: $\\varphi(72) = \\varphi(8)\\,\\varphi(9) = 4 \\cdot 6 = 24$, or $72 \\cdot \\tfrac12 \\cdot \\tfrac23 = 24$. Quick checks: $\\varphi(n)$ is even once $n \\ge 3$, and $\\varphi(2n) = \\varphi(n)$ for odd $n$.",
+    ],
+    tau: [
+      "$d(n)$ counts the positive divisors of $n$, including $1$ and $n$: $d(12) = 6$, from $1, 2, 3, 4, 6, 12$.",
+      "Write $n = p_1^{a_1} \\cdots p_k^{a_k}$. A divisor picks an exponent from $0$ to $a_i$ for each prime, independently, so $d(n) = (a_1 + 1)(a_2 + 1) \\cdots (a_k + 1)$.",
+      "Example: $72 = 2^3 \\cdot 3^2$, so $d(72) = 4 \\cdot 3 = 12$. A prime has $d(p) = 2$, and $d(n)$ is odd exactly when $n$ is a perfect square: divisors pair up as $k$ and $n / k$, except $\\sqrt n$. Below $200$ the most is $d(180) = 18$.",
+    ],
+    sigma: [
+      "$\\sigma(n)$ adds up all the positive divisors of $n$, including $1$ and $n$: $\\sigma(12) = 1 + 2 + 3 + 4 + 6 + 12 = 28$.",
+      "For a prime power the divisors are $1, p, \\dots, p^a$, so $\\sigma(p^a) = 1 + p + \\cdots + p^a = \\frac{p^{a + 1} - 1}{p - 1}$. Like $\\varphi$, $\\sigma$ is multiplicative: $\\sigma(mn) = \\sigma(m)\\,\\sigma(n)$ for coprime $m$ and $n$. That's because multiplying out $(1 + 2 + 4)(1 + 3)$ gives every divisor of $12$ exactly once.",
+      "Example: $\\sigma(72) = \\sigma(8)\\,\\sigma(9) = 15 \\cdot 13 = 195$. A prime has $\\sigma(p) = p + 1$, and a number with $\\sigma(n) = 2n$ is called perfect: $6$, $28$, $496$.",
+    ],
+    gcd: [
+      "$\\gcd(a, b)$ is the greatest common divisor: the largest number dividing both $a$ and $b$.",
+      "Euclid's algorithm is the fast way: $\\gcd(a, b) = \\gcd(b, a \\bmod b)$, because anything dividing two numbers divides their difference. So $\\gcd(168, 120) = \\gcd(120, 48) = \\gcd(48, 24) = 24$. Or compare factorizations and keep the smaller power of each shared prime: $168 = 2^3 \\cdot 3 \\cdot 7$ and $120 = 2^3 \\cdot 3 \\cdot 5$ share $2^3 \\cdot 3 = 24$.",
+    ],
+    lcm: [
+      "$\\operatorname{lcm}(a, b)$ is the least common multiple: the smallest positive number that both $a$ and $b$ divide.",
+      "Keep the larger power of each prime, or use $\\operatorname{lcm}(a, b) = \\frac{ab}{\\gcd(a, b)}$, dividing first to keep the numbers small: $\\operatorname{lcm}(12, 18) = 12 \\cdot \\frac{18}{6} = 36$. If one divides the other, the lcm is the bigger one.",
+    ],
+    fact: [
+      "$n! = 1 \\cdot 2 \\cdots n$ is the number of orders $n$ different things can go in. $0! = 1$: there's one way to order nothing.",
+      "Each factorial is the previous one times $n$, so it pays to know the start by heart: $3! = 6$, $4! = 24$, $5! = 120$, $6! = 720$, $7! = 5040$, $8! = 40320$, $9! = 362880$.",
+    ],
+    perm: [
+      "$P(n, k)$ is the number of ways to line up $k$ of $n$ different things in order: $n$ choices for the first, $n - 1$ for the second, and so on for $k$ places.",
+      "So $P(n, k) = n (n - 1) \\cdots (n - k + 1) = \\frac{n!}{(n - k)!}$: multiply $k$ numbers counting down from $n$. $P(8, 3) = 8 \\cdot 7 \\cdot 6 = 336$, and $P(n, n) = n!$.",
+    ],
+    comb: [
+      "$\\binom{n}{k}$, “$n$ choose $k$”, is the number of ways to choose $k$ of $n$ things when order doesn't matter.",
+      "Each choice can be lined up in $k!$ orders, so $\\binom{n}{k} = \\frac{P(n, k)}{k!} = \\frac{n!}{k!\\,(n - k)!}$: $\\binom{10}{3} = \\frac{10 \\cdot 9 \\cdot 8}{6} = 120$. Choosing what to take is choosing what to leave, so $\\binom{n}{k} = \\binom{n}{n - k}$ and you only ever need the smaller $k$. Pascal's rule, $\\binom{n}{k} = \\binom{n - 1}{k - 1} + \\binom{n - 1}{k}$, builds the triangle.",
+    ],
+    der: [
+      "$!n$ counts derangements: the ways to shuffle $n$ letters so that none lands back in its own envelope.",
+      "$!1 = 0$, $!2 = 1$, $!3 = 2$, and then $!n = (n - 1)\\left(!(n - 1) + !(n - 2)\\right)$: $!4 = 9$, $!5 = 44$, $!6 = 265$, $!7 = 1854$. By inclusion–exclusion, $!n = n! \\left(1 - \\frac1{1!} + \\frac1{2!} - \\cdots \\pm \\frac1{n!}\\right)$, which is always the nearest whole number to $n! / e$. So a random shuffle has no fixed point about $37\\%$ of the time.",
+    ],
+  };
+  for (const t of TYPES) if (ABOUT[t.id]) t.about = ABOUT[t.id];
   const BY = Object.fromEntries(TYPES.map(t => [t.id, t]));
   const defaultsOf = t => t.f.flatMap(f => "v" in f ? [f.v] : [f.lo, f.hi]);
   const DURATIONS = [30, 60, 120, 180, 300, 600];
@@ -220,15 +262,20 @@
     return any ? { settings: normalize(s), name } : null;
   }
 
+  // a preset is a set of types plus, optionally, params that differ from the type defaults (p: {typeId: [...]})
   const PRESETS = [
     { id: "basic", name: "Basic", on: ["add", "sub", "mul", "div"] },
+    // high school (airetho's #23; also amog.fun/alphamac): every basic and exponential type with small bounds, gcd, lcm, n! ≤ 6!
+    { id: "alpha", name: "Alphamac", on: ["add", "sub", "mul", "div", "sq", "cube", "sqrt", "cbrt", "pow", "log", "gcd", "lcm", "fact"],
+      p: { sq: [2, 20], sqrt: [2, 20], cube: [2, 10], cbrt: [2, 10], pow: [2, 12, 2, 10, 1000], log: [2, 12, 2, 10, 1000], fact: [0, 6] } },
     { id: "everything", name: "Everything", on: TYPES.map(t => t.id) },
     { id: "powers", name: "Powers & roots", on: TYPES.filter(t => t.sec === "exp").map(t => t.id) },
     { id: "nt", name: "Number theorist", on: TYPES.filter(t => t.sec === "nt").map(t => t.id) },
     { id: "comb", name: "Combinatorialist", on: TYPES.filter(t => t.sec === "comb").map(t => t.id) },
   ];
-  for (const p of PRESETS) p.key = typesKey(defaults(p.on));
-  const presetSettings = id => defaults(PRESETS.find(p => p.id === id).on);
+  const settingsOf = pr => { const s = defaults(pr.on); for (const [id, p] of Object.entries(pr.p || {})) s.t[id].p = normParams(BY[id], p); return s; };
+  for (const p of PRESETS) p.key = typesKey(settingsOf(p));
+  const presetSettings = id => settingsOf(PRESETS.find(p => p.id === id));
 
   // next problem: a uniformly random enabled type, never the exact same problem twice in a row (if avoidable).
   // Types whose bounds admit nothing (capped ones) are skipped; null if no enabled type can produce a problem.

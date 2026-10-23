@@ -82,10 +82,10 @@
 
   .submit { margin: 0 0 14px; min-height: 1.5em; }
   .submit .txt { width: 150px; }
-  .help { display: none; max-width: 640px; margin: 14px auto 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px;
-    background: var(--bg); color: #d3cfc5; font-size: 15.5px; text-align: left; }
+  .help { display: none; margin: 14px auto 0; text-align: center; font-family: var(--mono); font-size: 13px; }
   .game.play .help.on { display: block; }
-  .help b { color: var(--g1); font-weight: 500; margin-right: 6px; }
+  .help a { color: var(--g1); text-decoration: none; border-bottom: 1px dashed #4fd6e866; }
+  .help a:hover { border-bottom-style: solid; }
   #skip { margin-top: 12px; }
 
   .theory { max-width: 760px; margin: 56px 0 40px; }
@@ -99,7 +99,7 @@
   <div class="head">
     <div class="sig">omegamac : Brain × [0, 120] → ℕ</div>
     <h1>Omegamac</h1>
-    <p>Zetamac, continued to the end of the alphabet. Answer as many questions as you can before the clock runs out; the next one appears the instant your answer is right, no Enter needed. Pick a preset or choose your own problem types below.</p>
+    <p>Zetamac, continued to the end of the alphabet. Answer as many questions as you can before the clock runs out; the next one appears the instant your answer is right, no Enter needed. Pick a preset or choose your own problem types below; <b>Alphamac</b> is the high-school one. What's $\varphi(n)$? See <a href="/omegamac/functions/">the functions</a>.</p>
   </div>
 
   <div class="game idle" id="game">
@@ -309,8 +309,9 @@
   let rng = Math.random, ranked = null, log = null, t0 = 0, starting = false;
   function show() {
     const ty = O.TYPES.find(t => t.id === prob.type), help = $("help");
-    help.classList.toggle("on", !!ty.help);
-    if (ty.help && help.dataset.t !== ty.id) { help.dataset.t = ty.id; help.innerHTML = `<b>${esc(ty.name)}</b>${ty.help}`; if (window.amogMath) amogMath(help); }
+    // just the function's name, linked to its explanation on the functions page (a new tab, so the run goes on)
+    help.classList.toggle("on", !!ty.about);
+    if (ty.about && help.dataset.t !== ty.id) { help.dataset.t = ty.id; help.innerHTML = `<a href="/omegamac/functions/#${ty.id}" target="_blank" rel="noopener" tabindex="-1">${esc(ty.name)} ↗</a>`; }
     if (window.katex) { try { katex.render(prob.tex, probEl, { throwOnError: false }); return; } catch {} }
     probEl.textContent = prob.plain;
   }
