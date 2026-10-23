@@ -7,7 +7,9 @@
     "tags": [
       "game",
       "math"
-    ]
+    ],
+    "group": "amog",
+    "short": "Fill in a polynomial over any ring; A wants a root."
   },
   {
     "slug": "fermimac",
@@ -17,7 +19,9 @@
     "tags": [
       "game",
       "math"
-    ]
+    ],
+    "group": "clock",
+    "short": "Estimate math and the world against the clock; close enough counts."
   },
   {
     "slug": "omegamac",
@@ -27,7 +31,10 @@
     "tags": [
       "game",
       "math"
-    ]
+    ],
+    "group": "clock",
+    "short": "Two minutes of mental math, with a leaderboard.",
+    "featured": 4
   },
   {
     "slug": "palinode",
@@ -38,7 +45,9 @@
       "game",
       "unfolding",
       "narrative"
-    ]
+    ],
+    "group": "long",
+    "short": "An unfolding game about favors, grudges and the mail."
   },
   {
     "slug": "alchemy",
@@ -49,7 +58,10 @@
       "game",
       "idle",
       "crafting"
-    ]
+    ],
+    "group": "long",
+    "short": "Skyblock crafting, from one tree to the Terminal Object.",
+    "featured": 1
   },
   {
     "slug": "coin-flips",
@@ -59,7 +71,9 @@
     "tags": [
       "trinket",
       "probability"
-    ]
+    ],
+    "group": "etc",
+    "short": "Is your coin fair? The court rules, with exact p-values."
   },
   {
     "slug": "blog",
@@ -69,7 +83,9 @@
     "tags": [
       "math",
       "notes"
-    ]
+    ],
+    "group": "etc",
+    "short": "Math notes from the Institute."
   },
   {
     "slug": "dotsandboxes",
@@ -79,7 +95,9 @@
     "tags": [
       "game",
       "vs AI"
-    ]
+    ],
+    "group": "amog",
+    "short": "Close squares, get double-crossed."
   },
   {
     "slug": "nim",
@@ -90,7 +108,10 @@
       "games",
       "vs AI",
       "math"
-    ]
+    ],
+    "group": "amog",
+    "short": "Eight take-away games against a perfect Amog.",
+    "featured": 3
   },
   {
     "slug": "whack-a-moni",
@@ -100,7 +121,9 @@
     "tags": [
       "game",
       "arcade"
-    ]
+    ],
+    "group": "clock",
+    "short": "Bonk Moni. Not Megumin. Not Shiro."
   },
   {
     "slug": "amog-space-program",
@@ -111,7 +134,10 @@
       "game",
       "incremental",
       "physics"
-    ]
+    ],
+    "group": "long",
+    "short": "Rockets with real physics, from soda bottle to Andromeda.",
+    "featured": 2
   },
   {
     "slug": "axis-order-incremental",
@@ -121,6 +147,8 @@
     "tags": [
       "game",
       "incremental"
-    ]
+    ],
+    "group": "long",
+    "short": "Gather faith, spread pamphlets, ascend."
   }
 ]

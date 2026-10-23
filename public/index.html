@@ -71,9 +71,31 @@
   .tag { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line-2); border-radius: 999px; padding: 2px 9px; }
   .obj .go { font-family: var(--mono); font-size: 13px; color: var(--muted); }
   a.obj:hover .go { color: var(--ink); }
-  .obj.ghost { border-style: dashed; background: transparent; }
-  .obj.ghost h3, .obj.ghost .sig { color: var(--faint); }
-  .obj.ghost p { color: var(--faint); }
+  .objects.featured { grid-template-columns: repeat(4, minmax(0, 1fr)); } /* 4 featured: never a lone orphan card */
+  @media (max-width: 1000px) { .objects.featured { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .objects.featured { grid-template-columns: 1fr; } }
+  .obj .go { white-space: nowrap; }
+  .objects.featured .obj { min-height: 200px; padding: 22px; }
+  .objects.featured .obj h3 { font-size: 30px; }
+
+  /* ---------- catalog: every object, one row each ---------- */
+  .catalog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 48px 0 10px; }
+  .catalog-head h3 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filters button { font-family: var(--mono); font-size: 12px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--muted); cursor: pointer; }
+  .filters button:hover { color: var(--ink); }
+  .filters button.on { border-color: var(--g1); color: var(--g1); }
+  .group-name { font-family: var(--mono); font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; margin: 22px 0 4px; }
+  .rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .rows a { display: grid; grid-template-columns: minmax(0, 15em) minmax(0, 1fr) auto; gap: 4px 18px; align-items: baseline; padding: 12px 6px; border-bottom: 1px solid var(--line); text-decoration: none; transition: background .15s; }
+  .rows a:hover { background: var(--bg-2); }
+  .rows b { font-family: var(--display); font-weight: 400; font-size: 23px; line-height: 1.1; }
+  .rows .short { color: #cfcbc1; font-size: 16px; }
+  .rows .sig { display: block; font-family: var(--mono); font-size: 11.5px; color: var(--g1); margin-top: 2px; }
+  .rows .go { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .rows a:hover .go { color: var(--ink); }
+  .rows .star { color: var(--g3); font-family: var(--mono); font-size: 12px; margin-left: 6px; }
+  @media (max-width: 640px) { .rows a { grid-template-columns: minmax(0, 1fr) auto; } .rows .short { grid-column: 1; } .rows .go { grid-row: 1; grid-column: 2; } }
 
   /* ---------- founder ---------- */
   .founder { display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: start; }
@@ -157,9 +179,9 @@
     <div class="sec-head">
       <span class="num">§1</span>
       <h2>Objects of <b>Fun</b></h2>
-      <p>Everything here is small, fast, and a bit rough around the edges. Each object lives at <span class="mono">amog.fun/&lt;name&gt;</span>.</p>
+      <p>Everything here is small, fast, and a bit rough around the edges. Each object lives at <span class="mono">amog.fun/&lt;name&gt;</span>. Start with the featured ones; the full catalog is below.</p>
     </div>
-    <div class="objects" id="objects-grid">
+    <div class="objects featured" id="objects-grid">
       <a class="obj" href="/dotsandboxes/">
         <span class="sig">dotsandboxes : Bored → Amused</span>
         <h3>Dots &amp; Boxes</h3>
@@ -167,6 +189,8 @@
         <div class="foot"><span class="tags"><span class="tag">game</span></span><span class="go">play →</span></div>
       </a>
     </div>
+    <div class="catalog-head" id="catalog-head" hidden><h3>The full catalog</h3><div class="filters" id="filters"></div></div>
+    <div id="catalog"></div>
   </section>
 
   <section class="block" id="founder">
@@ -248,18 +272,35 @@
     const projects = await res.json();
     const grid = document.getElementById("objects-grid");
     const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-    grid.innerHTML = projects.map(p => `
+    const sig = p => p.signature || p.slug + " : 1 → Fun";
+    // featured: big cards, in their "featured" order
+    grid.innerHTML = projects.filter(p => p.featured).sort((a, b) => a.featured - b.featured).map(p => `
       <a class="obj" href="/${esc(p.slug)}/">
-        <span class="sig">${esc(p.signature || p.slug + " : 1 → Fun")}</span>
+        <span class="sig">${esc(sig(p))}</span>
         <h3>${esc(p.title)}</h3>
         <p>${esc(p.blurb || "")}</p>
         <div class="foot"><span class="tags">${(p.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join("")}</span><span class="go">open →</span></div>
-      </a>`).join("") + `
-      <div class="obj ghost" aria-hidden="true">
-        <span class="sig">? : 1 → Fun</span>
-        <h3>Next object</h3>
-        <p>Not constructed yet. Exists by the axiom of choice.</p>
-      </div>`;
+      </a>`).join("");
+    // catalog: every object, one row each, grouped by kind (newest first within a group, as in projects.json)
+    const GROUPS = [["amog", "Play against Amog"], ["clock", "Against the clock"], ["long", "Long games"], ["etc", "Trinkets & notes"]];
+    const known = new Set(GROUPS.map(g => g[0]));
+    const groupOf = p => (known.has(p.group) ? p.group : "etc");
+    const row = p => `<li><a href="/${esc(p.slug)}/"><span><b>${esc(p.title)}</b>${p.featured ? `<span class="star" title="featured">★</span>` : ""}<span class="sig">${esc(sig(p))}</span></span><span class="short">${esc(p.short || "")}</span><span class="go">open →</span></a></li>`;
+    const catalog = document.getElementById("catalog"), filters = document.getElementById("filters");
+    let only = "all";
+    try { only = sessionStorage.getItem("amog.home.filter") || "all"; } catch {}
+    function draw() {
+      const groups = GROUPS.filter(([g]) => only === "all" || only === g);
+      catalog.innerHTML = groups.map(([g, name]) => {
+        const ps = projects.filter(p => groupOf(p) === g);
+        return ps.length ? `<div class="group-name">${esc(name)}</div><ul class="rows">${ps.map(row).join("")}</ul>` : "";
+      }).join("");
+      filters.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.g === only));
+    }
+    filters.innerHTML = [["all", `all ${projects.length}`], ...GROUPS].map(([g, name]) => `<button data-g="${g}">${esc(name.toLowerCase())}</button>`).join("");
+    filters.onclick = e => { const b = e.target.closest("button"); if (!b) return; only = b.dataset.g; try { sessionStorage.setItem("amog.home.filter", only); } catch {} draw(); };
+    document.getElementById("catalog-head").hidden = false;
+    draw();
     if (window.amogMath) amogMath(grid);
   } catch (_) { /* static fallback card stays */ }
 })();
