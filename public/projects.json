@@ -3,7 +3,7 @@
     "slug": "omegamac",
     "title": "Omegamac",
     "signature": "omegamac : Brain × [0, 120] → ℕ",
-    "blurb": "Zetamac, continued to the end of the alphabet. Two minutes of arithmetic, powers, $\\varphi(n)$, $\\Omega(n)$, gcds, $\\binom{n}{k}$ and derangements against the clock. Choose a preset or build your own, share it as a link, and try to beat your best.",
+    "blurb": "Zetamac, continued to the end of the alphabet. Two minutes of arithmetic, powers, $\\varphi(n)$, $\\sigma(n)$, gcds, $\\binom{n}{k}$ and derangements against the clock. Choose a preset or build your own, share it as a link, and try to beat your best.",
     "tags": [
       "game",
       "math"

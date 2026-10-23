@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Omegamac · amog.fun</title>
-<meta name="description" content="A zetamac-style mental math trainer: arithmetic, powers and roots, totients, prime factors, gcd and lcm, factorials, binomials and derangements against the clock, with shareable presets and high scores.">
+<meta name="description" content="A zetamac-style mental math trainer: arithmetic, powers and roots, totients, divisor counts and sums, gcd and lcm, factorials, binomials and derangements against the clock, with shareable presets and high scores.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><text x='32' y='48' font-size='44' text-anchor='middle' fill='%234fd6e8' font-family='Georgia,serif'>%CE%A9</text></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/math.js" defer></script>
@@ -144,7 +144,7 @@
   <section class="theory">
     <h2>How Amog picks the numbers</h2>
     <p>Arithmetic works like zetamac: operands are uniform within your bounds, subtraction is addition run backwards, $(a + b) - a$, and division is multiplication run backwards, $ab \div a$, so every answer is a whole number. Exponents, logarithms, $P(n, k)$ and $\binom{n}{k}$ have a cap: Amog first picks a base (or $n$) uniformly from those that have at least one valid question under the cap, then a valid exponent (or $k$).</p>
-    <p>Asking about random numbers would be dull. A random $n$ below $1000$ is prime about one time in six, and $\varphi(p) = p - 1$ is no challenge. So for $\varphi$, $\Omega$, $\omega$, $\operatorname{sopfr}$ and $\operatorname{sopf}$, Amog usually draws $n$ with probability proportional to $d(n)^2$, where $d(n)$ is the number of divisors, which makes $720$ about $225$ times likelier than a prime. In the other $15\%$ of draws he picks uniformly, so primes still appear now and then (about $3\%$ of the time on $[2, 1000]$).</p>
+    <p>Asking about random numbers would be dull. A random $n$ below $1000$ is prime about one time in six, and $\varphi(p) = p - 1$ is no challenge. So for $\varphi$, $d$ and $\sigma$, Amog usually draws $n$ with probability proportional to $d(n)^2$, where $d(n)$ is the number of divisors, which makes $720$ about $225$ times likelier than a prime. In the other $15\%$ of draws he picks uniformly, so primes still appear now and then (about $3\%$ of the time on $[2, 1000]$).</p>
     <p>For $\gcd$ and $\operatorname{lcm}$ he first chooses a common factor $g$ with weight $g\,(m - 2)$, where $m$ is the number of multiples of $g$ in range, then takes two different multiples of $g$, avoiding pairs where one divides the other. On $[2, 200]$ the average $\gcd$ is about $26$, compared with $3.5$ for a random pair. Again, $15\%$ of pairs are uniform, so coprime pairs still show up.</p>
     <p>Each correct answer scores one point, and wrong answers cost nothing: the box just waits. Share links contain the whole setup, so a friend who opens yours plays exactly the same game.</p>
   </section>

@@ -7,7 +7,6 @@ const O = globalThis.Omegamac;
 // ---- brute force, written independently of gen.js ----
 const euclid = (a, b) => { while (b) [a, b] = [b, a % b]; return a; };
 const isPrime = n => { if (n < 2) return false; for (let d = 2; d * d <= n; d++) if (n % d === 0) return false; return true; };
-const primeList = n => { const out = []; for (let d = 2, m = n; m > 1; d++) while (m % d === 0) { out.push(d); m /= d; } return out; }; // smallest divisor first, so each d pushed is prime
 const big = (f, ...a) => Number(f(...a.map(BigInt)));
 const factB = n => { let r = 1n; for (let i = 1n; i <= n; i++) r *= i; return r; };
 const pascal = (n, k) => { let row = [1n]; for (let i = 0; i < n; i++) row = [1n, ...row.slice(1).map((x, j) => x + row[j]), 1n]; return k >= 0 && k <= n ? row[k] : 0n; };
@@ -23,10 +22,8 @@ const BRUTE = {
   pow: ([b, e]) => big((x, y) => x ** y, b, e),
   log: ([b, x]) => { for (let e = 0n; ; e++) if (BigInt(b) ** e === BigInt(x)) return Number(e); },
   phi: ([n]) => { let c = 0; for (let k = 1; k <= n; k++) if (euclid(k, n) === 1) c++; return c; },
-  bigomega: ([n]) => primeList(n).length,
-  omega: ([n]) => new Set(primeList(n)).size,
-  sopfr: ([n]) => primeList(n).reduce((a, p) => a + p, 0),
-  sopf: ([n]) => [...new Set(primeList(n))].reduce((a, p) => a + p, 0),
+  tau: ([n]) => { let c = 0; for (let k = 1; k <= n; k++) if (n % k === 0) c++; return c; },
+  sigma: ([n]) => { let s = 0; for (let k = 1; k <= n; k++) if (n % k === 0) s += k; return s; },
   gcd: ([a, b]) => { for (let d = Math.min(a, b); d >= 1; d--) if (a % d === 0 && b % d === 0) return d; },
   lcm: ([a, b]) => { const m = Math.max(a, b); for (let x = m; ; x += m) if (x % a === 0 && x % b === 0) return x; },
   fact: ([n]) => Number(factB(BigInt(n))),
@@ -49,11 +46,11 @@ const BOUNDS = {
   fact: (p, [n]) => inR(n, p[0], p[1]), der: (p, [n]) => inR(n, p[0], p[1]),
   perm: (p, [n, k], ans) => inR(n, p[0], p[1]) && inR(k, p[2], p[3]) && k <= n && ans <= p[4],
 };
-for (const id of ["phi", "bigomega", "omega", "sopfr", "sopf"]) BOUNDS[id] = (p, [n]) => inR(n, p[0], p[1]);
+for (const id of ["phi", "tau", "sigma"]) BOUNDS[id] = (p, [n]) => inR(n, p[0], p[1]);
 BOUNDS.lcm = BOUNDS.gcd; BOUNDS.comb = BOUNDS.perm;
 
 // keep random bounds small enough for the brute force
-const LIM = { phi: 3000, bigomega: 20000, omega: 20000, sopfr: 20000, sopf: 20000, gcd: 3000, lcm: 300, div: 1000, sqrt: 1000, cbrt: 300, pow: 200, log: 200 };
+const LIM = { phi: 3000, tau: 20000, sigma: 20000, gcd: 3000, lcm: 300, div: 1000, sqrt: 1000, cbrt: 300, pow: 200, log: 200 };
 function randomParams(t, rng) {
   const lim = LIM[t.id] ?? 1e6, p = [];
   for (const f of t.f) {
@@ -157,9 +154,9 @@ test("smart picker prefers many divisors but still picks primes", () => {
 });
 
 test("number theory spot checks", () => {
-  const { phi, bigOmega, omega, sopfr, sopf, derange, choose, perm } = O.nt;
+  const { phi, tau, sigma, derange, choose, perm } = O.nt;
   assert.deepEqual([phi(1), phi(12), phi(97), phi(100)], [1, 4, 96, 40]);
-  assert.deepEqual([bigOmega(12), omega(12), sopfr(12), sopf(12)], [3, 2, 7, 5]);
+  assert.deepEqual([tau(1), tau(12), tau(97), tau(720), sigma(1), sigma(12), sigma(97), sigma(28)], [1, 6, 2, 30, 1, 28, 98, 56]);
   assert.deepEqual([0, 1, 2, 3, 4, 5].map(derange), [1, 0, 1, 2, 9, 44]);
   assert.equal(derange(18), 2355301661033953); assert.ok(Number.isSafeInteger(derange(18)));
   assert.equal(choose(10, 5), 252); assert.equal(perm(10, 3), 720);

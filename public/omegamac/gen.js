@@ -19,10 +19,8 @@
     return f;
   }
   const phi = n => factor(n).reduce((a, [p, e]) => a * (p - 1) * p ** (e - 1), 1);
-  const bigOmega = n => factor(n).reduce((a, [, e]) => a + e, 0);   // Ω: with multiplicity
-  const omega = n => factor(n).length;                               // ω: distinct
-  const sopfr = n => factor(n).reduce((a, [p, e]) => a + p * e, 0);  // sum with multiplicity
-  const sopf = n => factor(n).reduce((a, [p]) => a + p, 0);          // sum of distinct primes
+  const tau = n => factor(n).reduce((a, [, e]) => a * (e + 1), 1);                    // d(n): number of divisors
+  const sigma = n => factor(n).reduce((a, [p, e]) => a * (p ** (e + 1) - 1) / (p - 1), 1); // σ(n): sum of divisors
   const fact = n => { let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; };
   const perm = (n, k) => { let r = 1; for (let i = n - k + 1; i <= n; i++) r *= i; return r; };
   const choose = (n, k) => {
@@ -46,7 +44,7 @@
   }
 
   /* The "smart" picker. Amog doesn't ask about random numbers, he asks about interesting ones.
-   * One input (φ, Ω, ω, sopfr, sopf): with probability UNIFORM pick n uniformly in [lo, hi]; otherwise sample n with
+   * One input (φ, d, σ): with probability UNIFORM pick n uniformly in [lo, hi]; otherwise sample n with
    *   weight d(n)^ALPHA, d = number of divisors. So 720 (d = 30) is 225x likelier than a prime (d = 2) in that branch,
    *   but primes still turn up (on [2, 1000] about 3% of picks, vs 17% for uniform; mean d(n) roughly doubles).
    * Two inputs (gcd, lcm): with probability UNIFORM pick a ≠ b uniformly (often coprime); otherwise pick a common factor
@@ -143,14 +141,10 @@
 
     { id: "phi", sec: "nt", name: "Totient", def: "$\\varphi(n) = \\#\\{1 \\le k \\le n : \\gcd(k, n) = 1\\}$",
       f: [R("n", 2, 100, 1, 1e5)], gen: one("\\varphi", "φ", phi) },
-    { id: "bigomega", sec: "nt", name: "Prime factors", def: "$\\Omega(n)$, counted with multiplicity: $\\Omega(12) = \\Omega(2 \\cdot 2 \\cdot 3) = 3$",
-      f: [R("n", 2, 500, 1, 1e5)], gen: one("\\Omega", "Ω", bigOmega) },
-    { id: "omega", sec: "nt", name: "Distinct prime factors", def: "$\\omega(n)$, each prime once: $\\omega(12) = 2$",
-      f: [R("n", 2, 1000, 1, 1e5)], gen: one("\\omega", "ω", omega) },
-    { id: "sopfr", sec: "nt", name: "Sum of prime factors", def: "$\\operatorname{sopfr}(n)$, with multiplicity: $\\operatorname{sopfr}(12) = 2 + 2 + 3 = 7$",
-      f: [R("n", 2, 200, 1, 1e5)], gen: one("\\operatorname{sopfr}", "sopfr", sopfr) },
-    { id: "sopf", sec: "nt", name: "Sum of distinct prime factors", def: "$\\operatorname{sopf}(n)$, each prime once: $\\operatorname{sopf}(12) = 2 + 3 = 5$",
-      f: [R("n", 2, 200, 1, 1e5)], gen: one("\\operatorname{sopf}", "sopf", sopf) },
+    { id: "tau", sec: "nt", name: "Number of divisors", def: "$d(n)$, how many positive divisors $n$ has: $d(12) = 6$",
+      f: [R("n", 2, 500, 1, 1e5)], gen: one("d", "d", tau) },
+    { id: "sigma", sec: "nt", name: "Sum of divisors", def: "$\\sigma(n)$, the sum of the positive divisors: $\\sigma(12) = 1 + 2 + 3 + 4 + 6 + 12 = 28$",
+      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\sigma", "σ", sigma) },
     { id: "gcd", sec: "nt", name: "GCD", def: "$\\gcd(a, b)$, $a \\ne b$",
       f: [R("a, b", 2, 200, 1, 1e5)],
       gen: (p, rng) => { const [a, b] = pickPair(p[0], p[1], rng); return P([a, b], `\\gcd(${a}, ${b})`, `gcd(${a}, ${b})`, gcd(a, b)); } },
@@ -247,6 +241,6 @@
   root.Omegamac = {
     TYPES, SECTIONS, PRESETS, DURATIONS, SMART, defaults, defaultsOf, normalize, encode, decode, typesKey, presetSettings, next, check, feasible,
     pickSmart, pickPair, divisorCounts, mulberry32,
-    nt: { gcd, lcm, factor, phi, bigOmega, omega, sopfr, sopf, fact, perm, choose, derange },
+    nt: { gcd, lcm, factor, phi, tau, sigma, fact, perm, choose, derange },
   };
 })(typeof window !== "undefined" ? window : globalThis);
