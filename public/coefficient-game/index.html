@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Coefficient Choosing Game · amog.fun</title>
+<meta name="description" content="Pick any commutative ring and a degree, then take turns choosing the coefficients of a polynomial. A wins if it has a root. Play computer Amog or a friend online.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><rect x='8' y='20' width='18' height='24' rx='4' fill='none' stroke='%234fd6e8' stroke-width='3'/><text x='44' y='44' font-size='30' text-anchor='middle' fill='%23c8f04a' font-family='Georgia,serif' font-style='italic'>x</text></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/math.js" defer></script>
+<script src="/coefficient-game/ring.js"></script>
+<script src="/coefficient-game/amog.js"></script>
+<style>
+  .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(40px, 7vw, 68px); line-height: 1; margin: 6px 0 10px; }
+  .head p { margin: 0 0 20px; color: #d3cfc5; max-width: 70ch; }
+  .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .mini { font-family: var(--mono); font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; }
+  .mini:hover { border-color: var(--muted); }
+  .mini.on { border-color: var(--g1); color: var(--g1); }
+  .mini:disabled { opacity: .35; cursor: default; }
+  .txt { font-family: var(--mono); font-size: 15px; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); }
+  .txt:focus { outline: none; border-color: var(--g1); }
+  .txt.bad { border-color: var(--g2); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 20px; }
+  .setup .field { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px 14px; align-items: start; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .setup .field:last-of-type { border-bottom: 0; }
+  .setup label { font-family: var(--mono); font-size: 13px; color: var(--muted); padding-top: 8px; }
+  @media (max-width: 600px) { .setup .field { grid-template-columns: 1fr; } .setup label { padding-top: 0; } }
+  #ring { width: min(300px, 100%); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .chips .mini { font-size: 12px; padding: 4px 10px; }
+  .preview { margin-top: 8px; min-height: 1.6em; color: #d3cfc5; font-size: 16px; }
+  .preview .bad { color: var(--g2); font-family: var(--mono); font-size: 13px; }
+  .deg { display: inline-flex; align-items: center; gap: 10px; }
+  .deg b { font-family: var(--display); font-weight: 400; font-size: 30px; min-width: 1.4em; text-align: center; }
+  .go { margin-top: 14px; }
+  .start-err { color: var(--g2); font-family: var(--mono); font-size: 13px; margin-top: 8px; min-height: 1.2em; }
+
+  .board { margin-top: 0; }
+  .bhead { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+  .bhead .ring { font-size: 22px; }
+  .roles { color: #d3cfc5; margin: 4px 0 0; }
+  .roles .a, .log .a, .sideA { color: var(--g1); } .roles .s, .log .s, .sideS { color: var(--g2); }
+  .status { font-family: var(--mono); font-size: 14px; color: var(--muted); margin: 14px 0 4px; min-height: 1.4em; }
+  .status b { color: var(--ink); font-weight: 500; }
+  .poly { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 6px; padding: 26px 4px 18px; font-family: var(--serif); font-size: 26px; }
+  .poly .px { font-style: italic; margin-right: 4px; }
+  .poly .plus { color: var(--muted); margin: 0 2px; }
+  .poly sup { font-size: .6em; }
+  .slot { font-family: var(--mono); font-size: 17px; min-width: 52px; min-height: 44px; padding: 6px 10px; border-radius: 10px; border: 1.5px dashed var(--line-2); background: var(--bg); color: var(--faint); cursor: default; max-width: 260px; overflow-wrap: anywhere; }
+  .slot sub { font-size: .7em; }
+  .slot.open { cursor: pointer; color: var(--muted); border-color: var(--muted); }
+  .slot.open:hover { border-color: var(--g3); color: var(--ink); }
+  .slot.sel { border: 1.5px solid var(--g3); color: var(--g3); box-shadow: 0 0 0 3px #c8f04a22; }
+  .slot.byA { border: 1.5px solid #4fd6e866; color: var(--g1); background: #4fd6e80d; }
+  .slot.byS { border: 1.5px solid #ff5a5f66; color: var(--g2); background: #ff5a5f0d; }
+  .slot.fresh { animation: pop .35s; } @keyframes pop { 40% { transform: scale(1.15); } }
+  .entry:empty, .palette:empty { display: none; }
+  .entry { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; min-height: 44px; }
+  .entry .lab { font-family: var(--serif); font-size: 20px; }
+  #val { width: min(240px, 60vw); text-align: center; }
+  .palette { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+  .palette .mini { min-width: 42px; }
+  .err { color: var(--g2); font-family: var(--mono); font-size: 13px; text-align: center; min-height: 1.3em; margin-top: 6px; }
+  .result { text-align: center; margin: 4px 0 8px; }
+  .result .big { font-family: var(--display); font-size: 44px; line-height: 1.1; margin-bottom: 6px; }
+  .result .why { color: #d3cfc5; }
+  .result .vals { font-family: var(--mono); font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .hint { font-family: var(--mono); font-size: 13px; color: #d3cfc5; }
+  .note { font-family: var(--mono); font-size: 12.5px; color: var(--faint); text-align: center; min-height: 1.2em; }
+  .log { font-family: var(--mono); font-size: 13px; color: var(--muted); margin: 12px 0 0; padding-left: 26px; columns: 2 220px; }
+  .roombox { margin: 12px 0 0; padding: 12px 14px; border: 1px dashed var(--line-2); border-radius: 12px; font-family: var(--mono); font-size: 13px; color: #d3cfc5; }
+  .roombox code { color: var(--g3); overflow-wrap: anywhere; }
+  .pres { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 5px; } .pres.on { background: var(--g3); }
+
+  .theory { max-width: 780px; margin: 56px 0 40px; }
+  .theory h2 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0 0 10px; }
+  .theory h3 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 28px 0 6px; }
+  .theory table { border-collapse: collapse; font-family: var(--mono); font-size: 13px; margin: 10px 0; }
+  .theory th, .theory td { padding: 5px 12px; border-bottom: 1px solid var(--line); text-align: center; }
+  .theory th:first-child, .theory td:first-child { text-align: left; }
+  .theory th { color: var(--muted); font-weight: 400; }
+  .theory td.A { color: var(--g1); } .theory td.S { color: var(--g2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="head">
+    <div class="sig">coefficients : CRing × ℕ → {A, S}</div>
+    <h1>The Coefficient Choosing Game</h1>
+    <p>Pick a commutative ring $R$ and a degree $d \ge 2$. Two players take turns filling in the coefficients of $a_d x^d + \cdots + a_1 x + a_0 \in R[x]$, in any order, with any element of $R$; only $a_0$ and $a_d$ can't be $0$. Once all $d+1$ are chosen, <b class="sideA">A</b>(mog) wins if the polynomial has a root in $R$, and <b class="sideS">S</b>(now) wins if it doesn't.</p>
+  </div>
+
+  <section class="card setup" id="setup">
+    <div class="field">
+      <label for="ring">Ring</label>
+      <div>
+        <div class="row"><input id="ring" class="txt" autocomplete="off" spellcheck="false"><button class="mini" id="rand">random</button></div>
+        <div class="chips" id="examples"></div>
+        <div class="preview" id="preview"></div>
+      </div>
+    </div>
+    <div class="field"><label>Degree</label><div class="deg"><button class="mini" id="dminus">−</button><b id="dval">3</b><button class="mini" id="dplus">+</button></div></div>
+    <div class="field"><label>Opponent</label><div class="chips" id="modes" style="margin:0"></div></div>
+    <div class="field" id="sideField"><label>You play</label><div class="chips" id="sides" style="margin:0"></div></div>
+    <div class="field"><label>First move</label><div class="chips" id="firsts" style="margin:0"></div></div>
+    <button class="btn primary go" id="go">Start</button>
+    <div class="start-err" id="startErr"></div>
+  </section>
+
+  <section class="card board" id="board" hidden>
+    <div class="bhead"><div class="ring" id="bring"></div><div class="row"><button class="mini" id="again">play again</button><button class="mini" id="change">change setup</button></div></div>
+    <div class="roles" id="roles"></div>
+    <div class="roombox" id="roombox" hidden></div>
+    <div class="status" id="status"></div>
+    <div class="poly" id="poly"></div>
+    <div class="entry" id="entry"></div>
+    <div class="palette" id="palette"></div>
+    <div class="err" id="err"></div>
+    <div class="result" id="result"></div>
+    <div class="note" id="note"></div>
+    <div class="tools" id="tools"><button class="mini" id="hint">who wins from here?</button><span class="hint" id="hintOut"></span></div>
+    <ol class="log" id="log"></ol>
+  </section>
+
+  <section class="theory">
+    <h2>Who wins?</h2>
+    <p>There are $d+1$ moves, so the first player also makes the last move when $d$ is even, and the second player does when $d$ is odd. Over the infinite rings here, the last move is nearly everything.</p>
+    <h3>Two rings where A can't lose</h3>
+    <p>\begin{proposition}Over $\C$, A always wins. Over $\R$ with $d$ odd, A always wins.\end{proposition}</p>
+    <p>\begin{proof}The fundamental theorem of algebra, and the intermediate value theorem: a real polynomial of odd degree changes sign.\end{proof}</p>
+    <h3>Over the rationals, the last move wins</h3>
+    <p>\begin{theorem}\label{thm:q}Over $\Q$, whoever chooses the last coefficient wins. So the first player wins when $d$ is even and the second player wins when $d$ is odd.\end{theorem}</p>
+    <p>\begin{proof}Say $a_k$ is the last coefficient and $q(x)$ is the rest of $p$. A nonzero $r$ is a root exactly when $a_k = \varphi(r)$, where $\varphi(r) = -q(r)/r^k$, and $0$ is never a root because $a_0 \neq 0$. If A moves last, A picks a rational $r \neq 0$ with $q(r) \neq 0$ and sets $a_k = \varphi(r)$, which isn't $0$. If S moves last: $a_0$ and $a_d$ are nonzero, so $\varphi$ is a rational function of degree $d \ge 2$, and by Hilbert's irreducibility theorem its values miss infinitely many rationals. S picks one of those that isn't $0$.\end{proof}</p>
+    <h3>The integers, almost</h3>
+    <p>\begin{proposition}\label{prop:z}Over $\Z$, if S chooses the last coefficient, S wins. If A chooses the last coefficient and it isn't $a_d$, A wins.\end{proposition}</p>
+    <p>\begin{proof}If $a_k$ with $k \ge 1$ is last, every integer root divides $a_0$, which is already chosen. That leaves finitely many candidate roots, each ruling out one value of $a_k$, so S has plenty left, while A takes $r = 1$ and $a_k = -q(1)$. If $a_0$ is last, A takes any $r$ with $q(r) \neq 0$ and sets $a_0 = -q(r)$. S needs a nonzero integer that $-q$ never takes on $\Z$; $q$ has degree $d \ge 2$, so it takes only about $N^{1/d}$ of the values up to $N$.\end{proof}</p>
+    <p>\begin{example}[The leading-coefficient trap]A can lose by moving last when the last coefficient is $a_d$. Take $p = a_3x^3 - x^2 + 1$: an integer root would divide $a_0 = 1$, but $p(1) = a_3$ and $p(-1) = -a_3$, and $a_3 \neq 0$. Amog knows this one.\end{example}</p>
+    <h3>The reals in even degree</h3>
+    <p>\begin{proposition}Over $\R$ with $d$ even, if A chooses the last coefficient, A wins. If S does and it's $a_0$ or $a_d$, S wins.\end{proposition}</p>
+    <p>\begin{proof}A makes $p(1)$ (or $p(0)$, if $a_0$ is last) the opposite sign to $a_d$, or picks $a_d$ with the opposite sign to $a_0$; either way $p$ changes sign. S makes $a_0$, with the sign of $a_d$, so big that $p$ never vanishes, or $a_d$ big with the sign of $a_0$.\end{proof}</p>
+    <p>When S's last coefficient is a middle one, A can still win, for instance by making $a_{d-2}$ hugely negative early on. Amog plays these by feel. Entries of $\R$ are typed as exact rationals, so the root test stays exact: it counts real roots with Sturm's theorem.</p>
+    <h3>Finite rings</h3>
+    <p>A finite ring makes a finite game, and Amog solves it with a minimax search. He plays perfectly on rings with up to 64 elements whenever the search fits in about a second; on bigger rings and positions he plays random games to the end and picks the move that won most often. With perfect play, from the empty polynomial:</p>
+    <div id="table"></div>
+    <p>In every ring we've solved, the first player wins in even degree, just like over $\Q$, and in odd degree A wins when S moves first. But in odd degree with A first, S moving last isn't always enough: A wins cubics anyway over $\Z/3$, $\mathbb{F}_9$, $\mathbb{F}_{27}$, $\Z/8$, $\Z/16$ and $\Z/27$, and quintics over $\Z/8$ and $\Z/27$. In characteristic 3, for instance, $x \mapsto x^3$ is additive.</p>
+    <p>Ring syntax: <code>Z/n</code>, <code>F_q</code> or <code>GF(q)</code> for any prime power $q \le 4096$ (built as $\mathbb{F}_p[\alpha]/(f)$ with the first irreducible $f$; type $\alpha$ as <code>a</code>), <code>Z/n[t]/(f)</code> for any letter but <code>x</code> (<code>Z/n[i]</code> is $\Z/n[i]/(i^2+1)$), products like <code>Z/2 × F_4</code>, and <code>Z</code>, <code>Q</code>, <code>R</code>, <code>C</code>. Values can be expressions: <code>2t+1</code>, <code>a^2</code>, <code>-3/4</code>, <code>10^9</code>, <code>1/2-i</code>, <code>(1, a)</code>.</p>
+  </section>
+
+  <footer class="footer"><span>amog.fun/coefficient-game</span><span>no roots were harmed</span></footer>
+</div>
+<script>
+(() => {
+  "use strict";
+  const G = CoeffGame, AM = CoeffAmog, other = G.other;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const math = el => { if (window.amogMath) amogMath(el); };
+  const KEY = "amog.coefficient-game.v1", SEATS = "amog.coefficient-game.seats";
+  const read = k => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; } };
+  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+  const EXAMPLES = ["Z/6", "F_4", "F_9", "Z/8", "Z/4[t]/(t^2)", "Z/3[i]", "Z/2 × Z/3", "Z", "Q", "R", "C"];
+  const RANDOM = ["Z/2", "Z/3", "Z/4", "Z/5", "Z/6", "Z/7", "Z/8", "Z/9", "Z/10", "Z/12", "Z/15", "Z/16", "F_4", "F_8", "F_9", "F_16", "F_25", "F_27",
+    "Z/4[t]/(t^2)", "Z/2[t]/(t^2)", "Z/2[t]/(t^3)", "Z/3[i]", "Z/5[i]", "Z/3[t]/(t^2)", "Z/2 × Z/2", "Z/2 × Z/3", "Z/3 × Z/3", "Z/2 × F_4", "Z", "Q", "R", "C"];
+  const MODES = [["amog", "computer Amog"], ["online", "a friend online"], ["pass", "pass and play"]];
+
+  const params = new URLSearchParams(location.search);
+  const cfg = Object.assign({ ring: "Z/6", d: 3, mode: "amog", side: "A", first: "A" }, read(KEY));
+  if (params.get("ring")) cfg.ring = params.get("ring");
+  if (+params.get("d")) cfg.d = Math.max(G.DMIN, Math.min(G.DMAX, +params.get("d")));
+  const saveCfg = () => write(KEY, cfg);
+
+  // ---------- setup ----------
+  const chips = (el, opts, get, set) => {
+    el.innerHTML = opts.map(([v, label]) => `<button class="mini" data-v="${esc(v)}">${label}</button>`).join("");
+    const paint = () => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === String(get())));
+    el.onclick = e => { const b = e.target.closest("button"); if (b) { set(b.dataset.v); paint(); } };
+    paint();
+    return paint;
+  };
+  let parsed = null;
+  function preview() {
+    const el = $("preview");
+    try {
+      parsed = G.parseRing($("ring").value);
+      $("ring").classList.remove("bad");
+      el.innerHTML = `$${parsed.ntex}$ · ${esc(G.describe(parsed))}${parsed.note ? ` · $${parsed.note}$` : ""}`;
+      math(el);
+    } catch (e) { parsed = null; $("ring").classList.add("bad"); el.innerHTML = `<span class="bad">${esc(e.message)}</span>`; }
+  }
+  $("ring").value = cfg.ring;
+  $("ring").addEventListener("input", () => { cfg.ring = $("ring").value; saveCfg(); preview(); });
+  $("ring").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
+  $("examples").innerHTML = EXAMPLES.map(s => `<button class="mini">${esc(s)}</button>`).join("");
+  $("examples").onclick = e => { const b = e.target.closest("button"); if (b) { $("ring").value = cfg.ring = b.textContent; saveCfg(); preview(); } };
+  const showD = () => { $("dval").textContent = cfg.d; $("dminus").disabled = cfg.d <= G.DMIN; $("dplus").disabled = cfg.d >= G.DMAX; };
+  $("dminus").onclick = () => { cfg.d = Math.max(G.DMIN, cfg.d - 1); saveCfg(); showD(); };
+  $("dplus").onclick = () => { cfg.d = Math.min(G.DMAX, cfg.d + 1); saveCfg(); showD(); };
+  $("rand").onclick = () => {
+    const s = RANDOM[Math.floor(Math.random() * RANDOM.length)];
+    $("ring").value = cfg.ring = s; cfg.d = 2 + Math.floor(Math.random() * 4); saveCfg(); preview(); showD();
+  };
+  const paintSide = () => { $("sideField").hidden = cfg.mode === "pass"; };
+  chips($("modes"), MODES, () => cfg.mode, v => { cfg.mode = v; saveCfg(); paintSide(); });
+  chips($("sides"), [["A", "A: wants a root"], ["S", "S: wants no root"]], () => cfg.side, v => { cfg.side = v; saveCfg(); });
+  chips($("firsts"), [["A", "A moves first"], ["S", "S moves first"]], () => cfg.first, v => { cfg.first = v; saveCfg(); });
+  paintSide(); showD(); preview();
+
+  // ---------- the board (shared by every mode) ----------
+  let R = null, g = null, mode = "amog", human = null, sel = null, busy = false, fresh = -1, note = "";
+  let net = null; // online: {room, seat, ws, you, side, online, round, closed}
+  const mySide = () => (mode === "online" ? net && net.side : human);
+  const myTurn = () => {
+    if (!g || g.winner || busy) return false;
+    if (mode === "pass") return true;
+    if (mode === "online") return !!net && net.side === g.turn && net.online.host && net.online.guest;
+    return g.turn === human;
+  };
+  const who = s => (mode === "pass" ? `<b class="side${s}">${s}</b>` : s === mySide() ? "you" : mode === "amog" ? "Amog" : "your friend");
+  const sideName = s => `<b class="side${s}">${s}</b>`;
+  const texCoef = v => { const t = R.tex(v); return /[+-]/.test(t.replace(/^-/, "")) ? `(${t})` : t; };
+  function texPoly(c) {
+    let out = "";
+    for (let k = c.length - 1; k >= 0; k--) {
+      let t;
+      if (c[k] === null) t = `a_{${k}}`;
+      else { if (R.isZero(c[k])) continue; t = texCoef(c[k]); }
+      if (k && t === "1") t = ""; else if (k && t === "-1") t = "-";
+      const term = t + (k === 0 ? "" : k === 1 ? " x" : ` x^{${k}}`);
+      out += out && !term.startsWith("-") ? "+" + term : term;
+    }
+    return out || "0";
+  }
+  const byOf = k => { const m = g.log.find(l => l.k === k); return m ? m.by : null; };
+
+  function render() {
+    $("bring").innerHTML = `$${R.ntex}$, degree ${g.d}`;
+    const roles = mode === "pass" ? `${sideName("A")} wants a root, ${sideName("S")} wants none. Pass the device each turn.`
+      : mySide() ? `You're ${sideName(mySide())} (${mySide() === "A" ? "you want a root" : "you want no root"}); ${mode === "amog" ? "Amog" : "your friend"} is ${sideName(other(mySide()))}.`
+      : "You're watching this game.";
+    $("roles").innerHTML = roles + ` ${sideName(g.first)} moves first.`;
+    math($("bring"));
+    // status
+    let st;
+    if (g.winner) st = `<b>Game over.</b>`;
+    else if (busy) st = `Amog (${sideName(g.turn)}) is thinking…`;
+    else if (mode === "online" && !(net.online.host && net.online.guest)) st = net.joined ? "Your friend is offline. Waiting for them to come back…" : "Waiting for your friend to open the link…";
+    else st = myTurn() ? `${mode === "pass" ? sideName(g.turn) + " to move" : `Your move (${sideName(g.turn)})`}: click a blank coefficient.` : `${mode === "amog" ? "Amog's" : net.side ? "Your friend's" : sideName(g.turn) + "'s"} move (${sideName(g.turn)}).`;
+    $("status").innerHTML = st;
+    // polynomial
+    const parts = [`<span class="px">p(x) =</span>`];
+    for (let k = g.d; k >= 0; k--) {
+      const v = g.c[k], by = byOf(k), open = v === null && myTurn();
+      const cls = ["slot", open && "open", sel === k && v === null && "sel", by && "by" + by, k === fresh && "fresh"].filter(Boolean).join(" ");
+      parts.push(`<button class="${cls}" data-k="${k}" ${open ? "" : "tabindex=-1"}>${v === null ? `a<sub>${k}</sub>` : esc(R.show(v))}</button>`);
+      if (k) parts.push(`<span>${k === 1 ? "<i>x</i>" : `<i>x</i><sup>${k}</sup>`}</span>`);
+      if (k) parts.push(`<span class="plus">+</span>`);
+    }
+    $("poly").innerHTML = parts.join("");
+    fresh = -1;
+    // entry
+    const free = G.unset(g);
+    if (myTurn() && sel === null && free.length === 1) sel = free[0];
+    if (myTurn() && sel !== null) {
+      const nz = G.needsNonzero(g, sel);
+      $("entry").innerHTML = `<span class="lab"><i>a</i><sub>${sel}</sub> =</span><input id="val" class="txt" autocomplete="off" spellcheck="false" placeholder="${nz ? "nonzero" : "any"} element"><button class="mini" id="set">set</button>`;
+      const inp = $("val");
+      inp.addEventListener("keydown", e => { if (e.key === "Enter") submit(sel, inp.value); if (e.key === "Escape") { sel = null; render(); } });
+      $("set").onclick = () => submit(sel, inp.value);
+      setTimeout(() => inp.focus(), 0);
+      if (R.finite && R.size <= 36)
+        $("palette").innerHTML = Array.from({ length: R.size }, (_, a) => `<button class="mini" data-a="${a}" ${nz && a === 0 ? "disabled" : ""}>${esc(R.show(a))}</button>`).join("");
+      else $("palette").innerHTML = "";
+    } else { $("entry").innerHTML = ""; $("palette").innerHTML = ""; }
+    // result
+    $("result").innerHTML = g.winner ? resultHTML() : "";
+    if (g.winner) math($("result"));
+    $("note").textContent = note;
+    $("again").hidden = !(g.winner && (mode !== "online" || net.side));
+    $("tools").hidden = mode === "online" || !!g.winner;
+    $("log").innerHTML = g.log.map(l => `<li><span class="${l.by === "A" ? "a" : "s"}">${mode === "pass" ? l.by : l.by === mySide() ? "you" : mode === "amog" ? "Amog" : "friend"}</span>: a<sub>${l.k}</sub> = ${esc(R.show(l.v))}</li>`).join("");
+  }
+  function resultHTML() {
+    const me = mySide(), won = g.winner;
+    const big = mode === "pass" ? `${sideName(won)} wins` : !me ? `${sideName(won)} wins` : won === me ? "You win!" : mode === "amog" ? "Amog wins." : "Your friend wins.";
+    const p = `$p(x) = ${texPoly(g.c)}$`;
+    let why;
+    if (won === "A") why = `${p} has a root in $${R.ntex}$: $x ${g.root.approx ? "" : "= "}${g.root.tex}$.`;
+    else {
+      const where = R.finite ? `$p(x) \\neq 0$ for all ${R.size.toLocaleString("en-US")} elements of $${R.ntex}$` : { Z: "no integer root", Q: "no rational root", R: "no real root (Sturm's theorem counts none)" }[R.kind] || `no root in one of the factors`;
+      why = `${p} has ${R.finite ? "no root" : ""}${R.finite ? `: ${where}` : where}.`;
+    }
+    let vals = "";
+    if (R.finite && R.size <= 27) vals = `<div class="vals">${Array.from({ length: R.size }, (_, x) => `p(${esc(R.show(x))}) = ${esc(R.show(R.evalAt(g.c, x)))}`).join(" · ")}</div>`;
+    return `<div class="big">${big}</div><div class="why">${why}</div>${vals}`;
+  }
+  $("poly").onclick = e => {
+    const b = e.target.closest(".slot.open");
+    if (!b) return;
+    sel = +b.dataset.k; $("err").textContent = ""; render();
+  };
+  $("palette").onclick = e => { const b = e.target.closest("button[data-a]"); if (b && sel !== null) submit(sel, R.show(+b.dataset.a)); };
+  function submit(k, text) {
+    let v;
+    try { v = R.parse(text); } catch (e) { $("err").textContent = e.message; $("val") && $("val").classList.add("bad"); return; }
+    const bad = G.moveError(R, g, k, v);
+    if (bad) { $("err").textContent = bad; return; }
+    $("err").textContent = "";
+    if (mode === "online") { send({ t: "move", k, v: R.show(v) }); sel = null; return; }
+    G.play(R, g, k, v); fresh = k; sel = null; note = "";
+    render(); amogTurn();
+  }
+  function amogTurn() {
+    if (mode !== "amog" || !g || g.winner || g.turn === human) return;
+    busy = true; render();
+    setTimeout(() => {
+      const t0 = performance.now(), m = AM.choose(R, g);
+      setTimeout(() => {
+        G.play(R, g, m.k, m.v); fresh = m.k; busy = false;
+        note = m.perfect ? (m.wins ? "Amog has searched every way this can go." : "Amog has searched every way this can go, and he's hoping you slip.") : "";
+        render();
+      }, Math.max(0, 500 - (performance.now() - t0)));
+    }, 30);
+  }
+  $("hint").onclick = () => {
+    const v = AM.verdict(R, g), out = $("hintOut");
+    if (!v) { out.textContent = "Amog can't tell from here."; return; }
+    const why = { solved: "Amog searched every continuation", fta: "fundamental theorem of algebra", ivt: "odd degree over ℝ", last: "whoever moves last wins here" }[v.why];
+    out.innerHTML = `With perfect play, ${sideName(v.winner)} wins from here (${why}).`;
+  };
+
+  function showBoard(on) { $("setup").hidden = on; $("board").hidden = !on; $("hintOut").textContent = ""; $("err").textContent = ""; }
+  function startLocal() {
+    R = parsed; g = G.newGame(cfg.d, cfg.first); mode = cfg.mode === "online" ? "amog" : cfg.mode; human = mode === "amog" ? cfg.side : null; sel = null; note = ""; busy = false;
+    showBoard(true); render(); amogTurn();
+  }
+  $("go").onclick = async () => {
+    $("startErr").textContent = "";
+    if (!parsed) { $("startErr").textContent = "Fix the ring first."; return; }
+    if (cfg.mode === "online") return createRoom();
+    startLocal();
+  };
+  $("again").onclick = () => { if (mode === "online") return send({ t: "again" }); g = G.newGame(g.d, g.first); sel = null; note = ""; showBoard(true); render(); amogTurn(); };
+  $("change").onclick = () => {
+    if (net) { net.closed = true; try { net.ws.close(); } catch {} net = null; history.replaceState(null, "", location.pathname); }
+    busy = false; showBoard(false); $("roombox").hidden = true;
+  };
+
+  // ---------- online: one Durable Object per room (worker/coefficients.js) ----------
+  const token = () => Array.from(crypto.getRandomValues(new Uint8Array(18)), b => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"[b % 64]).join("");
+  function rememberSeat(room, seat) {
+    const s = read(SEATS); s[room] = seat;
+    const keys = Object.keys(s); if (keys.length > 20) delete s[keys[0]];
+    write(SEATS, s);
+  }
+  async function createRoom() {
+    $("go").disabled = true;
+    try {
+      const r = await fetch("/api/coefficient-game/new", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ring: parsed.spec, d: cfg.d, first: cfg.first, side: cfg.side }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { $("startErr").textContent = j.error || "Couldn't make a room."; return; }
+      rememberSeat(j.room, j.seat);
+      history.replaceState(null, "", `?room=${j.room}`);
+      join(j.room);
+    } catch { $("startErr").textContent = "Couldn't reach the server."; }
+    finally { $("go").disabled = false; }
+  }
+  function join(room) {
+    const seats = read(SEATS);
+    if (!seats[room]) rememberSeat(room, token());
+    net = { room, seat: read(SEATS)[room], ws: null, you: null, side: null, online: {}, closed: false, tries: 0, joined: false };
+    mode = "online"; R = null; g = null;
+    showBoard(true);
+    $("status").textContent = "Connecting…"; $("poly").innerHTML = ""; $("roombox").hidden = false;
+    roomBox();
+    connect();
+  }
+  function roomBox() {
+    const link = location.origin + location.pathname + "?room=" + net.room;
+    const who = net.online.host && net.online.guest ? "both players are here" : net.you === "host" ? "send your friend this link" : "";
+    $("roombox").innerHTML = `Room <code>${esc(net.room)}</code> · ${who ? who + " · " : ""}<code>${esc(link)}</code> <button class="mini" id="copy">copy link</button>
+      <div style="margin-top:6px"><span class="pres ${net.online.host ? "on" : ""}"></span>host <span class="pres ${net.online.guest ? "on" : ""}" style="margin-left:10px"></span>guest${net.you === "watch" ? " · you're watching" : ""}</div>`;
+    $("copy").onclick = () => navigator.clipboard && navigator.clipboard.writeText(link).then(() => ($("copy").textContent = "copied"));
+  }
+  function connect() {
+    if (!net || net.closed) return;
+    const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/coefficient-game/ws?room=${encodeURIComponent(net.room)}&seat=${encodeURIComponent(net.seat)}`);
+    net.ws = ws;
+    ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } onMsg(m); };
+    ws.onopen = () => { net.tries = 0; };
+    ws.onclose = ev => {
+      if (!net || net.closed || net.ws !== ws) return;
+      if (ev.code === 4404) { $("status").textContent = "That room doesn't exist (rooms expire after a week of quiet)."; return; }
+      $("status").textContent = "Connection lost. Reconnecting…";
+      setTimeout(connect, Math.min(10000, 500 * 2 ** net.tries++));
+    };
+  }
+  const send = m => { if (net && net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(m)); else $("err").textContent = "Not connected right now."; };
+  function onMsg(m) {
+    if (m.t === "error") { $("err").textContent = m.msg; return; }
+    if (m.t !== "state") return;
+    $("err").textContent = "";
+    const s = m.s;
+    try { if (!R || R.spec !== s.spec) { R = G.parseRing(s.spec); R.spec = s.spec; } } catch (e) { $("status").textContent = e.message; return; }
+    const prev = g;
+    g = { d: s.d, first: s.first, turn: s.turn, c: s.c.map(x => (x === null ? null : R.parse(x))), log: s.log.map(l => ({ ...l, v: R.parse(l.v) })), winner: s.winner, root: s.root };
+    if (prev && prev.log.length < g.log.length) fresh = g.log[g.log.length - 1].k;
+    if (net.round !== s.round) sel = null;
+    net.you = m.you; net.side = m.you === "host" ? s.host : m.you === "guest" ? other(s.host) : null;
+    net.online = s.online; net.joined = s.joined; net.round = s.round;
+    roomBox(); render();
+  }
+
+  if (/^[a-z0-9]{8}$/.test(params.get("room") || "")) join(params.get("room"));
+  else if (params.get("play") === "1" && parsed) startLocal();
+
+  // ---------- the perfect-play table in the theory section ----------
+  const TABLE = [ // [ring, d=3 with A first, d=5 with A first], computed by computer Amog's solver
+    ["Z/2", "S", "S"], ["Z/3", "A", "S"], ["Z/4", "S", "S"], ["Z/5", "S", "S"], ["Z/6", "S", "S"], ["Z/7", "S", "S"], ["Z/8", "A", "A"], ["Z/9", "S", "S"],
+    ["Z/10", "S", "S"], ["Z/16", "A", "S"], ["Z/27", "A", "A"], ["F_4", "S", "S"], ["F_8", "S", "S"], ["F_9", "A", "S"], ["F_16", "S", "S"], ["F_25", "S", "S"], ["F_27", "A", "S"],
+    ["Z/2 × Z/2", "S", "S"], ["Z/2[t]/(t^2)", "S", "S"], ["Z/4[t]/(t^2)", "S", "S"],
+  ];
+  $("table").innerHTML = `<table><tr><th>ring</th><th>$d$ even</th><th>$d$ odd, S first</th><th>$d = 3$, A first</th><th>$d = 5$, A first</th></tr>${TABLE.map(([s, a3, a5]) =>
+    `<tr><td>$${G.parseRing(s).ntex}$</td><td>first player</td><td class="A">A</td><td class="${a3}">${a3}</td><td class="${a5}">${a5}</td></tr>`).join("")}</table>
+    <p class="meta">"$d$ even" is checked for $d = 2, 4, 6$ (all of these rings) and $d = 8$ for the smallest ones.</p>`;
+})();
+</script>
+</body>
+</html>

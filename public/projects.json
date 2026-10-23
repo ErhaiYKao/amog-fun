@@ -1,5 +1,15 @@
 [
   {
+    "slug": "coefficient-game",
+    "title": "The Coefficient Choosing Game",
+    "signature": "coefficients : CRing × ℕ → {A, S}",
+    "blurb": "Pick any commutative ring, $\\mathbb{Z}/6$ or $\\mathbb{F}_9$ or $\\mathbb{Q}$, and take turns choosing the coefficients of a polynomial in any order. A wins if it has a root. Play computer Amog, who solves the small rings outright, or a friend online.",
+    "tags": [
+      "game",
+      "math"
+    ]
+  },
+  {
     "slug": "fermimac",
     "title": "Fermimac",
     "signature": "fermimac : Universe → [x/2, 2x]",

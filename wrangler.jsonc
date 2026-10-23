@@ -22,6 +22,9 @@
   ],
   // Workers AI: checks each new leaderboard name once (worker/names.js). Always remote, even in wrangler dev (free tier).
   "ai": { "binding": "AI", "remote": true },
+  // Online rooms for the Coefficient Choosing Game: one Durable Object (SQLite-backed, free plan) per room, worker/coefficients.js.
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "CoeffRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CoeffRoom"] }],
   "routes": [
     { "pattern": "amog.fun", "custom_domain": true },
     { "pattern": "www.amog.fun", "custom_domain": true }
