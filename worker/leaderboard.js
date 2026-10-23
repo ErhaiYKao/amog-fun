@@ -6,9 +6,11 @@
  *   HMAC-signed token (env.OMEGAMAC_SECRET) with game, preset, duration, seed, issue time and run id: no DB write.
  * POST /api/<game>/submit {token, name, answers, times}  -> {score, best, rank, top}
  *   The run must have lasted its whole length in real time, be submitted within LIMITS.expires, replay to a valid
- *   run, and each run id is accepted once.
+ *   run, and each run id is accepted once. The name must pass worker/names.js ({error, name: true} if not).
  * GET  /api/<game>/top?preset=…&d=…                       -> {top: [{name, score}]}  (best per name, case-insensitive)
- * D1: lb_runs (replay protection), lb_best (one row per name per board); see migrations/. */
+ * D1: lb_runs (replay protection), lb_best (one row per name per board), lb_names (name verdicts); see migrations/. */
+import { checkName } from "./names.js";
+
 export const LIMITS = {
   slack: 3000,         // ms the client clock may run ahead of ours (network, timer granularity)
   expires: 10 * 60e3,  // a run must be submitted within this long after it ends
@@ -102,6 +104,8 @@ export async function handle(game, req, env, route, url) {
     if (!run) return json({ error: "bad token" }, 400);
     const v = game.verify(run, b.answers, b.times);
     if (!v.ok) return json({ error: v.why }, 422);
+    // after the replay, so only real runs reach the model; before lb_runs, so a rejected name can resubmit the run
+    if (!await checkName(env, name)) return json({ error: "that name isn't allowed here, pick another", name: true }, 422);
     const now = Date.now();
     try {
       await env.DB.prepare("INSERT INTO lb_runs (id, game, created) VALUES (?, ?, ?)").bind(run.id, g, now).run();

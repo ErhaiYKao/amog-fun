@@ -15,10 +15,13 @@
     "run_worker_first": ["/api/*"]
   },
   // Omegamac leaderboard. Schema in migrations/; apply with: npx wrangler d1 migrations apply amog-fun --remote
-  // Secret OMEGAMAC_SECRET (signs run tokens) is set with wrangler secret put; locally it lives in .dev.vars.
+  // Secrets OMEGAMAC_SECRET (signs run tokens) and ADMIN_SECRET (worker/admin.js) are set with wrangler secret put;
+  // locally they live in .dev.vars.
   "d1_databases": [
     { "binding": "DB", "database_name": "amog-fun", "database_id": "b858b3e2-0bf8-4ef8-ab37-e0fdea9834a2" }
   ],
+  // Workers AI: checks each new leaderboard name once (worker/names.js). Always remote, even in wrangler dev (free tier).
+  "ai": { "binding": "AI", "remote": true },
   "routes": [
     { "pattern": "amog.fun", "custom_domain": true },
     { "pattern": "www.amog.fun", "custom_domain": true }
