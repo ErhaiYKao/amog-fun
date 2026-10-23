@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fermimac · amog.fun</title>
+<meta name="description" content="An estimation version of zetamac: guess e to the 1.4, the 1000th prime or the number of ants on Earth, close enough, against the clock. With an online leaderboard.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><text x='32' y='47' font-size='40' text-anchor='middle' fill='%23c8f04a' font-family='Georgia,serif'>%E2%89%88</text></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/math.js" defer></script>
+<script src="/fermimac/gen.js"></script>
+<script src="/assets/lb.js"></script>
+<style>
+  .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
+  .head p { margin: 0 0 18px; color: #d3cfc5; max-width: 64ch; }
+  .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .mini { font-family: var(--mono); font-size: 13px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; }
+  .mini:hover { border-color: var(--muted); }
+  .mini.on { border-color: var(--g1); color: var(--g1); }
+  .mini small { color: var(--muted); margin-left: 6px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  select, .txt { font-family: var(--mono); font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); }
+
+  .game { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px 22px; }
+  .hud { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-family: var(--mono); font-size: 14px; color: var(--muted); }
+  .hud b { color: var(--ink); font-weight: 500; }
+  .hud .lab { color: var(--faint); text-align: center; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .game.play .hud .left b { color: var(--g1); }
+  .game.play .hud .left.low b { color: var(--g2); }
+  .stage { min-height: 250px; display: grid; place-items: center; text-align: center; }
+  .stage > div { display: none; max-width: 100%; }
+  .game.idle .s-idle, .game.play .s-play, .game.done .s-done { display: block; }
+  .prob { font-size: clamp(28px, 7vw, 54px); line-height: 1.2; min-height: 1.4em; margin: 6px 0 14px; overflow-x: auto; overflow-y: hidden; }
+  .prob .katex { font-size: 1em; }
+  .prob.words { font-family: var(--display); font-size: clamp(26px, 5vw, 40px); max-width: 26ch; margin-left: auto; margin-right: auto; }
+  #ans { font-family: var(--mono); font-size: 28px; width: min(300px, 80vw); text-align: center; padding: 8px 12px; border-radius: 12px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line-2); }
+  #ans:focus { outline: none; border-color: var(--g1); }
+  #ans.bad { border-color: var(--g2); }
+  .fb { min-height: 1.6em; margin-top: 12px; font-family: var(--mono); font-size: 14px; color: var(--muted); }
+  .fb .hit { color: var(--g3); } .fb .miss { color: var(--g2); }
+  .fb .katex { font-size: 1.05em; }
+  .bump { animation: bump .18s; } @keyframes bump { 50% { transform: scale(1.18); color: var(--g3); } }
+  .big { font-family: var(--display); font-size: 64px; line-height: 1; margin: 4px 0 6px; }
+  .best { color: #d3cfc5; margin: 0 0 14px; }
+  .best .nb { color: var(--g3); }
+  .submit { margin: 0 0 14px; min-height: 1.5em; }
+  .s-idle p, .s-done p.meta { margin: 12px 0 0; }
+
+  .panel { margin-top: 22px; }
+  .panel h2 { font-family: var(--display); font-weight: 400; font-size: 32px; margin: 0 0 8px; }
+  table { border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+  th, td { padding: 6px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; font-family: var(--serif); font-size: 16px; }
+  th { color: var(--muted); font-weight: 400; }
+  .cur { color: var(--g1); }
+  td.none { color: var(--faint); }
+  .theory { max-width: 760px; margin: 56px 0 40px; }
+  .theory h2 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0 0 10px; }
+  .theory p, .theory li { color: #d3cfc5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="head">
+    <div class="sig">fermimac : Universe → [x/2, 2x]</div>
+    <h1>Fermimac</h1>
+    <p>Zetamac for people who are only roughly right. Each question gets one guess: press Enter, and it counts if it's close enough. Then the next one comes, right or wrong. Feynman claimed he could get within 10% of anything; here's your chance.</p>
+  </div>
+
+  <div class="game idle" id="game">
+    <div class="hud"><span class="left" id="leftw">Seconds left: <b id="left">120</b></span><span class="lab" id="lab"></span><span>Score: <b id="score">0</b><span id="tried"></span></span></div>
+    <div class="stage">
+      <div class="s-idle">
+        <button class="btn primary" id="go">Start</button>
+        <p class="meta">Enter ↵ to start · Enter ↵ to guess · Esc to give up mid-run</p>
+        <p class="meta">Guesses can be 4200, 4.2e3, 4.2×10^3, 4.2k, 1.5M, 2bn or 3T.</p>
+      </div>
+      <div class="s-play">
+        <div class="prob" id="prob"></div>
+        <input id="ans" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="your estimate">
+        <div class="fb" id="fb"></div>
+      </div>
+      <div class="s-done">
+        <div class="meta">score</div>
+        <div class="big" id="final">0</div>
+        <p class="best" id="bestline"></p>
+        <div class="submit meta" id="submit"></div>
+        <button class="btn primary" id="again">Again</button>
+        <p class="meta">or press Enter ↵</p>
+      </div>
+    </div>
+  </div>
+
+  <section class="panel" id="cfg">
+    <h2>Mode</h2>
+    <div class="row" id="chips"></div>
+    <div class="row" style="margin-top:12px"><label class="meta">time <select id="dur"></select></label></div>
+  </section>
+
+  <section class="panel">
+    <h2>Leaderboard</h2>
+    <div class="meta" id="lbhead" style="margin-bottom:8px"></div>
+    <div id="lb"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Your best</h2>
+    <div class="meta" style="margin-bottom:8px">Kept in this browser.</div>
+    <div id="board"></div>
+  </section>
+
+  <section class="theory">
+    <h2>How to be roughly right</h2>
+    <p><b>Feynman</b> and <b>Sharp</b> ask math questions: powers, roots, logs, trig, factorials, primes and friends. Your guess counts if it's within 10% (Feynman) or 2% (Sharp) of the true value. <b>Fermi</b> asks about the world, from the distance to the Moon to the number of ants on Earth, and anything within a factor of 2 counts, because nobody knows how many dogs there are to 10%.</p>
+    <p>Some tools that help:</p>
+    <ul>
+      <li>Logs: $\ln 2 \approx 0.693$, $\ln 10 \approx 2.303$, $\log_{10} 2 \approx 0.301$, $\log_{10} 3 \approx 0.477$. So $e^{x} = 10^{x / 2.303}$, and $2^{10} \approx 10^3$.</li>
+      <li>Primes: $\pi(N) \approx N / \ln N$ (a bit low; $N / (\ln N - 1)$ is better), and the $n$-th prime is about $n (\ln n + \ln \ln n - 1)$.</li>
+      <li>$1 + \tfrac12 + \cdots + \tfrac1n \approx \ln n + 0.577$, and $F_n \approx \varphi^n / \sqrt5$ with $\varphi \approx 1.618$.</li>
+      <li>Stirling: $n! \approx \sqrt{2 \pi n}\,(n/e)^n$. Compound growth: money at $r\%$ doubles in about $72 / r$ years.</li>
+      <li>Small angles: $\sin x \approx x$ in radians, and $1^\circ \approx 0.01745$.</li>
+      <li>Fermi questions: split into factors you know (people × cups per person × …) and multiply. Errors partly cancel.</li>
+    </ul>
+    <p>Fermi answers are rounded values from the mid-2020s.</p>
+  </section>
+</div>
+<script>
+(function () {
+  "use strict";
+  const F = window.Fermimac, $ = id => document.getElementById(id);
+  const KEY = "amog.fermimac.v1", NAME = "amog.lb.name";
+  let db = {};
+  try { db = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
+  if (!db.scores || typeof db.scores !== "object") db.scores = {};
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
+  const LB = AmogLB("fermimac", {
+    head: $("lbhead"), list: $("lb"),
+    getName: () => { try { return localStorage.getItem(NAME) || ""; } catch { return ""; } },
+    setName: n => { try { n ? localStorage.setItem(NAME, n) : localStorage.removeItem(NAME); } catch {} },
+  });
+  const esc = LB.esc;
+  let P = F.preset(db.preset) || F.PRESETS[0], D = F.DURATIONS.includes(db.d) ? db.d : 120;
+
+  // ---- mode ----
+  function sync() {
+    $("chips").innerHTML = F.PRESETS.map(p => `<button class="mini${p === P ? " on" : ""}" data-p="${p.id}">${p.name}<small>${p.blurb}</small></button>`).join("");
+    $("dur").innerHTML = F.DURATIONS.map(d => `<option value="${d}"${d === D ? " selected" : ""}>${d} s</option>`).join("");
+    const b = db.scores[`${P.id}|${D}`] || 0;
+    $("lab").textContent = `${P.name} · ${P.blurb} · ${D} s${b ? ` · best ${b}` : ""}`;
+    if (state !== "play") $("left").textContent = D;
+    db.preset = P.id; db.d = D; persist();
+    $("board").innerHTML = `<table><tr><th>mode</th>${F.DURATIONS.map(d => `<th class="${d === D ? "cur" : ""}">${d} s</th>`).join("")}</tr>
+      ${F.PRESETS.map(p => `<tr><td class="${p === P ? "cur" : ""}">${p.name}</td>${F.DURATIONS.map(d => { const v = db.scores[`${p.id}|${d}`]; return `<td class="${v ? "" : "none"} ${p === P && d === D ? "cur" : ""}">${v || "·"}</td>`; }).join("")}</tr>`).join("")}</table>`;
+    LB.show({ preset: P.id, name: P.name, d: D });
+  }
+  $("chips").addEventListener("click", e => { const c = e.target.closest("[data-p]"); if (c && state !== "play") { P = F.preset(c.dataset.p); sync(); } });
+  $("dur").onchange = e => { D = +e.target.value; sync(); };
+
+  // ---- the game ----
+  // ranked runs: the server hands out a signed seed, the problems come from it, and at the end it replays the guesses
+  // (worker/fermimac.js). If it can't be reached, the run is still played, just unranked.
+  const game = $("game"), ans = $("ans"), probEl = $("prob"), fb = $("fb");
+  let state = "idle", run = null, prob = null, score = 0, tried = 0, end = 0, tick = 0, doneAt = 0, t0 = 0, log = null, ranked = null, starting = false, playP = P, playD = D;
+  function setState(s) { state = s; game.className = "game " + s; $("cfg").style.opacity = s === "play" ? .5 : ""; }
+  function show() {
+    probEl.classList.toggle("words", !prob.tex);
+    if (prob.tex && window.katex) { try { katex.render(prob.tex, probEl, { throwOnError: false }); return; } catch {} }
+    probEl.textContent = prob.tex ? prob.text : prob.text + "?";
+  }
+  async function start() {
+    if (starting) return;
+    playP = P; playD = D; ranked = null;
+    let seed = Math.floor(Math.random() * 2 ** 32);
+    starting = true;
+    const r = await LB.start(playP.id, playD);
+    starting = false;
+    if (r) { ranked = { token: r.token, preset: playP.id, name: playP.name, d: playD }; seed = r.seed; }
+    else fb.textContent = "";
+    run = F.makeRun(playP.id, seed); prob = run.next();
+    score = tried = 0; $("score").textContent = 0; $("tried").textContent = "";
+    log = { answers: [], times: [] };
+    fb.innerHTML = r ? "" : `<span class="meta">Couldn't reach the leaderboard, so this run is unranked.</span>`;
+    t0 = performance.now(); end = t0 + playD * 1000;
+    setState("play"); show(); ans.value = ""; ans.focus();
+    clearInterval(tick); tick = setInterval(update, 100); update();
+  }
+  function update() {
+    const ms = end - performance.now(), left = Math.max(0, Math.ceil(ms / 1000));
+    $("left").textContent = left;
+    $("leftw").classList.toggle("low", left <= 10);
+    if (ms <= 0) finish(false);
+  }
+  function guess() {
+    if (performance.now() >= end) return finish(false); // the timer can lag (background tabs); time's up regardless
+    const g = F.parseGuess(ans.value);
+    if (!(g > 0)) { ans.classList.add("bad"); return; }
+    const t = Math.round(performance.now() - t0);
+    if (log.times.length && t - log.times[log.times.length - 1] < 250) return; // same pace limit as the server
+    log.answers.push(ans.value.trim()); log.times.push(t);
+    const hit = F.check(playP.id, prob, g);
+    tried++;
+    if (hit) { score++; const sc = $("score"); sc.textContent = score; sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump"); }
+    $("tried").textContent = ` / ${tried}`;
+    const what = prob.tex ? `$${prob.tex} \\approx$` : esc(prob.text) + ":";
+    fb.innerHTML = `<span class="${hit ? "hit" : "miss"}">${hit ? "✓" : "✗"}</span> ${what} ${F.fmt(prob.answer)} <span class="meta">· you said ${F.fmt(g)}</span>`;
+    if (window.amogMath) amogMath(fb);
+    prob = run.next(); show(); ans.value = "";
+  }
+  function finish(abort) {
+    clearInterval(tick); ans.blur();
+    $("leftw").classList.remove("low");
+    if (abort) { ranked = null; setState("idle"); sync(); return; }
+    const k = `${playP.id}|${playD}`, prev = db.scores[k] || 0;
+    if (score > prev) { db.scores[k] = score; persist(); }
+    $("final").textContent = score;
+    $("bestline").innerHTML = (score > prev && prev ? `<span class="nb">New best</span> for ${playP.name} at ${playD} s (was ${prev}).`
+      : score > prev ? `<span class="nb">First score</span> for ${playP.name} at ${playD} s.` : `Best for ${playP.name} at ${playD} s: ${prev}.`)
+      + (tried ? ` ${score} of ${tried} guesses landed.` : "");
+    doneAt = performance.now();
+    setState("done"); sync();
+    const row = $("submit");
+    row.innerHTML = "";
+    if (ranked && score) LB.submit(row, ranked, { answers: log.answers, times: log.times });
+    ranked = null;
+  }
+  ans.addEventListener("input", () => ans.classList.remove("bad"));
+  ans.addEventListener("keydown", e => { if (e.key === "Enter" && state === "play") { e.preventDefault(); e.stopPropagation(); guess(); } });
+  $("go").onclick = start;
+  $("again").onclick = start;
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && state === "play") { e.preventDefault(); finish(true); return; }
+    if (e.key !== "Enter" || state === "play" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest && e.target.closest("input, button, select, textarea")) return;
+    if (state === "done" && performance.now() - doneAt < 700) return;
+    e.preventDefault(); start();
+  });
+  sync();
+})();
+</script>
+</body>
+</html>

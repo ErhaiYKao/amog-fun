@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/math.js" defer></script>
 <script src="/omegamac/gen.js"></script>
+<script src="/assets/lb.js"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -81,12 +82,11 @@
 
   .submit { margin: 0 0 14px; min-height: 1.5em; }
   .submit .txt { width: 150px; }
-  .lb ol { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 14px; max-width: 420px; }
-  .lb li { display: grid; grid-template-columns: 2.5em minmax(0, 1fr) auto; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
-  .lb li .n { color: var(--faint); }
-  .lb li .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--serif); font-size: 16px; }
-  .lb li.me, .lb li.me .who { color: var(--g1); }
-  .ranked { color: var(--g3); }
+  .help { display: none; max-width: 640px; margin: 14px auto 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: #d3cfc5; font-size: 15.5px; text-align: left; }
+  .game.play .help.on { display: block; }
+  .help b { color: var(--g1); font-weight: 500; margin-right: 6px; }
+  #skip { margin-top: 12px; }
 
   .theory { max-width: 760px; margin: 56px 0 40px; }
   .theory h2 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0 0 10px; }
@@ -107,11 +107,12 @@
     <div class="stage">
       <div class="s-idle">
         <button class="btn primary" id="go">Start</button>
-        <p class="meta">Enter ↵ to start · Esc to give up mid-run</p>
+        <p class="meta">Enter ↵ to start · Space to skip a problem (−5 s) · Esc to give up mid-run</p>
       </div>
       <div class="s-play">
         <div class="prob" id="prob"></div>
         <input id="ans" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="answer">
+        <div><button class="mini" id="skip" title="skip this problem (Space)">skip · −5 s</button></div>
       </div>
       <div class="s-done">
         <div class="meta">score</div>
@@ -122,6 +123,7 @@
         <p class="meta">or press Enter ↵</p>
       </div>
     </div>
+    <div class="help" id="help"></div>
   </div>
 
   <fieldset id="cfg">
@@ -176,6 +178,12 @@
   if (!db.scores || typeof db.scores !== "object") db.scores = {};
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const NAME = "amog.lb.name"; // your leaderboard name, shared by every game
+  const LB = AmogLB("omegamac", {
+    head: $("lbhead"), list: $("lb"),
+    getName: () => { try { return localStorage.getItem(NAME) || db.name || ""; } catch { return db.name || ""; } },
+    setName: n => { try { n ? localStorage.setItem(NAME, n) : localStorage.removeItem(NAME); } catch {} delete db.name; persist(); },
+  });
   const msg = (html, ms = 4000) => { $("msg").innerHTML = html; clearTimeout(msg.t); if (ms) msg.t = setTimeout(() => $("msg").innerHTML = "", ms); };
 
   let S, sharedName = "";
@@ -236,7 +244,7 @@
     history.replaceState(null, "", "#" + enc);
     db.last = enc; persist();
     board(N, cur);
-    leaderboard(N, cur);
+    LB.show(boardOf(N, cur), `Leaderboards are for the built-in presets (${O.PRESETS.map(p => esc(p.name)).join(", ")}) at ${O.DURATIONS.join(", ")} s. Custom setups keep their scores in this browser.`);
   }
   function board(N, cur) {
     const rows = O.PRESETS.map(p => ({ name: p.name, key: p.key })).concat(db.presets);
@@ -300,6 +308,9 @@
   // is still played, just unranked.
   let rng = Math.random, ranked = null, log = null, t0 = 0, starting = false;
   function show() {
+    const ty = O.TYPES.find(t => t.id === prob.type), help = $("help");
+    help.classList.toggle("on", !!ty.help);
+    if (ty.help && help.dataset.t !== ty.id) { help.dataset.t = ty.id; help.innerHTML = `<b>${esc(ty.name)}</b>${ty.help}`; if (window.amogMath) amogMath(help); }
     if (window.katex) { try { katex.render(prob.tex, probEl, { throwOnError: false }); return; } catch {} }
     probEl.textContent = prob.plain;
   }
@@ -313,9 +324,9 @@
     const lb = boardOf(playS, current());
     if (lb) {
       starting = true;
-      const r = await api("start", { preset: lb.preset, d: lb.d }, 2500);
+      const r = await LB.start(lb.preset, lb.d);
       starting = false;
-      if (r && r.token) { ranked = { ...lb, token: r.token }; rng = O.mulberry32(r.seed); }
+      if (r) { ranked = { ...lb, token: r.token }; rng = O.mulberry32(r.seed); }
       else msg("Couldn't reach the leaderboard, so this run is unranked.");
     }
     prob = O.next(playS, rng); score = 0; $("score").textContent = 0;
@@ -347,79 +358,38 @@
     submitRow();
   }
   ans.addEventListener("input", () => {
+    if (state === "play" && performance.now() >= end) return finish(false); // the timer can lag (background tabs)
     if (state !== "play" || !O.check(prob, ans.value)) return;
     score++;
     log.answers.push(ans.value); log.times.push(Math.round(performance.now() - t0));
     const sc = $("score"); sc.textContent = score; sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump");
     prob = O.next(playS, rng, prob); show(); ans.value = "";
   });
+  // skip: the next problem, for 5 s of the clock (logged as a null answer, so the server's replay skips it too)
+  function skip() {
+    if (state !== "play") return;
+    if (performance.now() >= end) return finish(false);
+    end -= O.SKIP_MS;
+    log.answers.push(null); log.times.push(Math.round(performance.now() - t0));
+    prob = O.next(playS, rng, prob); show(); ans.value = ""; ans.focus();
+    update();
+  }
+  $("skip").onclick = skip;
+  ans.addEventListener("keydown", e => { if (e.key === " ") { e.preventDefault(); skip(); } });
   // ---- leaderboard ----
   // the board for these settings: built-in presets at the standard durations, else null
   function boardOf(N, cur) {
     const p = cur.builtin && O.PRESETS.find(x => x.key === cur.key);
     return p && O.DURATIONS.includes(N.d) ? { preset: p.id, name: p.name, d: N.d } : null;
   }
-  // -> parsed JSON, {error} for an error response, or null if the server can't be reached
-  async function api(path, payload, timeout = 6000) {
-    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeout);
-    try {
-      const opt = payload ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) } : {};
-      const r = await fetch("/api/omegamac/" + path, { ...opt, signal: ctl.signal });
-      const j = await r.json().catch(() => ({}));
-      return r.ok ? j : { error: j.error || "error " + r.status };
-    } catch { return null; } finally { clearTimeout(t); }
-  }
-  const lbCache = new Map(), LB_TTL = 20000;
-  let lbShown = "";
-  function drawBoard(key, top, label) {
-    if (key !== lbShown) return;
-    const me = (db.name || "").toLowerCase();
-    $("lbhead").innerHTML = `<span class="ranked">${esc(label)}</span>, best score per player. Runs are replayed on the server before they count.`;
-    $("lb").innerHTML = !top ? `<p class="meta">Couldn't load the leaderboard.</p>` : !top.length ? `<p class="meta">Nobody yet. Be the first.</p>`
-      : `<ol>${top.map((r, i) => `<li class="${r.name.toLowerCase() === me ? "me" : ""}"><span class="n">${i + 1}</span><span class="who">${esc(r.name)}</span><b>${r.score}</b></li>`).join("")}</ol>`;
-  }
-  async function leaderboard(N, cur, fresh) {
-    const b = boardOf(N, cur), key = b ? b.preset + "|" + b.d : "";
-    if (!b) {
-      lbShown = "";
-      $("lbhead").textContent = "";
-      $("lb").innerHTML = `<p class="meta">Leaderboards are for the built-in presets (${O.PRESETS.map(p => esc(p.name)).join(", ")}) at ${O.DURATIONS.join(", ")} s. Custom setups keep their scores in this browser.</p>`;
-      return;
-    }
-    const label = `${b.name} · ${b.d} s`, c = lbCache.get(key), same = key === lbShown;
-    lbShown = key;
-    if (fresh) { lbCache.set(key, { at: Date.now(), top: fresh }); return drawBoard(key, fresh, label); }
-    if (c && Date.now() - c.at < LB_TTL) { if (!same) drawBoard(key, c.top, label); return; }
-    if (same && leaderboard.pending === key) return;
-    if (!c) $("lb").innerHTML = `<p class="meta">Loading…</p>`;
-    leaderboard.pending = key;
-    const r = await api(`top?preset=${b.preset}&d=${b.d}`);
-    leaderboard.pending = "";
-    if (r && r.top) lbCache.set(key, { at: Date.now(), top: r.top });
-    drawBoard(key, (r && r.top) || (c && c.top) || null, label);
-  }
   // after a ranked run: submit it (automatically, once you've picked a name)
   function submitRow() {
     const row = $("submit");
     row.innerHTML = "";
     if (!ranked || !score) return;
-    const run = ranked, data = { token: run.token, answers: log.answers, times: log.times };
+    const run = ranked;
     ranked = null;
-    const retry = name => { const b = document.createElement("button"); b.className = "mini"; b.textContent = "retry"; b.onclick = () => send(name); return b; };
-    async function send(name) {
-      row.textContent = "Submitting…";
-      const r = await api("submit", { ...data, name });
-      if (!r || r.error) { row.innerHTML = `Not submitted: ${esc(r ? r.error : "couldn't reach the server")}. `; if (!r) row.append(retry(name)); return; }
-      db.name = name; persist();
-      row.innerHTML = `<span class="ranked">#${r.rank}</span> on ${esc(run.name)} · ${run.d} s as <b>${esc(name)}</b>${r.best > r.score ? ` (your best there is ${r.best})` : ""}. <a href="#" id="notme">not you?</a>`;
-      $("notme").onclick = e => { e.preventDefault(); delete db.name; persist(); row.textContent = "Next time you'll be asked for a name."; };
-      leaderboard(O.normalize(playS), current(), r.top);
-    }
-    if (db.name) return send(db.name);
-    row.innerHTML = `<input class="txt" id="lbname" maxlength="20" placeholder="your name"> <button class="mini" id="lbsend">submit to leaderboard</button>`;
-    const go = () => { const n = $("lbname").value.trim(); if (n) send(n); else $("lbname").focus(); };
-    $("lbsend").onclick = go;
-    $("lbname").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+    LB.submit(row, run, { answers: log.answers, times: log.times });
   }
 
   $("go").onclick = start;

@@ -124,13 +124,13 @@
       f: [R("n", 2, 30, 0, 1e4)],
       gen: (p, rng) => { const n = ri(p[0], p[1], rng); return P([n], `${n}^2`, `${n}²`, n * n); } },
     { id: "cube", sec: "exp", name: "Perfect cubes", def: "$n^3$",
-      f: [R("n", 2, 15, 0, 1000)],
+      f: [R("n", 2, 10, 0, 1000)],
       gen: (p, rng) => { const n = ri(p[0], p[1], rng); return P([n], `${n}^3`, `${n}³`, n ** 3); } },
     { id: "sqrt", sec: "exp", name: "Square roots", def: "$\\sqrt{n^2}$ (perfect squares only)",
       f: [R("n", 2, 30, 0, 1e4)],
       gen: (p, rng) => { const n = ri(p[0], p[1], rng); return P([n * n], `\\sqrt{${n * n}}`, `√${n * n}`, n); } },
     { id: "cbrt", sec: "exp", name: "Cube roots", def: "$\\sqrt[3]{n^3}$",
-      f: [R("n", 2, 15, 0, 1000)],
+      f: [R("n", 2, 20, 0, 1000)],
       gen: (p, rng) => { const n = ri(p[0], p[1], rng); return P([n ** 3], `\\sqrt[3]{${n ** 3}}`, `∛${n ** 3}`, n); } },
     { id: "pow", sec: "exp", name: "Exponents", def: "$b^e$, with $b^e \\le$ max",
       f: [R("b", 2, 12, 2, 1000), R("e", 2, 10, 0, 60), V("max", 10000, 1, 1e12)],
@@ -140,11 +140,14 @@
       gen: powGen((b, e) => P([b, b ** e], `\\log_{${b}} ${b ** e}`, `log_${b} ${b ** e}`, e)) },
 
     { id: "phi", sec: "nt", name: "Totient", def: "$\\varphi(n) = \\#\\{1 \\le k \\le n : \\gcd(k, n) = 1\\}$",
-      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\varphi", "φ", phi) },
+      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\varphi", "φ", phi),
+      help: "$\\varphi(n)$ counts $1 \\le k \\le n$ sharing no factor with $n$. $\\varphi(p) = p - 1$ for a prime, and $\\varphi(n) = n \\prod_{p \\mid n} (1 - \\tfrac1p)$: $\\varphi(12) = 12 \\cdot \\tfrac12 \\cdot \\tfrac23 = 4$." },
     { id: "tau", sec: "nt", name: "Number of divisors", def: "$d(n)$, how many positive divisors $n$ has: $d(12) = 6$",
-      f: [R("n", 2, 500, 1, 1e5)], gen: one("d", "d", tau) },
+      f: [R("n", 2, 200, 1, 1e5)], gen: one("d", "d", tau),
+      help: "$d(n)$ counts the numbers that divide $n$ exactly. Write $n = p_1^{a_1} \\cdots p_k^{a_k}$; then $d(n) = (a_1 + 1) \\cdots (a_k + 1)$, so $d(72) = d(2^3 \\cdot 3^2) = 4 \\cdot 3 = 12$." },
     { id: "sigma", sec: "nt", name: "Sum of divisors", def: "$\\sigma(n)$, the sum of the positive divisors: $\\sigma(12) = 1 + 2 + 3 + 4 + 6 + 12 = 28$",
-      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\sigma", "σ", sigma) },
+      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\sigma", "σ", sigma),
+      help: "$\\sigma(n)$ adds up every number that divides $n$, including $1$ and $n$. It multiplies over prime powers: $\\sigma(p^a) = 1 + p + \\cdots + p^a$, so $\\sigma(12) = \\sigma(4)\\,\\sigma(3) = 7 \\cdot 4 = 28$." },
     { id: "gcd", sec: "nt", name: "GCD", def: "$\\gcd(a, b)$, $a \\ne b$",
       f: [R("a, b", 2, 200, 1, 1e5)],
       gen: (p, rng) => { const [a, b] = pickPair(p[0], p[1], rng); return P([a, b], `\\gcd(${a}, ${b})`, `gcd(${a}, ${b})`, gcd(a, b)); } },
@@ -153,21 +156,25 @@
       gen: (p, rng) => { const [a, b] = pickPair(p[0], p[1], rng); return P([a, b], `\\operatorname{lcm}(${a}, ${b})`, `lcm(${a}, ${b})`, lcm(a, b)); } },
 
     { id: "fact", sec: "comb", name: "Factorials", def: "$n! = 1 \\cdot 2 \\cdots n$, $0! = 1$",
-      f: [R("n", 0, 10, 0, 18)],
+      f: [R("n", 0, 8, 0, 18)],
       gen: (p, rng) => { const n = ri(p[0], p[1], rng); return P([n], `${n}!`, `${n}!`, fact(n)); } },
     { id: "perm", sec: "comb", name: "Permutations", def: "$P(n, k) = \\frac{n!}{(n - k)!}$, $k \\le n$, at most max",
       f: [R("n", 3, 10, 0, 60), R("k", 1, 4, 0, 60), V("max", 10000, 1, 1e12)],
-      gen: kGen(perm, (n, k) => P([n, k], `P(${n}, ${k})`, `P(${n}, ${k})`, perm(n, k))) },
+      gen: kGen(perm, (n, k) => P([n, k], `P(${n}, ${k})`, `P(${n}, ${k})`, perm(n, k))),
+      help: "$P(n, k)$ is the number of ways to line up $k$ of $n$ different things, in order: $n$ choices for the first, $n - 1$ for the second, and so on, so $P(5, 2) = 5 \\cdot 4 = 20$." },
     { id: "comb", sec: "comb", name: "Combinations", def: "$\\binom{n}{k} = \\frac{n!}{k!\\,(n - k)!}$, $k \\le n$, at most max",
       f: [R("n", 4, 12, 0, 60), R("k", 2, 5, 0, 60), V("max", 1000, 1, 1e12)],
-      gen: kGen(choose, (n, k) => P([n, k], `\\dbinom{${n}}{${k}}`, `C(${n}, ${k})`, choose(n, k))) },
+      gen: kGen(choose, (n, k) => P([n, k], `\\dbinom{${n}}{${k}}`, `C(${n}, ${k})`, choose(n, k))),
+      help: "$\\binom{n}{k}$ is the number of ways to choose $k$ of $n$ things when order doesn't matter: $P(n, k) / k!$, so $\\binom{5}{2} = 20 / 2 = 10$." },
     { id: "der", sec: "comb", name: "Derangements", def: "$!n$ = permutations of $n$ things with no fixed point: $!4 = 9$",
-      f: [R("n", 2, 8, 0, 18)],
+      help: "$!n$ counts the ways to shuffle $n$ letters so that none lands back in its own envelope. $!1 = 0$, $!2 = 1$, $!3 = 2$, and $!n = (n - 1)(!(n - 1) + !(n - 2))$; it's always the nearest whole number to $n!/e$.",
+      f: [R("n", 1, 5, 0, 18)],
       gen: (p, rng) => { const n = ri(p[0], p[1], rng); return P([n], `!${n}`, `!${n}`, derange(n)); } },
   ];
   const BY = Object.fromEntries(TYPES.map(t => [t.id, t]));
   const defaultsOf = t => t.f.flatMap(f => "v" in f ? [f.v] : [f.lo, f.hi]);
   const DURATIONS = [30, 60, 120, 180, 300, 600];
+  const SKIP_MS = 5000; // a skip costs this much of the clock
 
   // ---------- settings ----------
   function normParams(t, p) {
@@ -239,7 +246,7 @@
   const check = (pr, input) => String(input).replace(/[\s,_]/g, "") === String(pr.answer);
 
   root.Omegamac = {
-    TYPES, SECTIONS, PRESETS, DURATIONS, SMART, defaults, defaultsOf, normalize, encode, decode, typesKey, presetSettings, next, check, feasible,
+    TYPES, SECTIONS, PRESETS, DURATIONS, SKIP_MS, SMART, defaults, defaultsOf, normalize, encode, decode, typesKey, presetSettings, next, check, feasible,
     pickSmart, pickPair, divisorCounts, mulberry32,
     nt: { gcd, lcm, factor, phi, tau, sigma, fact, perm, choose, derange },
   };
