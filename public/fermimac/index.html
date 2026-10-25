@@ -115,7 +115,8 @@
   <section class="theory">
     <h2>How to be roughly right</h2>
     <p><b>Feynman</b> and <b>Sharp</b> ask math questions: powers, roots, logs, trig, factorials, primes and friends. Your guess counts if it's within 10% (Feynman) or 2% (Sharp) of the true value.</p>
-    <p><b>MathGuessr</b> and <b>FermiGuessr</b> are played like GeoGuessr: ten questions against the clock (math problems, or questions about the world, from the distance to the Moon to the number of ants on Earth), and every guess scores points for how close it is. For answers up to $1$ that's $5000 \times \frac{\text{smaller}}{\text{larger}}$ of your guess and the truth: spot on is 5,000, off by a factor of 2 is 2,500, and off by 10 is 500, so a perfect game is 50,000. Finish all ten early and you keep your time; run out and the rest score nothing.</p>
+    <p><b>MathGuessr</b> and <b>FermiGuessr</b> are played like GeoGuessr: ten questions against the clock (math problems, or questions about the world, from the distance to the Moon to the number of ants on Earth), and every guess scores points for how close it is. For answers up to $1$ that's $5000 \times \frac{\text{smaller}}{\text{larger}}$ of your guess and the truth: spot on is 5,000, off by a factor of 2 is 2,500, and off by 10 is 500, so a perfect game is 50,000. Finish all ten early and you keep your time; run out and the rest score nothing. Both also come in 10-minute and untimed versions (untimed runs count once all ten are answered). MathGuessr skips plain arithmetic: no products, long division or reciprocals.</p>
+    <p>Logarithms are judged on what's inside them. If the answer is $\log_{10} x$ and you're off by $\Delta$, that's being off by a factor of $10^{\Delta}$ on $x$, and it scores exactly like that (with $x$'s slack). So missing $\log_{10}\!\left(31^{73}\right) \approx 108.9$ by 10 costs about as much as missing $60! \approx 8.3 \times 10^{81}$ by a factor of $10^{10}$. The same goes for $\ln$, $\log_2$ and the harmonic numbers, which are $\ln n$ in disguise.</p>
     <p>Big answers get some slack, because they're harder: being off by 3 on the mass of the Earth is a better guess than being off by 3 on the area of your skin, and 10% of $\binom{31}{17}$ is harder to hit than 10% of $\ln 99999$. An answer $a > 1$ has slack $s = 1 + \tfrac{1}{15}\log_{10} a$. The tolerance in Feynman and Sharp is multiplied by $s$, and the Guessr score is $5000 \times \left(\frac{\text{smaller}}{\text{larger}}\right)^{1/s}$. So $\binom{31}{17} \approx 2.7 \times 10^8$ gets $s \approx 1.56$, about 16% in Feynman, and the mass of the Earth gets $s \approx 2.65$: off by a factor of 2 still scores 3,850.</p>
     <p>Some tools that help:</p>
     <ul>
@@ -144,18 +145,20 @@
     setName: n => { try { n ? localStorage.setItem(NAME, n) : localStorage.removeItem(NAME); } catch {} },
   });
   const esc = LB.esc;
-  let P = F.preset(db.preset) || F.PRESETS[0], D = F.DURATIONS.includes(db.d) ? db.d : 120;
+  let P = F.preset(db.preset) || F.PRESETS[0], D = P.durations.includes(db.d) ? db.d : 120;
+  const durName = d => (d ? `${d} s` : "untimed"); // d = 0: untimed (Guessr modes)
 
   // ---- mode ----
   function sync() {
     $("chips").innerHTML = F.PRESETS.map(p => `<button class="mini${p === P ? " on" : ""}" data-p="${p.id}">${p.name}<small>${p.blurb}</small></button>`).join("");
-    $("dur").innerHTML = F.DURATIONS.map(d => `<option value="${d}"${d === D ? " selected" : ""}>${d} s</option>`).join("");
+    if (!P.durations.includes(D)) D = 120;
+    $("dur").innerHTML = P.durations.map(d => `<option value="${d}"${d === D ? " selected" : ""}>${durName(d)}</option>`).join("");
     const b = db.scores[`${P.id}|${D}`] || 0;
-    $("lab").textContent = `${P.name} · ${P.blurb} · ${D} s${b ? ` · best ${b}` : ""}`;
-    if (state !== "play") $("left").textContent = D;
+    $("lab").textContent = `${P.name} · ${P.blurb} · ${durName(D)}${b ? ` · best ${b}` : ""}`;
+    if (state !== "play") { $("left").textContent = D || "∞"; $("leftw").firstChild.textContent = D ? "Seconds left: " : "Time: "; }
     db.preset = P.id; db.d = D; persist();
-    $("board").innerHTML = `<table><tr><th>mode</th>${F.DURATIONS.map(d => `<th class="${d === D ? "cur" : ""}">${d} s</th>`).join("")}</tr>
-      ${F.PRESETS.map(p => `<tr><td class="${p === P ? "cur" : ""}">${p.name}</td>${F.DURATIONS.map(d => { const v = db.scores[`${p.id}|${d}`]; return `<td class="${v ? "" : "none"} ${p === P && d === D ? "cur" : ""}">${v || "·"}</td>`; }).join("")}</tr>`).join("")}</table>`;
+    $("board").innerHTML = `<table><tr><th>mode</th>${F.DURATIONS.map(d => `<th class="${d === D ? "cur" : ""}">${durName(d)}</th>`).join("")}</tr>
+      ${F.PRESETS.map(p => `<tr><td class="${p === P ? "cur" : ""}">${p.name}</td>${F.DURATIONS.map(d => { const v = db.scores[`${p.id}|${d}`]; if (!p.durations.includes(d)) return `<td class="none"></td>`; return `<td class="${v ? "" : "none"} ${p === P && d === D ? "cur" : ""}">${v || "·"}</td>`; }).join("")}</tr>`).join("")}</table>`;
     LB.show({ preset: P.id, name: P.name, d: D });
   }
   $("chips").addEventListener("click", e => { const c = e.target.closest("[data-p]"); if (c && state !== "play") { P = F.preset(c.dataset.p); sync(); } });
@@ -185,14 +188,15 @@
     score = tried = 0; $("score").textContent = 0; $("tried").textContent = playP.rounds ? ` · round 1/${playP.rounds}` : "";
     log = { answers: [], times: [] };
     fb.innerHTML = r ? "" : `<span class="meta">Couldn't reach the leaderboard, so this run is unranked.</span>`;
-    t0 = performance.now(); end = t0 + playD * 1000;
+    t0 = performance.now(); end = t0 + (playD ? playD * 1000 : F.UNTIMED_MS);
     setState("play"); show(); ans.value = ""; ans.focus();
     clearInterval(tick); tick = setInterval(update, 100); update();
   }
   function update() {
     const ms = end - performance.now(), left = Math.max(0, Math.ceil(ms / 1000));
-    $("left").textContent = left;
-    $("leftw").classList.toggle("low", left <= 10);
+    if (!playD) { const up = Math.floor((performance.now() - t0) / 1000); $("left").textContent = `${Math.floor(up / 60)}:${String(up % 60).padStart(2, "0")}`; } // untimed: the time so far
+    else $("left").textContent = left;
+    $("leftw").classList.toggle("low", !!playD && left <= 10);
     if (ms <= 0) finish(false);
   }
   function guess() {
@@ -221,14 +225,16 @@
     if (score > prev) { db.scores[k] = score; persist(); }
     const n = x => x.toLocaleString("en-US");
     $("final").textContent = n(score);
-    $("bestline").innerHTML = (score > prev && prev ? `<span class="nb">New best</span> for ${playP.name} at ${playD} s (was ${n(prev)}).`
-      : score > prev ? `<span class="nb">First score</span> for ${playP.name} at ${playD} s.` : `Best for ${playP.name} at ${playD} s: ${n(prev)}.`)
+    const at = playD ? `at ${playD} s` : "untimed";
+    $("bestline").innerHTML = (score > prev && prev ? `<span class="nb">New best</span> for ${playP.name} ${at} (was ${n(prev)}).`
+      : score > prev ? `<span class="nb">First score</span> for ${playP.name} ${at}.` : `Best for ${playP.name} ${at}: ${n(prev)}.`)
       + (!tried ? "" : playP.rounds ? ` ${tried} of ${playP.rounds} rounds, ${n(Math.round(score / tried))} points a guess.` : ` ${score} of ${tried} guesses landed.`);
     doneAt = performance.now();
     setState("done"); sync();
     const row = $("submit");
     row.innerHTML = "";
-    if (ranked && score) LB.submit(row, ranked, { answers: log.answers, times: log.times });
+    // an untimed run only counts once all its rounds are in (the server checks that too)
+    if (ranked && score && (playD || tried >= playP.rounds)) LB.submit(row, ranked, { answers: log.answers, times: log.times });
     ranked = null;
   }
   ans.addEventListener("input", () => ans.classList.remove("bad"));

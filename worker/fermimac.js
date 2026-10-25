@@ -11,15 +11,18 @@ export const PER_SECOND = 3; // more guesses per second than this, on average, i
 export const game = {
   id: "fermimac",
   presets: F.PRESETS.map(p => p.id),
-  durations: F.DURATIONS,
+  durations: F.DURATIONS, // per preset: F.preset(p).durations
+  untimedMs: F.UNTIMED_MS,
   minGap: 250, // ms between two guesses
   verify: (run, answers, times, now = Date.now()) => verifyRun(run, answers, times, now),
 };
 
 export function verifyRun(run, answers, times, now = Date.now()) {
-  const P = run && F.preset(run.p), full = run ? run.d * 1000 : 0;
+  const P = run && F.preset(run.p), full = run ? (run.d ? run.d * 1000 : F.UNTIMED_MS) : 0;
+  if (P && !P.durations.includes(run.d)) return { ok: false, why: "bad run" };
   // a FermiGuessr run that answered every round ended at its last guess; anything else ran the whole clock
   const done = P && P.rounds && Array.isArray(answers) && Array.isArray(times) && answers.length === P.rounds && times.length === P.rounds;
+  if (run && !run.d && !done) return { ok: false, why: "an untimed run counts once all its rounds are answered" };
   const ms = done ? Math.min(full, times[times.length - 1]) : full;
   const bad = checkRun(game, run, answers, times, ms, now);
   if (bad) return { ok: false, why: bad };

@@ -65,7 +65,7 @@ test("guesses parse in every common notation", () => {
   const cases = { "4200": 4200, "4,200": 4200, "4.2e3": 4200, "4.2E3": 4200, "4.2×10^3": 4200, "4.2x10^3": 4200, "4.2*10^3": 4200,
     "10^6": 1e6, "4.2k": 4200, "1.5M": 1.5e6, "2bn": 2e9, "3T": 3e12, "1.5 million": 1.5e6, ".5": 0.5, "0.027": 0.027, " 7 ": 7, "2e-3": 0.002 };
   for (const [s, v] of Object.entries(cases)) assert.ok(Math.abs(F.parseGuess(s) / v - 1) < 1e-12, `${s} -> ${F.parseGuess(s)}`);
-  for (const s of ["", "abc", "1.2.3", "-5", "4q", "e5"]) assert.ok(Number.isNaN(F.parseGuess(s)), s);
+  for (const s of ["", "abc", "1.2.3", "-5", "4q", "e", "ee5"]) assert.ok(Number.isNaN(F.parseGuess(s)), s);
 });
 
 test("tolerances, with slack for big answers", () => {
@@ -89,6 +89,31 @@ test("Guessr points: 5000 × (smaller/larger)^(1/slack)", () => {
   assert.equal(F.score("guessr", p, "2"), 2500); assert.equal(F.score("mathguessr", p, "2"), 2500);
   assert.equal(F.score("feynman", p, "1.05"), 1); assert.equal(F.score("feynman", p, "1.2"), 0);
   assert.equal(F.preset("fermi"), undefined); // cut in #23
+});
+
+test("#26: logs are scored on the quantity underneath, e30 parses, MathGuessr skips arithmetic", () => {
+  const big = { answer: 73 * Math.log10(31), base: 10 }, fact60 = { answer: 8.320987112741391e81 };
+  const offLog = F.points(big, big.answer + 10), offFact = F.points(fact60, fact60.answer * 1e10);
+  assert.ok(offLog > 100 && offLog < 600 && offFact > 100 && offFact < 600, `${offLog} ${offFact}`); // same ballpark
+  assert.ok(F.points(big, big.answer + 0.5) < 5000 && F.points(big, big.answer) === 5000);
+  const ln = { answer: Math.log(100), base: Math.E }; // off by ln 2 on ln x = off by a factor of 2 on x
+  assert.equal(F.points(ln, ln.answer + Math.log(2)), F.points({ answer: 100 }, 200));
+  assert.equal(F.parseGuess("e30"), 1e30); assert.equal(F.parseGuess("E-3"), 0.001); assert.ok(Number.isNaN(F.parseGuess("e")));
+  const r = F.makeRun("mathguessr", 3), types = new Set(Array.from({ length: 3000 }, () => r.next().type));
+  for (const t of ["mul", "div", "recip", "digits"]) assert.ok(!types.has(t), t);
+  assert.ok(types.has("biglog") && types.has("ln"));
+  assert.deepEqual(F.preset("guessr").durations, [60, 120, 300, 600, 0]); assert.deepEqual(F.preset("feynman").durations, [60, 120, 300]);
+});
+
+test("untimed Guessr runs count once every round is in", () => {
+  const run = newRun(game, "guessr", 0, 0), r = F.makeRun("guessr", run.s), answers = [], times = [];
+  let pts = 0;
+  for (let i = 0; i < 10; i++) { const q = r.next(); answers.push(String(q.answer)); times.push(20000 + i * 60000); pts += F.points(q, q.answer); }
+  const end = times[9];
+  assert.deepEqual(verifyRun(run, answers, times, run.iat + end + 500), { ok: true, score: pts, ms: end }); // 10 minutes in: fine
+  assert.equal(verifyRun(run, answers.slice(0, 6), times.slice(0, 6), run.iat + end + 500).ok, false);  // unfinished
+  assert.equal(verifyRun(run, answers, times, run.iat + F.UNTIMED_MS + LIMITS.expires + 1).ok, false);   // stale
+  assert.equal(verifyRun(newRun(game, "feynman", 0, 0), [], [], 1000).ok, false);                       // math modes are timed
 });
 
 test("MathGuessr deals math problems and replays like FermiGuessr", () => {

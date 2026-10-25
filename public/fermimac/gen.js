@@ -3,7 +3,9 @@
  *
  * A run is a preset + a seed: makeRun(presetId, seed).next() gives the problems in order, and they don't depend on
  * your guesses (one guess per problem, right or wrong it moves on), so the server can replay a run from its seed.
- * Problems: { type, tex (KaTeX, math only), text (plain), answer (a positive real) }.
+ * Problems: { type, tex (KaTeX, math only), text (plain), answer (a positive real), base }. base marks a logarithm:
+ * the answer is log_base of the quantity underneath, and the Guessr score judges the guess on that quantity (off by
+ * 10 on log10(31^73) counts like off by a factor of 10^10 on 60!).
  * Presets: math within a relative tolerance, or GeoGuessr-style rounds (math or Fermi questions) scored by closeness.
  * Bigger answers get more slack (slack(): 1 + log10(answer)/15 above 1): a factor of 3 on the mass of the Earth is a
  * better guess than a factor of 3 on the area of your skin, and 10% of C(31, 17) is harder to hit than 10% of ln 99999. */
@@ -13,7 +15,7 @@
   const mulberry32 = seed => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const ri = (lo, hi, rng) => lo + Math.floor(rng() * (hi - lo + 1));
   const pick = (a, rng) => a[Math.floor(rng() * a.length)];
-  const M = (tex, text, answer) => ({ tex, text, answer });
+  const M = (tex, text, answer, base) => (base ? { tex, text, answer, base } : { tex, text, answer });
 
   // ---------- math ----------
   // π(N) and the n-th prime p_n at round N and n (checked against a sieve in the tests)
@@ -32,10 +34,10 @@
     { id: "pow2", name: "powers of 2", gen: rng => { let x; do x = ri(30, 200, rng) / 10; while (Number.isInteger(x)); return M(`2^{${x}}`, `2^${x}`, 2 ** x); } },
     { id: "sqrt", name: "square roots", gen: rng => { let n; do n = ri(2, 9999, rng); while (Number.isInteger(Math.sqrt(n))); return M(`\\sqrt{${n}}`, `√${n}`, Math.sqrt(n)); } },
     { id: "cbrt", name: "cube roots", gen: rng => { let n; do n = ri(2, 99999, rng); while (Math.round(Math.cbrt(n)) ** 3 === n); return M(`\\sqrt[3]{${n}}`, `∛${n}`, Math.cbrt(n)); } },
-    { id: "ln", name: "natural logs", gen: rng => { const n = ri(3, 99999, rng); return M(`\\ln ${n}`, `ln ${n}`, Math.log(n)); } },
+    { id: "ln", name: "natural logs", gen: rng => { const n = ri(3, 99999, rng); return M(`\\ln ${n}`, `ln ${n}`, Math.log(n), Math.E); } },
     { id: "log", name: "logs base 2 and 10", gen: rng => rng() < 0.5
-      ? (n => M(`\\log_2 ${n}`, `log₂ ${n}`, Math.log2(n)))(ri(5, 999999, rng))
-      : (n => M(`\\log_{10} ${n}`, `log₁₀ ${n}`, Math.log10(n)))(ri(20, 9999999, rng)) },
+      ? (n => M(`\\log_2 ${n}`, `log₂ ${n}`, Math.log2(n), 2))(ri(5, 999999, rng))
+      : (n => M(`\\log_{10} ${n}`, `log₁₀ ${n}`, Math.log10(n), 10))(ri(20, 9999999, rng)) },
     { id: "mul", name: "big products", gen: rng => { const a = ri(1000, 9999, rng), b = ri(1000, 9999, rng); return M(`${a} \\times ${b}`, `${a} × ${b}`, a * b); } },
     { id: "div", name: "long division", gen: rng => { const a = ri(10000, 999999, rng), b = ri(13, 999, rng); return M(`${a} \\div ${b}`, `${a} ÷ ${b}`, a / b); } },
     { id: "recip", name: "reciprocals", gen: rng => { const n = ri(7, 999, rng); return M(`\\frac{1}{${n}}`, `1/${n}`, 1 / n); } },
@@ -50,17 +52,17 @@
     { id: "nth", name: "n-th prime", gen: rng => { const n = +pick(Object.keys(NTH), rng); return M(`p_{${n}}`, `the ${n}-th prime`, NTH[n]); } },
     { id: "harm", name: "harmonic numbers", gen: rng => {
       const n = pick([1, 2, 5], rng) * 10 ** ri(1, 8, rng);
-      return M(`1 + \\tfrac12 + \\tfrac13 + \\cdots + \\tfrac1{${n >= 1e4 ? sci(n) : n}}`, `1 + 1/2 + … + 1/${n}`, harmonic(n));
+      return M(`1 + \\tfrac12 + \\tfrac13 + \\cdots + \\tfrac1{${n >= 1e4 ? sci(n) : n}}`, `1 + 1/2 + … + 1/${n}`, harmonic(n), Math.E); // ≈ ln n + γ
     } },
     { id: "fib", name: "Fibonacci numbers", gen: rng => { const n = ri(20, 90, rng); return M(`F_{${n}}`, `F_${n}`, fib(n)); } },
     { id: "interest", name: "compound growth", gen: rng => {
       const r = ri(2, 12, rng), n = ri(5, 50, rng), b = (100 + r) / 100;
       return M(`${b.toFixed(2)}^{${n}}`, `${b.toFixed(2)}^${n}`, b ** n);
     } },
-    { id: "digits", name: "digit counts", gen: rng => {
+    { id: "biglog", name: "logs of huge powers", gen: rng => { // was "digits of b^n" (#26): this one is harder to hit exactly
       let b; do b = ri(2, 99, rng); while (b % 10 === 0);
       const n = ri(10, 300, rng);
-      return M(`\\text{digits of } ${b}^{${n}}`, `number of digits of ${b}^${n}`, Math.floor(n * Math.log10(b)) + 1);
+      return M(`\\log_{10} \\left(${b}^{${n}}\\right)`, `log₁₀(${b}^${n})`, n * Math.log10(b), 10);
     } },
     { id: "const", name: "constants", gen: rng => pick([
       () => (n => M(`\\pi^{${n}}`, `π^${n}`, Math.PI ** n))(ri(2, 9, rng)),
@@ -147,11 +149,14 @@
     { id: "feynman", name: "Feynman", kind: "math", tol: 0.10, blurb: "math, within 10%" },
     { id: "sharp", name: "Sharp", kind: "math", tol: 0.02, blurb: "math, within 2%" },
     // GeoGuessr-style: a fixed number of rounds in the time bank, points for how close each guess is
-    { id: "mathguessr", name: "MathGuessr", kind: "math", rounds: 10, blurb: "10 math problems, up to 5,000 points each" },
+    // no plain arithmetic (products, long division, reciprocals) in MathGuessr: #26
+    { id: "mathguessr", name: "MathGuessr", kind: "math", rounds: 10, skip: ["mul", "div", "recip"], blurb: "10 math problems, up to 5,000 points each" },
     { id: "guessr", name: "FermiGuessr", kind: "fermi", rounds: 10, blurb: "10 questions, up to 5,000 points each" },
   ];
   const MAX_POINTS = 5000;
-  const DURATIONS = [60, 120, 300];
+  // seconds; 0 = untimed (Guessr only: play the 10 rounds at your own pace, within UNTIMED_MS)
+  const DURATIONS = [60, 120, 300, 600, 0], UNTIMED_MS = 3600e3;
+  for (const p of PRESETS) p.durations = p.rounds ? DURATIONS : [60, 120, 300];
   const preset = id => PRESETS.find(p => p.id === id);
 
   function makeRun(presetId, seed) {
@@ -162,9 +167,10 @@
       return { next: () => { if (i >= order.length) deal(); const q = FERMI[order[i++]]; return { type: "fermi", tex: null, text: q.text, answer: q.answer }; } };
     }
     let prev = null;
+    const pool = MATH.filter(t => !(P.skip || []).includes(t.id));
     return { next: () => {
       let p;
-      for (let k = 0; k < 5; k++) { const t = pick(MATH, rng); p = { type: t.id, ...t.gen(rng) }; if (!prev || p.text !== prev.text) break; }
+      for (let k = 0; k < 5; k++) { const t = pick(pool, rng); p = { type: t.id, ...t.gen(rng) }; if (!prev || p.text !== prev.text) break; }
       return (prev = p);
     } };
   }
@@ -172,7 +178,7 @@
   // a guess as typed: 1234, 1,234, 4.2e18, 4.2×10^18, 4.2*10^18, 10^18, 3k, 2.5M, 1.2bn, 4T, 1.5 million
   const SUFFIX = { k: 1e3, thousand: 1e3, m: 1e6, mn: 1e6, million: 1e6, b: 1e9, bn: 1e9, billion: 1e9, t: 1e12, trillion: 1e12 };
   function parseGuess(s) {
-    s = String(s).toLowerCase().replace(/[\s,_]/g, "").replace(/[×x*·]10\^/, "e").replace(/^10\^/, "1e").replace(/−/g, "-");
+    s = String(s).toLowerCase().replace(/[\s,_]/g, "").replace(/[×x*·]10\^/, "e").replace(/^10\^/, "1e").replace(/−/g, "-").replace(/^e(?=[+-]?\d)/, "1e"); // e30 = 1e30
     const m = s.match(/^(\d*\.?\d+|\d+\.)(?:e([+-]?\d+))?([a-z]*)$/);
     if (!m) return NaN;
     const mult = m[3] ? SUFFIX[m[3]] : 1;
@@ -189,10 +195,14 @@
   }
   // the Guessr modes: 5000 × (smaller / larger)^(1 / slack). Up to an answer of 1: exact = 5000, off by ×2 = 2500,
   // off by ×10 = 500. For the mass of the Earth (slack 2.65), off by ×2 still scores 3,850.
+  // A logarithm (prob.base) is judged on the quantity underneath: being off by Δ is a factor of base^Δ, and the slack
+  // is that quantity's. So log10(31^73) ≈ 108.9 off by 10 scores like 60! off by a factor of 10^10.
   function points(prob, guess) {
     const g = typeof guess === "number" ? guess : parseGuess(guess);
     if (!(g > 0) || !Number.isFinite(g)) return 0;
-    return Math.round(MAX_POINTS * Math.min(g / prob.answer, prob.answer / g) ** (1 / slack(prob.answer)));
+    const lnFactor = prob.base ? Math.abs(g - prob.answer) * Math.log(prob.base) : Math.abs(Math.log(g / prob.answer));
+    const sl = prob.base ? 1 + Math.max(0, prob.answer * Math.log10(prob.base)) / 15 : slack(prob.answer);
+    return Math.round(MAX_POINTS * Math.exp(-lnFactor / sl));
   }
   // what one guess adds to the score: points in the Guessr modes, else 1 for a hit
   const score = (presetId, prob, guess) => preset(presetId).rounds ? points(prob, guess) : check(presetId, prob, guess) ? 1 : 0;
@@ -206,5 +216,5 @@
     return s >= 1000 ? s.toLocaleString("en-US", { maximumFractionDigits: 3 }) : String(s);
   }
 
-  root.Fermimac = { slack, PRESETS, DURATIONS, MAX_POINTS, MATH, FERMI, PI, NTH, preset, makeRun, parseGuess, check, points, score, fmt, mulberry32, harmonic, fib, choose, fact };
+  root.Fermimac = { slack, PRESETS, DURATIONS, UNTIMED_MS, MAX_POINTS, MATH, FERMI, PI, NTH, preset, makeRun, parseGuess, check, points, score, fmt, mulberry32, harmonic, fib, choose, fact };
 })(typeof window !== "undefined" ? window : globalThis);

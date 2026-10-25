@@ -9,6 +9,7 @@
   "use strict";
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const num = n => Number(n).toLocaleString("en-US");
+  const dur = d => (+d ? `${d} s` : "untimed"); // d = 0: an untimed board
   const TTL = 20000;
   const css = document.createElement("style");
   css.textContent = `.lb-list { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 14px; max-width: 420px; }
@@ -42,7 +43,7 @@
     }
     async function show(b, note, fresh) {
       if (!b) { shown = ""; head.textContent = ""; list.innerHTML = `<p class="meta">${note || ""}</p>`; return; }
-      const key = b.preset + "|" + b.d, label = `${b.name} · ${b.d} s`, c = cache.get(key), same = key === shown;
+      const key = b.preset + "|" + b.d, label = `${b.name} · ${dur(b.d)}`, c = cache.get(key), same = key === shown;
       shown = key;
       if (fresh) { cache.set(key, { at: Date.now(), top: fresh }); return draw(key, fresh, label); }
       if (c && Date.now() - c.at < TTL) { if (!same) draw(key, c.top, label); return; }
@@ -63,7 +64,7 @@
         if (r && r.name) { setName(null); return ask(r.error); } // the server refused the name: pick another, same run
         if (!r || r.error) { row.innerHTML = `Not submitted: ${esc(r ? r.error : "couldn't reach the server")}. `; if (!r) row.append(retry(name)); return; }
         setName(name);
-        row.innerHTML = `<span class="lb-on">#${r.rank}</span> on ${esc(run.name)} · ${run.d} s as <b>${esc(name)}</b>${r.best > r.score ? ` (your best there is ${num(r.best)})` : ""}. <a href="#" class="lb-notme">not you?</a>`;
+        row.innerHTML = `<span class="lb-on">#${r.rank}</span> on ${esc(run.name)} · ${dur(run.d)} as <b>${esc(name)}</b>${r.best > r.score ? ` (your best there is ${num(r.best)})` : ""}. <a href="#" class="lb-notme">not you?</a>`;
         row.querySelector(".lb-notme").onclick = e => { e.preventDefault(); setName(null); row.textContent = "Next time you'll be asked for a name."; };
         show({ preset: run.preset, name: run.name, d: run.d }, "", r.top);
         if (onDone) onDone(r);

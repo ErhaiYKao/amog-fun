@@ -53,7 +53,7 @@ export function checkRun(game, run, answers, times, ms, now) {
     last = t;
   }
   if (now < run.iat + ms - LIMITS.slack) return "the run isn't over yet";
-  if (now > run.iat + run.d * 1000 + LIMITS.expires) return "this run has expired";
+  if (now > run.iat + (run.d ? run.d * 1000 : game.untimedMs || 0) + LIMITS.expires) return "this run has expired"; // d = 0: untimed
   return null;
 }
 
