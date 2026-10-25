@@ -1,5 +1,5 @@
 /* Alchemy — the Wilds: places off the island that cost no tiles. The Dark Platform and the Nether (fight monsters
- * for XP and drops: swords hit harder, armor blocks hits, steak heals) and the pasture (cows: leather and beef; sheep: wool). */
+ * for XP and drops: swords hit harder, armor blocks hits, steak heals, milk heals fully) and the pasture (cows: leather, beef and milk; sheep: wool). */
 (function () {
   "use strict";
   const UI = window.AlchemyUI, { A, D, $ } = UI;
@@ -19,6 +19,7 @@
     UI.v("w:mobt", `${Math.max(0, Math.ceil(s.mob.hp))} / ${m.hp} HP`);
     UI.v("d:fight", s.faintT > 0);
     UI.v("d:eat", !(s.inv.steak > 0) || s.hp >= K.hp || s.faintT > 0);
+    UI.v("d:drink", !(s.inv.milkBucket > 0) || s.hp >= K.hp || s.faintT > 0);
     const sword = A.tool(s, "sword"), armor = A.tool(s, "armor");
     // monsters stay unlocked by your best level ever, so enchanting never takes one away
     const chip = ([id, mb]) => A.mobOpen(s, id)
@@ -38,7 +39,8 @@
         <div class="side foe">${img(s.mob.id)}<div><b>${m.name}</b><div class="meta">hits for ${m.dmg} every ${m.every} s · ${m.xp} XP</div><div class="bar foehp"><i data-w="w:mob"></i></div><span class="meta" data-v="w:mobt"></span></div></div>
       </div>
       <div class="row"><button class="go fightbtn" data-act="fight" data-d="d:fight">⚔ Attack <span class="k">8</span></button>
-        <button class="mini" data-act="eat" data-d="d:eat" data-tip="steak">Eat steak · <span data-v="i:steak"></span></button></div>
+        <button class="mini" data-act="eat" data-d="d:eat" data-tip="steak">Eat steak · <span data-v="i:steak"></span></button>
+        ${s.got.milkBucket ? `<button class="mini" data-act="drink" data-d="d:drink" data-tip="milkBucket">Drink milk · <span data-v="i:milkBucket"></span></button>` : ""}</div>
       ${mobs}</div>`;
   }
 
@@ -51,9 +53,15 @@
       <button class="mini" data-act="breed:${kind}" data-d="d:breed:${kind}">${n ? "Breed" : `Lure ${P.start} ${kind}`} · ${costText(cost)}</button></div>
       <div class="row"><div class="bar green grow"><i data-w="w:${kind}"></i></div></div>`;
   }
+  function milkHTML(s) {
+    if (!s.seen.ironBucket && !s.seen.milkBucket) return "";
+    UI.v("d:milk", !s.cows || !(s.inv.ironBucket > 0));
+    return `<div class="row"><span class="meta grow">milk a cow into an iron bucket · drink it in a fight to heal completely</span>
+      <button class="mini" data-act="milk" data-d="d:milk" data-tip="ironBucket">Milk · <span data-v="i:ironBucket"></span> bucket${s.inv.ironBucket === 1 ? "" : "s"}</button></div>`;
+  }
   function pastureHTML(s) {
     return `<div class="area"><div class="row"><b>Pasture</b></div>
-      ${herdHTML(s, "cows", C.pasture, "cowT", "leather (often raw beef)")}${herdHTML(s, "sheep", C.pasture.sheep, "sheepT", "wool")}</div>`;
+      ${herdHTML(s, "cows", C.pasture, "cowT", "leather (often raw beef)")}${milkHTML(s)}${herdHTML(s, "sheep", C.pasture.sheep, "sheepT", "wool")}</div>`;
   }
 
   function render() {
@@ -81,6 +89,8 @@
     area: ([id]) => A.unlockArea(UI.s, id),
     fight: () => swing(),
     eat: () => A.eat(UI.s),
+    drink: () => A.drink(UI.s),
+    milk: () => A.milk(UI.s),
     mob: ([id]) => A.setMob(UI.s, id),
     breed: ([kind]) => A.breed(UI.s, kind || "cows"),
   });

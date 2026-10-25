@@ -289,10 +289,11 @@
   // auto-make: tables and furnace-like machines can each be set to make one thing whenever they can
   function autoMakeHTML(s, t, i) {
     if (!s.quests.auto) return `<h3>Auto-make</h3><p class="meta">Unlocks with the Automation quest.</p>`;
-    const opts = t.id === "table"
-      ? RECIPES.filter(r => A.visible(s, r)).map(r => craftRow(s, r)).map(x => [x.key, x.title + (x.outN > 1 ? ` ×${x.outN}` : "")])
+    const crafty = t.id === "table" || t.id === "lab"; // a lab auto-makes only its own transmutations
+    const opts = crafty
+      ? RECIPES.filter(r => A.visible(s, r) && (t.id !== "lab" || r.at === "lab")).map(r => craftRow(s, r)).map(x => [x.key, x.title + (x.outN > 1 ? ` ×${x.outN}` : "")])
       : rowsFor(s, t.id).map(x => [x.id, x.title]);
-    const outOf = key => t.id === "table" ? Object.keys((RECIPES.find(r => r.key === key) || { out: {} }).out)[0] : A.STATIONS[t.id].rec(key)?.out;
+    const outOf = key => crafty ? Object.keys((RECIPES.find(r => r.key === key) || { out: {} }).out)[0] : A.STATIONS[t.id].rec(key)?.out;
     const out = t.auto && outOf(t.auto);
     if (out) UI.v(`m${i}:auto`, `you have ${UI.fmt(A.count(s, out))}${t.uncapped ? "" : ` / ${t.limit || C.autocraft.limit}`}`);
     return `<h3>Auto-make</h3><div class="row"><select data-autosel="${i}"><option value="">off</option>${opts.map(([k, l]) => `<option value="${esc(k)}" ${t.auto === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>` +
@@ -382,6 +383,8 @@
         return `<p class="meta">${C.autoGen[id]} cobblestone/s</p>`;
       case "table":
         return autoMakeHTML(s, t, i);
+      case "lab":
+        return `<p class="meta">Its transmutations are in the crafting list.</p>` + autoMakeHTML(s, t, i);
       case "enchantTable": {
         const L = A.level(s), ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
         const EFFECT = { sword: "damage", armor: "protection", meshEff: "speed", meshFortune: "drops" };

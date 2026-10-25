@@ -401,6 +401,15 @@
       for (let y = 2; y < 11; y++) for (let x = 4; x < 12; x++) P(x, y, x === 4 || x === 11 ? "#bfe3ec" : y < 5 ? "#2a2f38" : shade(c, (rnd(x, y, 6) - 0.5) * 0.3 + (y === 5 ? 0.3 : 0)));
       for (let y = 11; y < 14; y++) for (let x = 3; x < 13; x++) P(x, y, shade("#4a4e56", y === 11 ? 0.2 : 0));
     },
+    lab(P, c, __, rnd) { // a round flask of something bubbling, on a wooden bench
+      for (let y = 12; y < 15; y++) for (let x = 1; x < 15; x++) P(x, y, shade(WOOD, y === 12 ? 0.2 : (rnd(x, y, 3) - 0.5) * 0.2 - 0.1));
+      for (let y = 1; y < 6; y++) for (let x = 7; x < 9; x++) P(x, y, y === 1 ? "#e8f4f8" : "#bfe3ec");
+      for (let y = 0; y < 12; y++) for (let x = 0; x < 16; x++) {
+        const d = Math.hypot(x - 7.5, y - 8);
+        if (d <= 4) P(x, y, d > 3.1 ? "#bfe3ec" : y < 7 ? "#2a2f38" : shade(c, (rnd(x, y, 5) - 0.5) * 0.35 + (y === 7 ? 0.3 : 0)));
+      }
+      P(11, 3, shade(c, 0.45)); P(12, 1, shade(c, 0.55)); P(10, 5, shade(c, 0.3)); // bubbles
+    },
     shelf(P, c, _, rnd) {
       SHAPES.planks(P, c, 0, rnd);
       const books = ["#8b3a2b", "#2f5a8b", "#3f7a2e", "#c9a227", "#6b3a8b", "#8b3a2b"];

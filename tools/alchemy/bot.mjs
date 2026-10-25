@@ -87,6 +87,10 @@ function need(id, n, d = 0) {
     if (s.cows < 6 && A.count(s, "wheat") >= 2) A.breed(s);
     wait(); return false;
   }
+  if (id === "milkBucket") {
+    if (!area("pasture", d) || !need("ironBucket", 1, d + 1)) return false;
+    A.milk(s); return false;
+  }
   if (id === "wool") {
     if (!area("pasture", d)) return false;
     if (!s.sheep && !need("wheat", A.DATA.CONFIG.pasture.sheep.lure.wheat, d + 1)) return false;
@@ -129,7 +133,7 @@ function need(id, n, d = 0) {
     if (!busy) A.queueAt(s, "alloy", id, 1); else wait();
     return false;
   }
-  if (SMELTED[id] && !(id === "gold" && A.count(s, "pstone"))) {
+  if (SMELTED[id]) {
     const inp = SMELTED[id], heat = SMELT[inp].heat;
     if (!needBuilt("furnace", 1, d + 1)) return false;
     const busy = s.queue.length || s.slots.some(Boolean);
@@ -147,7 +151,7 @@ function need(id, n, d = 0) {
   if (!r) throw new Error("no way to make " + id);
   const st = A.recipeState(s, r);
   if (st.ok) { A.craft(s, r, 1); return false; }
-  if (r.at === "table" && !A.built(s, "table")) return needBuilt("table", 1, d + 1) && false;
+  if (r.at && !A.built(s, r.at)) return needBuilt(r.at, 1, d + 1) && false;
   for (const k in r.needs || {}) if (!need(k, r.needs[k], d + 1)) return false;
   for (const [k, v] of Object.entries(A.cost(s, r))) if (!need(k, v, d + 1)) return false;
   if (st.reason === "no free land") land(d);

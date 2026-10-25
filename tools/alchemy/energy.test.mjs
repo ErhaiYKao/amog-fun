@@ -309,7 +309,37 @@ test('combat: swords hit harder, armor blocks, fainting is temporary, kills give
   run(s, D.CONFIG.combat.faint + 0.5, 0.5);
   assert.equal(s.hp, D.CONFIG.combat.hp);
   A.give(s, 'diamondArmor');
-  close(A.armorBlock(s), Math.min(0.8, 16 * 0.04));
+  close(A.armorBlock(s), 0.6 + 0.3 * (1 - Math.exp(-(16 * 0.04 - 0.6) / 0.3))); // softly capped past 60%
+});
+test('#25: armor keeps improving, enchanting never hides better tools, lab, milk, bones', () => {
+  const s = island('table');
+  A.give(s, 'ironArmor'); close(A.armorBlock(s), 0.4);          // linear below the soft cap
+  A.give(s, 'diamondArmor'); const dia = A.armorBlock(s);
+  A.give(s, 'darkSteelArmor'); const dark = A.armorBlock(s);
+  assert.ok(dark > dia && dark < D.CONFIG.combat.armorMax);
+  s.ench = { armor: 5 }; assert.ok(A.armorBlock(s) > dark && A.armorBlock(s) < 0.9); // Protection still counts
+  // an enchanted diamond sword hits as hard as dark steel, but the dark steel recipe stays visible
+  const t = island('table'); A.give(t, 'diamondSword'); t.ench = { sword: 4 }; t.seen.diamondSword = 1;
+  const ds = D.RECIPES.find(r => r.out.darkSteelSword);
+  assert.ok(A.swordDmg(t) >= 11); assert.equal(A.hidden(t, ds), null);
+  A.give(t, 'darkSteelSword'); assert.equal(A.hidden(t, ds), 'auto');
+  // transmutation needs the lab on the island; the old iron → gold → diamond is gone
+  const cu = D.RECIPES.find(r => r.out.copper);
+  A.give(t, 'iron', 4); A.give(t, 'redstone', 8);
+  assert.equal(A.recipeState(t, cu).reason, 'needs an alchemy lab');
+  assert.ok(!D.RECIPES.some(r => r.name === 'Transmute' && (r.out.gold || r.out.diamond)));
+  const lab = island('lab'); A.give(lab, 'iron', 4); A.give(lab, 'redstone', 8);
+  assert.equal(A.craft(lab, cu, 2), 2); assert.equal(lab.inv.copper, 2);
+  const em = D.RECIPES.find(r => r.out.emerald); A.give(lab, 'diamond', 4);
+  assert.equal(A.recipeState(lab, em).ok, false); A.give(lab, 'pstone'); assert.equal(A.craft(lab, em, 1), 1);
+  assert.ok(D.ALLOY.constantan && D.ALLOY.invar && D.ELECTRIC.infuser.recipes.invar);
+  // milk: an iron bucket at the pasture, drunk in a fight for a full heal; the bucket comes back
+  const m = island(); m.areas.pasture = 1; m.cows = 2; A.give(m, 'ironBucket');
+  assert.ok(A.milk(m)); assert.equal(m.inv.milkBucket, 1); assert.ok(!A.milk(m));
+  m.areas.platform = 1; m.hp = 3; assert.ok(A.drink(m)); assert.equal(m.hp, D.CONFIG.combat.hp); assert.equal(m.inv.ironBucket, 1);
+  // bones: 3 bone meal by hand, 4 in a crusher
+  assert.equal(D.RECIPES.find(r => r.in.bone && r.out.boneMeal).out.boneMeal, 3);
+  assert.equal(D.ELECTRIC.crusher.recipes.bone.n, 4);
 });
 test('pasture, bone meal and enchanting', () => {
   const s = island('farmland');

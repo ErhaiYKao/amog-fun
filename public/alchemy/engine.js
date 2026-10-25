@@ -163,7 +163,7 @@
     return out;
   }
   function recipeState(s, r, times = 1) {
-    if (r.at === "table" && !built(s, "table")) return { ok: false, reason: "needs a crafting table" };
+    if (r.at && !built(s, r.at)) return { ok: false, reason: `needs ${/^[aeiou]/i.test(ITEMS[r.at].name) ? "an" : "a"} ${ITEMS[r.at].name.toLowerCase()}` };
     for (const id in r.needs || {}) if (count(s, id) < r.needs[id]) return { ok: false, reason: `needs ${ITEMS[id].name}` };
     const need = cost(s, r, times);
     for (const id in need) if (count(s, id) < need[id]) return { ok: false, reason: "missing ingredients" };
@@ -206,7 +206,7 @@
     if (pref === 1) return "user";
     if (pref === 0) return null;
     const tk = toolKind(Object.keys(r.out)[0]);
-    return tk && toolValue(s, tk[0]) >= tk[1] ? "auto" : null;
+    return tk && (tool(s, tk[0]) || [null, 0])[1] >= tk[1] ? "auto" : null; // by tier: Sharpness doesn't make diamond dark steel
   }
 
   // ---------- island ----------
@@ -375,7 +375,7 @@
   // limit: make until you have this many; uncapped: ignore the limit and keep making while ingredients last
   function setAuto(s, i, recipe, limit, uncapped) {
     const t = s.island[i];
-    if (!t || !(t.id === "table" || STATIONS[t.id])) return false;
+    if (!t || !(t.id === "table" || t.id === "lab" || STATIONS[t.id])) return false;
     if (recipe !== undefined) t.auto = recipe || null;
     if (limit !== undefined) t.limit = Math.max(1, Math.min(99999, limit | 0));
     if (uncapped !== undefined) t.uncapped = !!uncapped;
@@ -401,7 +401,11 @@
   function gainXp(s, n) { s.xp += n; s.peak = peakLevel(s); }
   const mobOpen = (s, id) => !!MOBS[id] && !!s.areas[MOBS[id].area] && peakLevel(s) >= MOBS[id].level;
   const swordDmg = s => toolValue(s, "sword") || C.combat.fist;
-  const armorBlock = s => Math.min(C.combat.armorMax, toolValue(s, "armor") * C.combat.armorPct);
+  // armorPct per armor point up to armorSoft, then it bends towards armorMax: better or enchanted armor always helps
+  function armorBlock(s) {
+    const K = C.combat, x = toolValue(s, "armor") * K.armorPct, room = K.armorMax - K.armorSoft;
+    return x <= K.armorSoft ? x : K.armorSoft + room * (1 - Math.exp(-(x - K.armorSoft) / room));
+  }
   function setMob(s, id) {
     if (!mobOpen(s, id) || s.mob.id === id) return false;
     s.mob = { id, hp: MOBS[id].hp };
@@ -424,6 +428,18 @@
     if ((s.inv.steak || 0) < 1 || s.hp >= C.combat.hp || s.faintT > 0) return false;
     take(s, "steak", 1);
     s.hp = Math.min(C.combat.hp, s.hp + C.combat.steakHeal);
+    return true;
+  }
+  // milk: an iron bucket filled from a cow; drinking it heals completely and hands the bucket back
+  function milk(s) {
+    if (!s.areas.pasture || !s.cows || count(s, "ironBucket") < 1) return false;
+    take(s, "ironBucket", 1); give(s, "milkBucket", 1);
+    return true;
+  }
+  function drink(s) {
+    if ((s.inv.milkBucket || 0) < 1 || s.hp >= C.combat.hp || s.faintT > 0) return false;
+    take(s, "milkBucket", 1); give(s, "ironBucket", 1);
+    s.hp = C.combat.hp;
     return true;
   }
   function tickCombat(s, dt) {
@@ -728,7 +744,7 @@
         case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve":
           autoRun(s, tile, dt);
           break;
-        case "table": autoCraftTable(s, tile, dt); break;
+        case "table": case "lab": autoCraftTable(s, tile, dt); break;
         case "autoCompressor": {
           const [out, n] = C.compress.map[tile.sel] || [];
           tile.t += dt;
@@ -854,7 +870,7 @@
     DATA: D, KEY, create, count, built, free, grownTrees, give, take, tool, toolValue, actionState, act,
     cost, recipeState, maxCraft, craft, visible, hidden, toolKind, landTarget, demolish, pickUp, place, move, placesAs, isPlace, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
-    insertTool, pullTool, autoPeriod, setSeed, setAuto, unlockArea, level, xpFor, swordDmg, armorBlock, setMob, attack, eat,
+    insertTool, pullTool, autoPeriod, setSeed, setAuto, unlockArea, level, xpFor, swordDmg, armorBlock, setMob, attack, eat, milk, drink,
     breed, breedCost, autoLimit, enchant, enchantCost, enchantBlocker, enchLevel, bestOwned, enchMult, peakLevel, mobOpen, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
   };
   root.Alchemy = api;
