@@ -1,5 +1,17 @@
 [
   {
+    "slug": "cgt",
+    "title": "CGT Playground",
+    "signature": "cgt : Games → {+, −, 0, ∥}",
+    "blurb": "Combinatorial game theory to poke at: define games as $\\{L \\mid R\\}$, add and negate them, play the sums move by move, and see which are positive, negative, zero or fuzzy, how they compare, and their canonical forms. ↑, $*$, tiny and Domineering included.",
+    "tags": [
+      "math",
+      "tool"
+    ],
+    "group": "etc",
+    "short": "Define games as {L | R}, add them up and play the sums."
+  },
+  {
     "slug": "coefficient-game",
     "title": "The Coefficient Choosing Game",
     "signature": "coefficients : CRing × ℕ → {A, S}",

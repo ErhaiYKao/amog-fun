@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CGT Playground · amog.fun</title>
+<meta name="description" content="A combinatorial game theory playground: define games as {L | R}, add and negate them, play the sums, and see which are positive, negative, zero or fuzzy, how they compare, and their canonical forms.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><text x='32' y='44' font-size='30' text-anchor='middle' font-family='Georgia,serif'><tspan fill='%234fd6e8'>{</tspan><tspan fill='%23ece8de'>|</tspan><tspan fill='%23ff5a5f'>}</tspan></text></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/math.js" defer></script>
+<script src="/cgt/cgt.js"></script>
+<style>
+  .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(40px, 7vw, 68px); line-height: 1; margin: 6px 0 10px; }
+  .head p { margin: 0 0 20px; color: #d3cfc5; max-width: 70ch; }
+  .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .mini { font-family: var(--mono); font-size: 12.5px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; white-space: nowrap; }
+  .mini:hover { border-color: var(--muted); }
+  .mini:disabled { opacity: .35; cursor: default; }
+  .mini.on { border-color: var(--g1); color: var(--g1); }
+  .txt { font-family: var(--mono); font-size: 14px; padding: 7px 11px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); }
+  .txt:focus { outline: none; border-color: var(--g1); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px 18px; margin-bottom: 18px; }
+  .card h2 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0 0 4px; }
+  .card > .meta:first-of-type { margin-bottom: 10px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .err { color: var(--g2); font-family: var(--mono); font-size: 12.5px; min-height: 1.3em; margin-top: 4px; }
+  .val { font-family: var(--mono); font-size: 13.5px; color: var(--ink); overflow-wrap: anywhere; }
+  .name { font-family: var(--mono); font-size: 13.5px; font-weight: 500; }
+  .expr { font-family: var(--mono); font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
+  .badge { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .o-positive { color: var(--g1); border-color: #4fd6e866; } .o-negative { color: var(--g2); border-color: #ff5a5f66; }
+  .o-zero { color: var(--muted); border-color: var(--line-2); } .o-fuzzy { color: var(--g3); border-color: #c8f04a66; } .o-unknown { color: var(--faint); border-color: var(--line); }
+  .lib { display: grid; gap: 0; }
+  .lib .item { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 10px; padding: 9px 2px; border-bottom: 1px dashed var(--line); align-items: start; }
+  .lib .item:last-child { border-bottom: 0; }
+  .lib .acts { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+  .lib input[type=checkbox] { margin-top: 4px; accent-color: var(--g1); }
+  .help { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.8; }
+  .help code { color: var(--ink); cursor: pointer; border-bottom: 1px dashed var(--line-2); }
+  .classes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .cls { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-height: 64px; }
+  .cls h3 { font-family: var(--mono); font-size: 12.5px; font-weight: 500; margin: 0 0 6px; }
+  .cls .eq { font-family: var(--mono); font-size: 12.5px; margin: 3px 0; overflow-wrap: anywhere; }
+  .cls .eq .v { color: var(--faint); }
+  .rel { overflow-x: auto; }
+  .rel table { border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+  .rel th, .rel td { padding: 4px 7px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .rel th { color: var(--muted); font-weight: 400; }
+  .rel td.k { cursor: pointer; color: var(--faint); }
+  .rel td.k:hover { color: var(--ink); }
+  .rel .gt { color: var(--g1); } .rel .lt { color: var(--g2); } .rel .eqs { color: var(--muted); } .rel .fz { color: var(--g3); font-family: var(--serif); font-size: 15px; }
+  .comps { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; min-height: 30px; }
+  .chip { font-family: var(--mono); font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; padding: 4px 6px 4px 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg); }
+  .chip button { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; padding: 0 4px; }
+  .chip button:hover { color: var(--ink); }
+  .pos { font-family: var(--mono); font-size: 14px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); margin: 8px 0; overflow-wrap: anywhere; }
+  .pos .tot { color: var(--ink); }
+  .turn { font-family: var(--display); font-size: 26px; margin: 4px 0 6px; }
+  .turn .L { color: var(--g1); } .turn .R { color: var(--g2); }
+  .moves { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 560px) { .moves { grid-template-columns: 1fr; } }
+  .moves h3 { font-family: var(--mono); font-size: 12.5px; font-weight: 500; margin: 0 0 6px; }
+  .moves .L h3 { color: var(--g1); } .moves .R h3 { color: var(--g2); }
+  .mv { display: block; width: 100%; text-align: left; margin: 0 0 5px; font-family: var(--mono); font-size: 12.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; overflow-wrap: anywhere; }
+  .mv:hover:not(:disabled) { border-color: var(--muted); }
+  .mv:disabled { opacity: .35; cursor: default; }
+  .L .mv.win { border-color: var(--g1); } .R .mv.win { border-color: var(--g2); }
+  .mv .w { float: right; color: var(--g3); }
+  .hist { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 10px 0 0; padding-left: 22px; max-height: 220px; overflow: auto; }
+  .hist .L { color: var(--g1); } .hist .R { color: var(--g2); }
+  .over { font-family: var(--display); font-size: 24px; color: var(--g3); margin: 6px 0; }
+  .theory { max-width: 780px; margin: 48px 0 40px; }
+  .theory h2 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0 0 10px; }
+  .theory h3 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 26px 0 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="head">
+    <div class="sig">cgt : Games → {+, −, 0, ∥}</div>
+    <h1>CGT Playground</h1>
+    <p>Combinatorial game theory, hands on. Every game here is a pair of option sets $\{L \mid R\}$: <b style="color:var(--g1)">Left</b> moves to one of $L$, <b style="color:var(--g2)">Right</b> to one of $R$, and whoever can't move loses. Build games, add and negate them, play the sums, and let Amog sort out who wins and how they compare.</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <section class="card">
+        <h2>Library</h2>
+        <div class="meta">Check a few to add them together. Values are canonical forms.</div>
+        <div class="lib" id="lib"></div>
+        <div class="row" style="margin-top:10px"><button class="mini" id="addSel" disabled>add checked together</button><button class="mini" id="playSel" disabled>play checked</button><span class="meta" id="selInfo"></span></div>
+      </section>
+      <section class="card">
+        <h2>Define a game</h2>
+        <div class="row"><input class="txt" id="dname" placeholder="name" style="width:110px" spellcheck="false" autocomplete="off"><input class="txt" id="dexpr" placeholder="{0, * | up} + star" style="flex:1;min-width:180px" spellcheck="false" autocomplete="off"><button class="mini" id="define">define</button></div>
+        <div class="err" id="derr"></div>
+        <div class="help" id="help">
+          options: <code>{0, * | 1}</code> · nested: <code>{0 || 0 | -1}</code> · sums: <code>up + star</code> · negation: <code>-hot</code>, <code>a - b</code><br>
+          numbers <code>3</code> <code>-1/2</code> <code>0.75</code> · nimbers <code>*</code> <code>*3</code> <code>nim(5)</code> · <code>^</code> <code>^^</code> <code>v</code> · <code>±1</code> · <code>1*</code> (= 1 + *) · Domineering <code>dom(3, 4)</code> (Left vertical) · names from the library
+        </div>
+      </section>
+    </div>
+    <div>
+      <section class="card">
+        <h2>Playground</h2>
+        <div class="meta">Add games with ▶ in the library. Moves happen in one component at a time.</div>
+        <div class="comps" id="comps"></div>
+        <div class="row"><span class="meta">mode</span><button class="mini" data-mode="alt">alternate</button><button class="mini" data-mode="free">free (either side)</button>
+          <span class="meta" style="margin-left:6px">first</span><button class="mini" data-first="L">Left</button><button class="mini" data-first="R">Right</button></div>
+        <div id="play"></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="card">
+    <h2>Outcome classes</h2>
+    <div class="meta">Grouped up to equality: games in one line have the same canonical form.</div>
+    <div class="classes" id="classes"></div>
+  </section>
+  <section class="card">
+    <h2>Relations</h2>
+    <div class="meta">The row game compared with the column game, from the sign of their difference: &gt; (row − column is positive), &lt;, = or ∥ (confused: fuzzy). Click a ? to think harder.</div>
+    <div class="rel" id="rel"></div>
+  </section>
+
+  <section class="theory">
+    <h2>How Amog reads a game</h2>
+    <p>\begin{definition}Under normal play a game $G$ falls into one of four outcome classes: <em>positive</em> ($G &gt; 0$: Left wins whoever starts), <em>negative</em> ($G &lt; 0$: Right wins), <em>zero</em> ($G = 0$: the second player wins) and <em>fuzzy</em> ($G \parallel 0$: the first player wins).\end{definition}</p>
+    <p>\begin{definition}$G \le H$ when no Left option $G^L$ has $G^L \ge H$ and no Right option $H^R$ has $H^R \le G$. Then $G \ge 0$ means Left wins when Right starts, and $G \le 0$ means Right wins when Left starts.\end{definition}</p>
+    <p>Sums: in $G + H$ you move in exactly one component, so $G + H = \{G^L + H, G + H^L \mid G^R + H, G + H^R\}$. Negation swaps the players, $-G = \{-G^R \mid -G^L\}$, and comparing $G$ with $H$ is the same as asking for the outcome of $G - H$: that's how the relations table is filled in.</p>
+    <p>\begin{theorem}[Canonical form]Every short game equals a unique simplest game, found by deleting dominated options (a Left option no bigger than another; dually for Right) and bypassing reversible ones (a Left option $A$ with some $A^R \le G$ gets replaced by $A^R$'s Left options; dually for Right).\end{theorem}</p>
+    <p>So two games are equal exactly when their canonical forms agree, which is how the outcome classes are grouped. Amog names the familiar ones: numbers like $\tfrac34 = \{\tfrac12 \mid 1\}$, nimbers $*n$ (from Nim), $\uparrow = \{0 \mid *\}$ and its multiples, $\pm x = \{x \mid -x\}$, and sums like $1*$. Everything else prints as nested braces.</p>
+    <p>\begin{example}$\uparrow$ is positive, yet smaller than every positive number, and confused with $*$: $\uparrow \parallel *$ but $\uparrow + * = \{0, * \mid 0\}$ is fuzzy while $\uparrow + \uparrow + * = \{0 \mid \uparrow\}$ is positive. Try it in the library.\end{example}</p>
+    <p>Amog only does a quick search by default, so huge sums (or Domineering on big boards) may show a <code>?</code>. "Think harder" runs a longer search in the background, for up to a minute, on that game or relation.</p>
+  </section>
+
+  <footer class="footer"><span>amog.fun/cgt</span><span>every game is a number, except the ones that aren't</span></footer>
+</div>
+<script>
+(() => {
+  "use strict";
+  const C = window.CGT, $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const KEY = "amog.cgt.v1";
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ defs: lib.filter(e => e.user).map(e => [e.name, e.expr]), sum: comps, mode, first })); } catch {} };
+  const QUICK = 3e5;
+  const OUT_TEXT = { positive: "Left wins", negative: "Right wins", zero: "second player wins", fuzzy: "first player wins", unknown: "?" };
+  const badge = o => `<span class="badge o-${o || "unknown"}">${o ? `${o} · ${OUT_TEXT[o]}` : "not sure yet"}</span>`;
+
+  const BUILTIN = [
+    ["zero", "0"], ["star", "*"], ["up", "^"], ["down", "v"], ["one", "1"], ["half", "1/2"], ["star2", "*2"], ["upstar", "^*"],
+    ["pm1", "±1"], ["hot", "{2 | -1}"], ["tiny", "{0 || 0 | -1}"], ["dom2x2", "dom(2, 2)"], ["dom2x3", "dom(2, 3)"], ["dom3x3", "dom(3, 3)"], ["dom4x4", "dom(4, 4)"],
+  ];
+  const stored = read();
+  let lib = [], env = {}, mode = stored.mode === "free" ? "free" : "alt", first = stored.first === "R" ? "R" : "L";
+  let comps = Array.isArray(stored.sum) ? stored.sum : [{ name: "up", neg: false }, { name: "star", neg: false }];
+  const rels = new Map(); // "a|b" -> symbol, from think-harder
+  // a definition is a sum: its terms (game ids) stay separate, so ▶ plays them side by side
+  function addDef(name, expr, user) {
+    const gs = C.tryWith(() => C.parse(expr, env), 2e6);
+    if (!gs) throw new Error("an option there is too big to build quickly: try it as a sum outside the braces");
+    env[name] = gs;
+    const e = { name, expr, user, gs, info: undefined };
+    lib.push(e);
+    return e;
+  }
+  for (const [n, x] of BUILTIN) addDef(n, x, false);
+  for (const [n, x] of stored.defs || []) { try { addDef(n, x, true); } catch {} }
+  comps = comps.filter(c => env[c.name] !== undefined);
+
+  // quick analysis; null = ran out (think harder), with the patient answers from the worker remembered in e.info
+  function info(e) {
+    if (e.info === undefined) e.info = C.analyse(e.gs, QUICK);
+    return e.info;
+  }
+  const quickVal = g => C.analyse(g, 2e4);
+  function rel(a, b) {
+    const k = a.name + "|" + b.name;
+    if (rels.has(k)) return rels.get(k);
+    const r = C.relate(a.gs, b.gs, 1e5);
+    if (r) rels.set(k, r);
+    return r;
+  }
+
+  // ---------- think harder (Web Worker) ----------
+  let worker = null, jobs = 0;
+  const pending = new Map();
+  function harder(task, done) {
+    if (!worker) {
+      worker = new Worker("/cgt/cgt-worker.js");
+      worker.onmessage = ev => { const p = pending.get(ev.data.id); pending.delete(ev.data.id); if (p) p(ev.data); render(); };
+    }
+    const id = ++jobs;
+    pending.set(id, done);
+    worker.postMessage({ id, defs: lib.map(e => [e.name, e.expr]), task, ms: 60000 });
+    render();
+  }
+  const thinking = new Set();
+  function harderValue(e) {
+    if (thinking.has("v:" + e.name)) return;
+    thinking.add("v:" + e.name);
+    harder({ type: "value", name: e.name }, m => {
+      thinking.delete("v:" + e.name);
+      if (m.result) e.info = { name: m.result.name, outcome: m.result.outcome, canon: null, slow: true };
+      else e.gaveUp = true;
+    });
+  }
+  function harderRel(a, b) {
+    const k = a.name + "|" + b.name;
+    if (thinking.has("r:" + k)) return;
+    thinking.add("r:" + k);
+    harder({ type: "rel", a: a.name, b: b.name }, m => { thinking.delete("r:" + k); rels.set(k, m.result || "gave up"); });
+  }
+
+  // ---------- library ----------
+  const checked = new Set();
+  function libHTML() {
+    return lib.map((e, i) => {
+      const v = info(e), think = thinking.has("v:" + e.name);
+      const val = v ? esc(v.name) : think ? "thinking…" : e.gaveUp ? "gave up after a minute" : "?";
+      return `<div class="item"><input type="checkbox" data-chk="${i}" ${checked.has(e.name) ? "checked" : ""} aria-label="select ${esc(e.name)}">
+        <div><span class="name">${esc(e.name)}</span> = <span class="val">${val}</span> ${badge(v && v.outcome)}<div class="expr">${esc(e.expr)}</div></div>
+        <div class="acts"><button class="mini" data-play="${i}" title="add to the playground">▶</button><button class="mini" data-neg="${i}" title="define its negative">−</button>${v ? "" : `<button class="mini" data-hard="${i}" ${think ? "disabled" : ""}>think harder</button>`}${e.user ? `<button class="mini" data-del="${i}" title="delete">×</button>` : ""}</div></div>`;
+    }).join("");
+  }
+  const freshName = base => { let n = base, k = 2; while (env[n] !== undefined || n === "v" || n === "nim" || n === "dom") n = base + k++; return n; };
+  function define(name, expr) {
+    name = name.trim() || freshName("G");
+    if (!/^[A-Za-z_][A-Za-z0-9_']*$/.test(name)) throw new Error("names are letters, digits, _ and ' (starting with a letter)");
+    if (["v", "vv", "vvv", "nim", "dom"].includes(name)) throw new Error(`"${name}" is taken by the syntax`);
+    if (env[name] !== undefined) throw new Error(`there's already a game called ${name}`);
+    addDef(name, expr, true);
+    save();
+  }
+  $("define").onclick = () => {
+    try { define($("dname").value, $("dexpr").value); $("dname").value = $("dexpr").value = ""; $("derr").textContent = ""; render(); }
+    catch (e) { $("derr").textContent = e.message; }
+  };
+  $("dexpr").addEventListener("keydown", e => { if (e.key === "Enter") $("define").click(); });
+  $("help").onclick = e => { const c = e.target.closest("code"); if (c) { $("dexpr").value = c.textContent; $("dexpr").focus(); } };
+  $("lib").onclick = e => {
+    const b = e.target.closest("[data-play],[data-neg],[data-hard],[data-del],[data-chk]");
+    if (!b) return;
+    const d = b.dataset;
+    if (d.chk !== undefined) { const n = lib[+d.chk].name; checked.has(n) ? checked.delete(n) : checked.add(n); return render(); }
+    const en = lib[+(d.play ?? d.neg ?? d.hard ?? d.del)];
+    if (d.play !== undefined) { comps.push({ name: en.name, neg: false }); restart(); }
+    if (d.neg !== undefined) { const n = freshName("neg_" + en.name); define(n, `-${en.name}`); }
+    if (d.hard !== undefined) harderValue(en);
+    if (d.del !== undefined) {
+      const users = lib.filter(x => x !== en && new RegExp(`(^|[^A-Za-z0-9_'])${en.name.replace(/'/g, "\\'")}(?![A-Za-z0-9_'])`).test(x.expr)).map(x => x.name);
+      if (users.length) { alert(`${en.name} is used by ${users.join(", ")}. Delete those first.`); return; }
+      lib = lib.filter(x => x !== en); delete env[en.name]; checked.delete(en.name);
+      comps = comps.filter(c => c.name !== en.name); restart();
+    }
+    save(); render();
+  };
+  $("addSel").onclick = () => { define(freshName("S"), [...checked].join(" + ")); checked.clear(); render(); };
+  $("playSel").onclick = () => { comps = [...checked].map(name => ({ name, neg: false })); checked.clear(); restart(); };
+
+  // ---------- classes and relations ----------
+  function classesHTML() {
+    const groups = { positive: [], negative: [], zero: [], fuzzy: [], unknown: [] };
+    const byCanon = new Map();
+    for (const e of lib) {
+      const v = info(e);
+      if (!v) { groups.unknown.push([e.name]); continue; }
+      const key = v.canon !== null ? "c" + v.canon : "n" + v.name; // patient answers have no canonical id here, so group by name
+      if (!byCanon.has(key)) { const g = { names: [], val: v.name }; byCanon.set(key, g); groups[v.outcome].push(g); }
+      byCanon.get(key).names.push(e.name);
+    }
+    const box = (o, title) => `<div class="cls"><h3 class="o-${o}" style="border:0">${title}</h3>${groups[o].map(g => Array.isArray(g)
+      ? `<div class="eq">${esc(g[0])}</div>` : `<div class="eq">${g.names.map(esc).join(" = ")} <span class="v">· ${esc(g.val)}</span></div>`).join("") || `<div class="meta">none</div>`}</div>`;
+    return box("positive", "positive · Left wins") + box("negative", "negative · Right wins") + box("zero", "zero · second player wins") + box("fuzzy", "fuzzy · first player wins")
+      + (groups.unknown.length ? box("unknown", "not sure yet · think harder") : "");
+  }
+  const SYM = { ">": "gt", "<": "lt", "=": "eqs", "∥": "fz" };
+  function relHTML() {
+    const es = lib.slice(0, 30);
+    const head = `<tr><th></th>${es.map(e => `<th>${esc(e.name)}</th>`).join("")}</tr>`;
+    const rows = es.map((a, i) => `<tr><th style="text-align:right">${esc(a.name)}</th>${es.map((b, j) => {
+      if (i === j) return `<td class="eqs">=</td>`;
+      const r = rel(a, b), k = a.name + "|" + b.name;
+      if (r && SYM[r]) return `<td class="${SYM[r]}" title="${esc(a.name)} ${r} ${esc(b.name)}">${r}</td>`;
+      if (thinking.has("r:" + k)) return `<td class="k">…</td>`;
+      return `<td class="k" data-rel="${i},${j}" title="think harder about ${esc(a.name)} vs ${esc(b.name)}">${r === "gave up" ? "✗" : "?"}</td>`;
+    }).join("")}</tr>`).join("");
+    return `<table>${head}${rows}</table>`;
+  }
+  $("rel").onclick = e => { const c = e.target.closest("[data-rel]"); if (!c) return; const [i, j] = c.dataset.rel.split(",").map(Number); harderRel(lib[i], lib[j]); };
+
+  // ---------- playground: a sum of components, played one move at a time ----------
+  let pos = [], labels = [], hist = [], turn = first;
+  const label = c => `${c.neg ? "−" : ""}${c.name}`;
+  function restart() {
+    const terms = comps.flatMap(c => env[c.name].map((g, k, all) => ({ g: c.neg ? C.neg(g) : g, label: label(c) + (all.length > 1 ? `[${k + 1}]` : "") })));
+    pos = terms.map(t => t.g); labels = terms.map(t => t.label); hist = []; turn = first; save(); render();
+  }
+  const valText = g => { const v = quickVal(g); return v ? v.name : "?"; };
+  function sumValue(ps) { // the canonical value of the whole sum, quickly, or null
+    return C.tryWith(() => ps.reduce((a, g) => C.addC(a, g), C.ZERO), QUICK);
+  }
+  function movesFor(side) {
+    const out = [];
+    pos.forEach((g, i) => (side === "L" ? C.L(g) : C.R(g)).forEach(to => out.push({ i, to })));
+    return out;
+  }
+  // does this move win, with perfect play after it? (Left wants the rest ≥ 0 with Right to move; Right wants ≤ 0)
+  function wins(side, m) {
+    const ps = pos.slice(); ps[m.i] = m.to;
+    const s = sumValue(ps);
+    if (s === null) return null;
+    return C.tryWith(() => (side === "L" ? C.leq(C.ZERO, s) : C.leq(s, C.ZERO)), QUICK);
+  }
+  function move(side, m) {
+    hist.push({ side, i: m.i, from: pos[m.i], to: m.to });
+    pos[m.i] = m.to;
+    turn = side === "L" ? "R" : "L";
+    render();
+  }
+  function playHTML() {
+    if (!pos.length) return `<p class="meta">Nothing to play yet: press ▶ on a game.</p>`;
+    const s = sumValue(pos), o = s === null ? null : C.tryWith(() => C.outcome(s), QUICK);
+    const parts = pos.map((g, i) => `${esc(labels[i])}: ${esc(valText(g))}`).join(" + ");
+    const Lm = movesFor("L"), Rm = movesFor("R");
+    let over = "";
+    if (mode === "alt" && !(turn === "L" ? Lm : Rm).length) over = `${turn === "L" ? "Left" : "Right"} can't move: <b>${turn === "L" ? "Right" : "Left"} wins</b>.`;
+    else if (!Lm.length && !Rm.length) over = "Nobody can move: the second player won.";
+    const verdict = o ? (mode === "alt" ? ({ positive: "Left wins", negative: "Right wins", zero: `${turn === "L" ? "Right" : "Left"} wins (moving second)`, fuzzy: `${turn === "L" ? "Left" : "Right"} wins (moving first)` })[o] + " with perfect play" : OUT_TEXT[o]) : "";
+    const col = (side, ms) => `<div class="${side}"><h3>${side === "L" ? "Left" : "Right"}'s moves${ms.length ? "" : ": none"}</h3>${ms.map((m, k) => {
+      const dis = over || (mode === "alt" && turn !== side);
+      const w = hintOn && !dis ? wins(side, m) : null;
+      return `<button class="mv ${w ? "win" : ""}" data-mv="${side}${k}" ${dis ? "disabled" : ""}>${esc(labels[m.i])}: ${esc(valText(pos[m.i]))} → ${esc(valText(m.to))}${w ? `<span class="w">wins</span>` : ""}</button>`;
+    }).join("")}</div>`;
+    return `<div class="pos">${parts}<div class="tot">= ${s === null ? "? (too big for a quick look)" : esc(C.show(s))} ${badge(o)}</div>${verdict ? `<div class="meta">${verdict}</div>` : ""}</div>
+      ${over ? `<div class="over">${over}</div>` : mode === "alt" ? `<div class="turn"><span class="${turn}">${turn === "L" ? "Left" : "Right"}</span> to move</div>` : ""}
+      <div class="row" style="margin-bottom:8px"><button class="mini" id="undo" ${hist.length ? "" : "disabled"}>undo</button><button class="mini" id="restart">restart</button>
+        <button class="mini" id="playout" ${over ? "disabled" : ""}>play it out</button><button class="mini" id="amog" ${over || mode !== "alt" ? "disabled" : ""}>Amog's move</button>
+        <label class="meta"><input type="checkbox" id="hint" ${hintOn ? "checked" : ""}> show winning moves</label><button class="mini" id="saveSum">save the sum</button></div>
+      <div class="moves">${col("L", Lm)}${col("R", Rm)}</div>
+      ${hist.length ? `<ol class="hist">${hist.map(h => `<li><span class="${h.side}">${h.side === "L" ? "Left" : "Right"}</span>: ${esc(labels[h.i])} ${esc(valText(h.from))} → ${esc(valText(h.to))}</li>`).join("")}</ol>` : ""}`;
+  }
+  let hintOn = false;
+  $("play").onclick = e => {
+    const b = e.target.closest("button, input");
+    if (!b) return;
+    if (b.dataset.mv) { const side = b.dataset.mv[0], k = +b.dataset.mv.slice(1); move(side, movesFor(side)[k]); return; }
+    if (b.id === "undo") { const h = hist.pop(); pos[h.i] = h.from; turn = h.side; render(); }
+    if (b.id === "restart") restart();
+    if (b.id === "hint") { hintOn = b.checked; render(); }
+    if (b.id === "amog") amogMove();
+    if (b.id === "playout") playout();
+    if (b.id === "saveSum") { define(freshName("S"), comps.map((c, i) => (c.neg ? "-" : i ? "+ " : "") + c.name).join(" ").replace(/^\+ /, "")); render(); }
+  };
+  function amogMove() {
+    const ms = movesFor(turn);
+    if (!ms.length) return;
+    const good = ms.find(m => wins(turn, m));
+    move(turn, good || ms[Math.floor(Math.random() * ms.length)]);
+  }
+  function playout() { // a random continuation, alternating from whoever's turn it is, until someone is stuck
+    for (let n = 0; n < 500; n++) {
+      const ms = movesFor(turn);
+      if (!ms.length) break;
+      const m = ms[Math.floor(Math.random() * ms.length)];
+      hist.push({ side: turn, i: m.i, from: pos[m.i], to: m.to }); pos[m.i] = m.to; turn = turn === "L" ? "R" : "L";
+    }
+    if (mode === "free") mode = "alt";
+    render();
+  }
+  $("comps").onclick = e => {
+    const b = e.target.closest("[data-rm],[data-flip]");
+    if (!b) return;
+    if (b.dataset.rm !== undefined) comps.splice(+b.dataset.rm, 1);
+    else comps[+b.dataset.flip].neg = !comps[+b.dataset.flip].neg;
+    restart();
+  };
+  document.querySelectorAll("[data-mode]").forEach(b => (b.onclick = () => { mode = b.dataset.mode; save(); render(); }));
+  document.querySelectorAll("[data-first]").forEach(b => (b.onclick = () => { first = b.dataset.first; restart(); }));
+
+  function render() {
+    $("lib").innerHTML = libHTML();
+    $("addSel").disabled = checked.size < 2; $("playSel").disabled = checked.size < 1;
+    $("selInfo").textContent = checked.size ? [...checked].join(" + ") : "";
+    $("classes").innerHTML = classesHTML();
+    $("rel").innerHTML = relHTML();
+    $("comps").innerHTML = comps.map((c, i) => `<span class="chip">${esc(label(c))}<button data-flip="${i}" title="negate">±</button><button data-rm="${i}" title="remove">×</button></span>`).join("") || `<span class="meta">empty</span>`;
+    document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+    document.querySelectorAll("[data-first]").forEach(b => b.classList.toggle("on", b.dataset.first === first));
+    $("play").innerHTML = playHTML();
+  }
+  restart();
+})();
+</script>
+</body>
+</html>
