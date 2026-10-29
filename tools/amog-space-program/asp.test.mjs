@@ -619,3 +619,75 @@ test('late-game hardware stays a minority of what a good orbital rocket earns', 
     assert.ok(hw < pay * 0.5, `${upper}: hardware ${hw} vs payout ${Math.round(pay)} (${f.status})`);
   }
 });
+
+// airetho's #28: heavy low-thrust upper stages crashed back down unless the pitch sliders were maxed out
+test('guidance gets low-TWR upper stages (Hydra, NERVA) to orbit at any slider setting', () => {
+  const st = fresh();
+  researchAll((r) => !r.requiresStar && r.id !== 'nerva2');
+  st.structure.tanks = 60; st.structure.engines = 8;
+  const stages = [{ engine: 'raptor', count: 9, tanks: 80 }, { engine: 'raptor', count: 3, tanks: 60 },
+    { engine: 'hydra', count: 2, tanks: 30 }, { engine: 'nerva', count: 1, tanks: 20 }];
+  for (const [ts, te] of [[500, 12000], [1000, 30000], [2000, 50000], [5000, 80000]]) {
+    const p = G.predict({ stages, guidanceOn: true, turnStart: ts, turnEnd: te }, 400);
+    assert.equal(p.status, 'orbit', `pitch ${ts}/${te}`);
+    assert.ok(p.budget > 3000, `pitch ${ts}/${te}: ${p.budget.toFixed(0)} m/s left`);
+  }
+});
+
+test('auto-tune finds a pitch program at least as good as the current one, and predict matches a real flight', () => {
+  const st = fresh();
+  researchAll((r) => !r.requiresStar);
+  st.structure.tanks = 60; st.structure.engines = 8;
+  st.design = { stages: [{ engine: 'raptor', count: 9, tanks: 80 }, { engine: 'raptor', count: 3, tanks: 60 },
+    { engine: 'hydra', count: 2, tanks: 30 }, { engine: 'nerva', count: 1, tanks: 20 }],
+  guidanceOn: true, turnStart: 5000, turnEnd: 80000 };
+  const before = G.predict();
+  const t = G.tunePitch();
+  const after = G.predict();
+  assert.equal(st.design.turnStart, t.turnStart);
+  assert.ok(after.status === 'orbit' && after.budget > before.budget + 1000, `${before.budget} -> ${after.budget}`);
+  const f = G.simulate(st.design).flight;
+  assert.equal(f.status, after.status);
+  assert.ok(Math.abs(f.remainingDv() - after.budget) < 1);
+});
+
+test('ion tugs: all of the Δv on ion-friendly missions, up to a third elsewhere, none on landings', () => {
+  const st = fresh();
+  st.gotOrbit = true;
+  const m = (id) => G.missionById(id);
+  assert.equal(G.ionHelp(m('ceres'), 20000, 'direct'), 20000);
+  assert.equal(G.ionHelp(m('moonLanding'), 20000, 'direct'), 0);
+  assert.equal(G.ionHelp(m('venusLander'), 20000, 'direct'), 0);
+  const v = m('voyager');
+  assert.equal(G.ionHelp(v, 20000, 'direct'), Math.floor(G.missionNeed(v, 'direct') * D.ION.share));
+  assert.equal(G.ionHelp(v, 500, 'direct'), 500);
+  // a vehicle with 12 km/s of tug but too little chemical Δv still can't go; with enough it can
+  ['weather', 'meo', 'moonFlyby', 'marsFlyby', 'jupiterFlyby', 'saturnFlyby'].forEach((id) => { st.missionsDone[id] = 1; });
+  st.funds = 1e9;
+  const need = G.missionNeed(v, 'direct');
+  st.vehicles = [{ key: 'a', name: 'A', payload: 400, budget: Math.round(need * 0.5), ionDv: 12000, stages: [{ engine: 'raptor', count: 1, tanks: 10 }] }];
+  assert.equal(G.dispatchPlan(v, 'direct').vehicle, null);
+  st.vehicles[0].budget = Math.ceil(need * (1 - D.ION.share));
+  assert.ok(G.dispatchPlan(v, 'direct').vehicle);
+  const am = G.dispatch('voyager', 'direct');
+  assert.ok(am && am.ion, 'flies with an ion leg');
+});
+
+test('licensing: mission-gated research can be bought early for 5x the money, never the phase-3 tech', () => {
+  const st = fresh();
+  const nerva = G.researchById('engNerva');
+  assert.equal(G.licensable(nerva), false, 'not before orbit');
+  st.gotOrbit = true;
+  assert.equal(G.licensable(nerva), true);
+  assert.equal(G.licensable(G.researchById('nerva2')), false, 'needs NERVA first');
+  assert.equal(G.licensable(G.researchById('sailTech')), false, 'Voyager stays earned');
+  assert.equal(G.licensable(G.researchById('crew3')), false, 'not mission-gated');
+  const c = G.licenseCost(nerva);
+  assert.equal(c.funds, nerva.cost.funds * D.LICENSE.mult);
+  st.funds = c.funds - 1; st.sci = c.sci;
+  assert.equal(G.buyLicense('engNerva'), false);
+  st.funds = c.funds;
+  assert.equal(G.buyLicense('engNerva'), true);
+  assert.ok(st.research.engNerva && st.funds === 0 && st.sci === 0);
+  assert.equal(G.licensable(nerva), false, 'already owned');
+});

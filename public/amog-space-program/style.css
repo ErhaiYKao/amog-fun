@@ -136,6 +136,7 @@ button.danger { background: #742c28; color: #ffd9d4; }
 #design-stats th { color: var(--dim); font-weight: 600; }
 #design-stats td:first-child, #design-stats th:first-child { text-align: left; }
 .total { margin-top: 6px; font-size: 14px; }
+.predict { margin-top: 6px; font-size: 13px; }
 .formula {
   text-align: center; font-size: 15px; color: var(--blue);
   background: var(--panel2); border: 1px dashed var(--edge); border-radius: 8px;

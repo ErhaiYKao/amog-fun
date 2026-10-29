@@ -199,23 +199,32 @@
         // burn mostly horizontal (that's what orbit IS — going sideways fast),
         // with a radial correction that steers apoapsis toward the target and
         // damps vertical speed. This is how real upper-stage guidance behaves.
-        if (this.guided && h > 40e3 && this.apMode === 'insertion') {
-          var vr = (this.x * this.vx + this.y * this.vy) / r;
-          var apo = isFinite(this.apoapsis) ? this.apoapsis : this.targetAp * 2;
-          var u = 1.5 * (1 - apo / this.targetAp) - vr / 1500;
-          if (u > 1.2) u = 1.2; else if (u < -0.35) u = -0.35;
-          var edir = (this.vx * eastx + this.vy * easty) >= 0 ? 1 : -1;
-          tx = eastx * edir + upx * u; ty = easty * edir + upy * u;
-          var tn = Math.sqrt(tx * tx + ty * ty) || 1;
-          tx /= tn; ty /= tn;
-        }
-        // Circularization: prograde at apoapsis, the cheapest place to buy
-        // periapsis altitude.
-        if (this.apMode === 'circ') {
-          var vNowC = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-          if (vNowC > 1) { tx = this.vx / vNowC; ty = this.vy / vNowC; }
-        }
         var aT = thrust / this.mass;
+        if (this.guided && h > 40e3 && (this.apMode === 'insertion' || this.apMode === 'circ')) {
+          var vr = (this.x * this.vx + this.y * this.vy) / r;
+          var edir = (this.vx * eastx + this.vy * easty) >= 0 ? 1 : -1;
+          var vh = Math.abs(this.vx * eastx + this.vy * easty);
+          // what gravity takes per second once sideways speed has paid its share (0 in orbit)
+          var gNet = gMag - vh * vh * invR;
+          var sinP;
+          if (this.apMode === 'insertion') {
+            var apo = isFinite(this.apoapsis) ? this.apoapsis : this.targetAp * 2;
+            var u = 1.5 * (1 - apo / this.targetAp) - vr / 1500;
+            if (u > 1.2) u = 1.2; else if (u < -0.35) u = -0.35;
+            sinP = u / Math.sqrt(1 + u * u);
+            // a weak upper stage mustn't sink back into the air: once it's falling, lift enough to stop it
+            if (vr < -50) sinP = Math.max(sinP, (gNet + (-vr - 50) / 20) / aT);
+          } else {
+            // Circularization at apoapsis: burn sideways and hold the altitude it started at, so a low-thrust
+            // stage (NERVA, Hydra) gains speed instead of falling while it does (pure prograde lets it sink)
+            if (this.circAlt === undefined) this.circAlt = Math.max(h, C.ORBIT_MIN + 20e3);
+            var vrWant = Math.max(-50, Math.min(200, (this.circAlt - h) / 50));
+            sinP = (gNet + (vrWant - vr) / 20) / aT;
+          }
+          if (sinP > 1) sinP = 1; else if (sinP < -0.35) sinP = -0.35;
+          var cosP = Math.sqrt(1 - sinP * sinP);
+          tx = eastx * edir * cosP + upx * sinP; ty = easty * edir * cosP + upy * sinP;
+        }
         // don't lift off until TWR > 1 (clamped to the pad)
         if (h <= 0.5 && aT * (tx * upx + ty * upy) <= gMag) {
           // engines on, going nowhere — burn fuel in place

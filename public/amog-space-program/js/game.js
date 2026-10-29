@@ -13,6 +13,7 @@
   var MAX_STAGES = 4;
   var MAX_VEHICLES = 8;
   var CREW_TURNAROUND = { crew4: 1.5, crew3: 3, crew2: 6, crew1: 12 };
+  var TURN = { ts: [200, 5000], te: [8000, 80000] }; // pitch slider ranges (m), same as index.html
 
   function freshState() {
     return {
@@ -167,8 +168,8 @@
     else s.design.stages = stages;
     if (!isNum(s.design.turnStart)) s.design.turnStart = base.design.turnStart;
     if (!isNum(s.design.turnEnd)) s.design.turnEnd = base.design.turnEnd;
-    s.design.turnStart = Math.max(200, Math.min(5000, s.design.turnStart));
-    s.design.turnEnd = Math.max(8000, Math.min(80000, s.design.turnEnd));
+    s.design.turnStart = Math.max(TURN.ts[0], Math.min(TURN.ts[1], s.design.turnStart));
+    s.design.turnEnd = Math.max(TURN.te[0], Math.min(TURN.te[1], s.design.turnEnd));
     s.design.guidanceOn = s.design.guidanceOn === true;
     if (!Array.isArray(s.ships)) s.ships = [];
     s.ships = s.ships.filter(function (sh) {
@@ -223,7 +224,7 @@
     listeners: {},
     rng: Math.random,  // the balance bot swaps in a seeded one
     _autoT: 0,
-    SAVE_KEY: SAVE_KEY, SAVE_VERSION: SAVE_VERSION, MAX_STAGES: MAX_STAGES,
+    SAVE_KEY: SAVE_KEY, SAVE_VERSION: SAVE_VERSION, MAX_STAGES: MAX_STAGES, TURN: TURN,
     freshState: freshState, sanitizeState: sanitizeState
   };
 
@@ -484,6 +485,54 @@
     return { flight: f, resolved: r };
   };
 
+  // What the builder's design will do, flown headless (a few ms), cached per design + tech:
+  // { status, budget (dv left in space), maxAlt, maxSpeed, ionDv } or null for an invalid design
+  var predictCache = {};
+  G.predict = function (design, payload) {
+    var r = G.resolveDesign(design, payload);
+    if (r.invalid) return null;
+    var key = JSON.stringify([r.ascent.map(function (s) {
+      return [s.engine.ve, s.engine.thrust, s.engine.mass, s.engineCount, s.tanks, s.tankDry];
+    }), r.payload, r.cdA, r.turnStart, r.turnEnd]);
+    if (predictCache[key]) return predictCache[key];
+    var f = G.makeFlight(r);
+    while (f.status === 'flying' && f.t < 7200) f.advance(120);
+    var out = { status: f.status === 'flying' ? 'aborted' : f.status, maxAlt: f.maxAlt, maxSpeed: f.maxSpeed,
+      budget: f.status === 'orbit' ? f.remainingDv() : f.status === 'escape' ? f.remainingDv() + 3200 : 0,
+      ionDv: r.spaceDv };
+    if (Object.keys(predictCache).length > 500) predictCache = {};
+    predictCache[key] = out;
+    return out;
+  };
+
+  // Pick the pitch program that leaves this design the most dv in orbit (or, if it can't make orbit, gets it
+  // closest). Coarse grid over the slider ranges, then a fine pass around the best. Returns the new settings.
+  G.tunePitch = function (design, payload) {
+    design = design || G.state.design;
+    function score(ts, te) {
+      var p = G.predict(Object.assign({}, design, { guidanceOn: true, turnStart: ts, turnEnd: te }), payload);
+      if (!p) return -Infinity;
+      return p.status === 'orbit' || p.status === 'escape' ? 1e6 + p.budget : p.maxSpeed + p.maxAlt * 1e-3;
+    }
+    var best = { ts: design.turnStart, te: design.turnEnd, s: score(design.turnStart, design.turnEnd) };
+    function tryAt(ts, te) {
+      ts = Math.max(TURN.ts[0], Math.min(TURN.ts[1], Math.round(ts / 100) * 100));
+      te = Math.max(TURN.te[0], Math.min(TURN.te[1], Math.round(te / 1000) * 1000));
+      var s = score(ts, te);
+      if (s > best.s) best = { ts: ts, te: te, s: s };
+    }
+    [200, 500, 1000, 2000, 3500, 5000].forEach(function (ts) {
+      [8000, 12000, 18000, 25000, 35000, 50000, 65000, 80000].forEach(function (te) { tryAt(ts, te); });
+    });
+    var c = { ts: best.ts, te: best.te };
+    [-1, 0, 1].forEach(function (a) {
+      [-1, 0, 1].forEach(function (b) { tryAt(c.ts * (1 + 0.3 * a), c.te * (1 + 0.2 * b)); });
+    });
+    design.guidanceOn = true; design.turnStart = best.ts; design.turnEnd = best.te;
+    G.emit('change');
+    return { turnStart: best.ts, turnEnd: best.te };
+  };
+
   // ---- Objectives (what the payload is for) ---------------------------------
 
   G.objectivePayload = function (obj) {
@@ -693,7 +742,7 @@
       var m = findBy(D.MISSIONS, obj.id);
       if (m) {
         var need = G.missionNeed(m, obj.traj);
-        var avail = result.budget + (m.ionOk ? meta.spaceDv : 0);
+        var avail = result.budget + G.ionHelp(m, meta.spaceDv, obj.traj);
         var why = G.dispatchBlocker(m, avail, meta.payload, 0, obj.traj);
         if (!why) {
           result.mission = startMission(m, obj.traj, result.budget, meta.spaceDv, true);
@@ -780,6 +829,30 @@
     st.funds -= c.funds; st.sci -= c.sci; st.research[id] = true;
     if (id === 'crew1') st.autolaunch = true; // you hired the crew; they launch
     G.addLog('Research complete: ' + r.name, 'good');
+    G.emit('change');
+    return true;
+  };
+
+  // Licensing: research that only waits on a mission can be bought early for D.LICENSE.mult x the funds
+  // (buy the data off someone who flew it), so surplus money is never useless. Phase 3 (Voyager) stays earned.
+  G.licensable = function (r) {
+    var st = G.state;
+    if (!r || st.research[r.id] || !r.requiresMission || r.requiresStar || !st.gotOrbit) return false;
+    if (D.LICENSE.exclude.indexOf(r.requiresMission) >= 0 || st.missionsDone[r.requiresMission]) return false;
+    return G.researchPrereqsMet(r) && !(r.requiresAlt && st.bestAlt < r.requiresAlt);
+  };
+  G.licenseCost = function (r) {
+    var c = G.researchCost(r);
+    return { funds: c.funds * D.LICENSE.mult, sci: c.sci };
+  };
+  G.buyLicense = function (id) {
+    var r = findBy(D.RESEARCH, id), st = G.state;
+    if (!G.licensable(r)) return false;
+    var c = G.licenseCost(r);
+    if (st.funds < c.funds || st.sci < c.sci) return false;
+    st.funds -= c.funds; st.sci -= c.sci; st.research[id] = true;
+    earn('licenses', -c.funds, -c.sci);
+    G.addLog('Licensed early: ' + r.name, 'good');
     G.emit('change');
     return true;
   };
@@ -922,6 +995,13 @@
     if (!G.missionWindow(m, t).open) dv *= D.WINDOW.offPenalty;
     return Math.round(dv);
   };
+  // How much of an ion tug's dv mission m can use: all of it on ion-friendly missions, none on landings, and
+  // elsewhere up to D.ION.share of the need (the departure burn has to be quick; ion spirals out too slowly)
+  G.ionHelp = function (m, ionDv, traj) {
+    if (!ionDv || m.noIon || m.descent) return 0;
+    if (m.ionOk) return ionDv;
+    return Math.min(ionDv, Math.floor(G.missionNeed(m, traj) * D.ION.share));
+  };
   G.missionOps = function (m) {
     return (m.cost || 0) * (G.state.missionsDone[m.id] ? 0.5 : 1);
   };
@@ -964,8 +1044,9 @@
   function startMission(m, traj, budget, ionDv, manual) {
     var st = G.state;
     var need = G.missionNeed(m, traj);
-    var ion = m.ionOk && budget < need && budget + ionDv >= need;
-    var total = budget + (m.ionOk ? ionDv : 0);
+    var ionUse = G.ionHelp(m, ionDv, traj);
+    var ion = ionUse > 0 && budget < need;
+    var total = budget + ionUse;
     var ops = G.missionOps(m);
     st.funds -= ops;
     earn('missions', -ops, 0);
@@ -983,7 +1064,7 @@
   G.capableVehicles = function (m, traj) {
     var need = G.missionNeed(m, traj);
     return G.state.vehicles.filter(function (v) {
-      return v.payload >= m.payload && v.budget + (m.ionOk ? v.ionDv : 0) >= need;
+      return v.payload >= m.payload && v.budget + G.ionHelp(m, v.ionDv, traj) >= need;
     }).sort(function (a, b) { return G.designCost(a) - G.designCost(b); });
   };
   // What a dispatch would cost and whether it can go: {vehicle, cost, why}
@@ -992,14 +1073,14 @@
     if (!vs.length) {
       var best = 0;
       G.state.vehicles.forEach(function (v) {
-        if (v.payload >= m.payload) best = Math.max(best, v.budget + (m.ionOk ? v.ionDv : 0));
+        if (v.payload >= m.payload) best = Math.max(best, v.budget + G.ionHelp(m, v.ionDv, traj));
       });
       return { vehicle: null, cost: 0, why: best ? 'Best proven vehicle for ' + m.payload + ' kg has ' +
         D.fmtSpeed(best) + ' — need ' + D.fmtSpeed(G.missionNeed(m, traj)) + '.' :
         'No proven vehicle carries ' + m.payload + ' kg to orbit yet.' };
     }
     var v = vs[0], cost = G.designCost(v);
-    var why = G.dispatchBlocker(m, v.budget + (m.ionOk ? v.ionDv : 0), v.payload, cost, traj);
+    var why = G.dispatchBlocker(m, v.budget + G.ionHelp(m, v.ionDv, traj), v.payload, cost, traj);
     return { vehicle: v, cost: cost + G.missionOps(m), why: why };
   };
   // Re-fly a proven vehicle for mission id (no flight to watch).

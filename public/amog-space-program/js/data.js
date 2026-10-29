@@ -6,7 +6,7 @@
  *   ENGINES    ve m/s, thrust N, mass kg; unit = $ per engine per launch,
  *              tank = $ per tank of this engine's propellant per launch.
  *              upper: vacuum engine, stages 2+ only. planner: never burns
- *              during ascent, adds orbital dv for ionOk missions only.
+ *              during ascent, adds orbital dv to missions (see ION).
  *              vac: ve multiplier on stages 2+ once Vacuum nozzles is researched.
  *              dryMult: tank dry mass multiplier (liquid hydrogen is fluffy).
  *              upgrade: { research, ve } a later research raises ve.
@@ -16,7 +16,8 @@
  *   MISSIONS   dv beyond LEO, payload kg the vehicle must carry, time s (real
  *              seconds of transit), funds/sci reward, cost = mission ops $,
  *              window: launch window period in seconds (open for WINDOW.open
- *              of each period), ionOk: ion tugs may help, descent: manual
+ *              of each period), ionOk: ion tugs may cover all of it (otherwise
+ *              ION.share), noIon: landers, ion can't help, descent: manual
  *              landing minigame, assistDv: dv with gravity assists, aeroDv: dv
  *              with aerobraking.
  */
@@ -238,7 +239,7 @@
     { id: 'marsFlyby',   name: 'Mars flyby',      dv: 3700,  payload: 250, cost: 5e4,  funds: 900000, sci: 5000, time: 300, requires: 'moonFlyby', window: 390 },
     { id: 'l2scope',     name: 'Deep-space telescope (L2)', dv: 3300, payload: 500, cost: 8e4, funds: 1.2e6, sci: 7000, time: 180, requires: 'moonOrbit',
       note: 'Heavy mirror, parked 1.5 million km out. Built for the heavy-lift pad.' },
-    { id: 'venusLander', name: 'Venus lander',    dv: 4400,  aeroDv: 3600, payload: 400, cost: 1e5, funds: 1.8e6, sci: 9000, time: 300, requires: 'venusFlyby', window: 290,
+    { id: 'venusLander', name: 'Venus lander',    dv: 4400,  aeroDv: 3600, payload: 400, cost: 1e5, funds: 1.8e6, sci: 9000, time: 300, requires: 'venusFlyby', window: 290, noIon: true,
       note: 'Venera-style: the atmosphere does the braking, then crushes the probe. 57 glorious minutes of data.' },
     { id: 'marsOrbit',   name: 'Mars orbit',      dv: 5700,  aeroDv: 4700, payload: 200, cost: 1.5e5, funds: 2.2e6, sci: 11000, time: 360, requires: 'marsFlyby', window: 390, ionOk: true },
     { id: 'mercuryOrbit',name: 'Mercury orbit',   dv: 9500,  payload: 150, cost: 3e5, funds: 4e6, sci: 18000, time: 420, requires: 'venusFlyby', window: 120, ionOk: true,
@@ -265,6 +266,10 @@
     { id: 'voyager',     name: 'Solar escape (Voyager moment)', dv: 8800, assistDv: 7500, payload: 400, cost: 3e6, funds: 7e7, sci: 2.0e5, time: 1500, requires: 'saturnFlyby',
       note: 'Leave the Sun behind. The stars are next.' }
   ];
+  // Ion tugs: on ion-friendly missions they can supply all the dv; on any other
+  // mission that doesn't land, up to `share` of it (the departure burn has to be
+  // quick, and an ion drive spirals out far too slowly for that).
+  var ION = { share: 1 / 3 };
   // Repeat missions: the public stops caring, slowly. Funds decay to a floor
   // (a repeat is a real, rate-limited job); science decays to ~nothing.
   var REPEAT = { funds: 0.3, fundsDecay: 0.8, fundsFloor: 0.08, sci: 0.25, sciDecay: 0.5 };
@@ -340,6 +345,9 @@
   // irrelevant while research is the bottleneck. Escalating, so it's a valve,
   // not a converter.
   var OUTSOURCE = { baseCost: 2500, costGrowth: 1.45, baseSci: 25, sciGrowth: 1.2 };
+  // Licensing: research gated on a mission you haven't flown can be bought early at mult x the funds
+  // (science unchanged). Not the phase-3 tech, which Voyager has to earn.
+  var LICENSE = { mult: 5, exclude: ['voyager'] };
   function outsourceCost(n) { return Math.round(OUTSOURCE.baseCost * Math.pow(OUTSOURCE.costGrowth, n)); }
   function outsourceSci(n) { return Math.round(OUTSOURCE.baseSci * Math.pow(OUTSOURCE.sciGrowth, n)); }
 
@@ -391,8 +399,8 @@
     STRUCTURE: STRUCTURE, HEAVY_TANKS: HEAVY_TANKS, WARPS: WARPS,
     ALT_MILESTONES: ALT_MILESTONES, SPEED_MILESTONES: SPEED_MILESTONES,
     ORBIT_MILESTONE: ORBIT_MILESTONE, ESCAPE_MILESTONE: ESCAPE_MILESTONE,
-    RESEARCH: RESEARCH, MISSIONS: MISSIONS, WINDOW: WINDOW, REPEAT: REPEAT, FAME_PER_MISSION: FAME_PER_MISSION,
-    CONTRACTS: CONTRACTS, STARS: STARS, FLYBY: FLYBY, COLONY: COLONY,
+    RESEARCH: RESEARCH, MISSIONS: MISSIONS, WINDOW: WINDOW, ION: ION, REPEAT: REPEAT, FAME_PER_MISSION: FAME_PER_MISSION,
+    CONTRACTS: CONTRACTS, LICENSE: LICENSE, STARS: STARS, FLYBY: FLYBY, COLONY: COLONY,
     effectiveAlt: effectiveAlt,
     launchPayout: launchPayout, launchScience: launchScience, structureCost: structureCost,
     outsourceCost: outsourceCost, outsourceSci: outsourceSci,

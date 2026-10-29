@@ -87,7 +87,7 @@
     } else if (info.mission) {
       var m = info.mission, w = G.missionWindow(m);
       html += '<div class="hint">Reach orbit carrying <b>' + m.payload + ' kg</b> with <b>≥ ' +
-        D.fmtSpeed(G.missionNeed(m, info.traj)) + '</b> of Δv left' + (m.ionOk ? ' (ion tugs count)' : '') +
+        D.fmtSpeed(G.missionNeed(m, info.traj)) + '</b> of Δv left' + ionText(m, info.traj) +
         ' and the probe departs. ' + windowText(m, w) +
         (st.missions.length >= G.missionSlots() ? ' <span class="bad">All mission slots busy.</span>' : '') + '</div>';
     } else if (st.gotOrbit) {
@@ -104,6 +104,15 @@
       }
       refresh();
     };
+  }
+
+  // what an ion tug can do for mission m, for the objective hint ('' before ion research)
+  function ionText(m, traj) {
+    if (!G.state.research.engIon) return '';
+    var cap = G.ionHelp(m, Infinity, traj);
+    if (!cap) return ' (ion tugs can’t help a landing)';
+    if (cap === Infinity) return ' (ion tugs count in full)';
+    return ' (ion tugs can cover up to ' + D.fmtSpeed(cap) + ' of it)';
   }
 
   function windowText(m, w) {
@@ -156,10 +165,13 @@
     add.classList.toggle('hidden', design.stages.length >= G.maxStages());
   }
 
-  // [−] n/max [+] [max] — shift-click ±5
+  // [min] [−] n/max [+] [max] — shift-click ±5
   function stepper(label, val, min, max, onset) {
     var w = el('div', 'stepper');
     w.appendChild(el('span', 'steplabel', txt(label)));
+    var mn = el('button', 'ghost tiny maxbtn', 'min');
+    mn.title = 'Set to the minimum (' + min + ')';
+    mn.onclick = function () { onset('min'); };
     var minus = el('button', 'ghost tiny', '−');
     var num = el('b', '', val + '<span class="stepmax">/' + max + '</span>');
     var plus = el('button', 'ghost tiny', '+');
@@ -167,12 +179,12 @@
     minus.title = 'shift-click: −5';
     plus.title = 'shift-click: +5';
     mx.title = 'Set to the maximum (' + max + ')';
-    minus.disabled = val <= min;
+    minus.disabled = mn.disabled = val <= min;
     plus.disabled = mx.disabled = val >= max;
     minus.onclick = function (ev) { onset(Math.max(min, val - (ev.shiftKey ? 5 : 1))); };
     plus.onclick = function (ev) { onset(Math.min(max, val + (ev.shiftKey ? 5 : 1))); };
     mx.onclick = function () { onset('max'); };
-    w.appendChild(minus); w.appendChild(num); w.appendChild(plus); w.appendChild(mx);
+    w.appendChild(mn); w.appendChild(minus); w.appendChild(num); w.appendChild(plus); w.appendChild(mx);
     return w;
   }
 
@@ -184,7 +196,7 @@
       html += '<table><tr><th></th><th>Δv</th><th>TWR</th><th>burn</th></tr>';
       r.stats.perStage.forEach(function (ps, i) {
         html += '<tr><td>S' + (i + 1) + '</td><td>' + D.fmtSpeed(ps.dv) + '</td><td class="' +
-          (i === 0 && ps.twr < 1.05 ? 'bad' : '') + '">' + ps.twr.toFixed(2) + '</td><td>' +
+          ((i === 0 && ps.twr < 1.05) || (i > 0 && ps.twr < 0.5) ? 'bad' : '') + '">' + ps.twr.toFixed(2) + '</td><td>' +
           ps.burnTime.toFixed(0) + 's</td></tr>';
       });
       html += '</table>';
@@ -198,18 +210,45 @@
         (G.state.research.reuse ? ' (stage 1 recovered)' : '') + '</div>';
       if (r.stats.liftoffTwr < 1.02) {
         html += '<div class="bad">TWR &lt; 1 — this will sit on the pad and burn until it’s light enough.</div>';
-      } else if (r.stats.liftoffTwr > 2.6 && G.state.bestAlt < 200e3) {
+      } else if (r.stats.liftoffTwr > 2.6) {
         html += '<div class="hint">TWR ' + r.stats.liftoffTwr.toFixed(1) +
-          ' — thick air punishes speed (drag ∝ v²). Fewer engines or more tanks usually flies higher.</div>';
+          (G.state.bestAlt < 200e3 ? ' — thick air punishes speed (drag ∝ v²). Fewer engines or more tanks usually flies higher.</div>'
+            : ' — every extra engine is dead weight once you’re off the pad. Fewer engines and more tanks usually leaves more Δv in orbit.</div>');
       }
       if (r.spaceDv > 0) {
         html += '<div class="good">Orbital tug Δv: ' + D.fmtSpeed(r.spaceDv) +
-          ' <span class="hint">(counts for ion-friendly missions only)</span></div>';
+          ' <span class="hint">(all of it counts on ion-friendly missions, up to a third of the Δv on other missions, none on landings)</span></div>';
       }
+      html += predictionHtml(r);
     } else {
       html = '<div class="bad">' + txt(r.invalid || 'No atmosphere-capable engines.') + '</div>';
     }
     box.innerHTML = html;
+  }
+
+  // The builder's flight, flown ahead of time (once guidance exists, i.e. once orbit is the goal).
+  function predictionHtml(r) {
+    var st = G.state;
+    if (!st.research.guidance) return '';
+    var p = G.predict();
+    if (!p) return '';
+    var html = '<div class="predict">Predicted flight: ';
+    var weak = r.stats.perStage.some(function (ps, i) { return i > 0 && ps.twr < 0.5; });
+    if (p.status === 'orbit' || p.status === 'escape') {
+      html += (p.status === 'orbit' ? '<b class="good">orbit</b>' : '<b class="good">escapes Earth</b>') +
+        ' with <b>' + D.fmtSpeed(p.budget) + '</b> of Δv left' + (p.ionDv ? ' + ' + D.fmtSpeed(p.ionDv) + ' ion' : '') + '.';
+      var o = st.objective, m = o && o.kind === 'mission' ? G.missionById(o.id) : null;
+      if (m) {
+        var need = G.missionNeed(m, o.traj), have = p.budget + G.ionHelp(m, p.ionDv, o.traj);
+        html += have >= need ? ' <span class="good">Enough for ' + txt(m.name) + '.</span>'
+          : ' <span class="bad">' + txt(m.name) + ' needs ' + D.fmtSpeed(need) + ': short by ' + D.fmtSpeed(need - have) + '.</span>';
+      }
+    } else {
+      html += '<b class="bad">no orbit</b>: tops out at ' + D.fmtDist(p.maxAlt) + ', ' + D.fmtSpeed(p.maxSpeed) + '.' +
+        (st.design.guidanceOn ? ' Try auto-tune, or more Δv in the lower stages.' : ' Turn on the gravity turn.');
+    }
+    if (weak) html += '<div class="hint">A stage with TWR under 0.5 that lights before orbit spends much of its Δv holding itself up. Let the stages below it reach orbit, or give it more engines.</div>';
+    return html + '</div>';
   }
 
   function renderLaunchButton() {
@@ -332,13 +371,16 @@
       if (r.requiresStar && G.phase() < 3) return;
       if (r.requiresMission && !st.gotOrbit) return;
       var c = G.researchCost(r);
-      var afford = st.funds >= c.funds && st.sci >= c.sci;
-      var b = el('button', 'shopitem' + (gate || !afford ? ' locked' : ''));
+      var lic = gate && G.licensable(r) ? G.licenseCost(r) : null;
+      var pay = lic || c;
+      var afford = st.funds >= pay.funds && st.sci >= pay.sci;
+      var b = el('button', 'shopitem' + ((gate && !lic) || !afford ? ' locked' : ''));
       b.innerHTML = '<b>' + (gate ? '🔒 ' : '') + txt(r.name) + '</b> <span>' + txt(r.desc) + '</span>' +
-        '<em>' + (gate ? 'to unlock: ' + txt(gate) + ' · ' : '') + costText(c) + '</em>';
-      b.disabled = !!gate;
+        '<em>' + (gate ? 'to unlock: ' + txt(gate) + ' · ' : '') + costText(c) +
+        (lic ? ' · or license it now: ' + costText(lic) + ' (' + D.LICENSE.mult + '× the money)' : '') + '</em>';
+      b.disabled = !!gate && !lic;
       b.onclick = function () {
-        if (G.buyResearch(r.id)) {
+        if (lic ? G.buyLicense(r.id) : G.buyResearch(r.id)) {
           var e = Object.keys(D.ENGINES).filter(function (k) { return D.ENGINES[k].research === r.id; })[0];
           var hint = { stage2: ' Use “+ add stage” in the Rocket tab.',
                        stage3: ' Use “+ add stage” in the Rocket tab.',
@@ -440,7 +482,7 @@
       card.innerHTML = '<b>' + txt(m.name) + (done ? ' ✓' + (done > 1 ? '×' + done : '') : '') + '</b>' +
         '<span>Δv <b>' + D.fmtSpeed(need) + '</b> beyond LEO · payload <b>' + m.payload + ' kg</b> · ~' +
         D.fmtTime(m.time * (traj === 'assist' ? 1.6 : 1)) + ' trip' +
-        (m.ionOk ? ' · ion OK' : '') + (m.descent ? ' · 🕹 manual landing (soft = ×1.5)' : '') +
+        (st.research.engIon ? (m.ionOk ? ' · ion: all of it' : G.ionHelp(m, Infinity, traj) ? ' · ion: up to ⅓' : ' · no ion') : '') + (m.descent ? ' · 🕹 manual landing (soft = ×1.5)' : '') +
         (m.assistDv && !G.canAssist(m) ? ' · with assists: ' + D.fmtSpeed(m.assistDv) : '') +
         (m.aeroDv && !st.research.aerobrake ? ' · aerobraking would help' : '') + '</span>' +
         (m.window ? '<span>' + windowText(m) + '</span>' : '') +
@@ -1094,6 +1136,12 @@
     $('turn-end').oninput = function () {
       G.state.design.turnEnd = +this.value;
       $('te-val').textContent = D.fmtDist(+this.value);
+    };
+    $('turn-start').onchange = $('turn-end').onchange = function () { refresh(); };
+    $('tune-pitch').onclick = function () {
+      var t = G.tunePitch();
+      toast('Guidance tuned: pitch over at ' + D.fmtDist(t.turnStart) + ', sideways by ' + D.fmtDist(t.turnEnd) + '.', 'good');
+      refresh();
     };
     $('end-flight').onclick = abortFlight;
     $('feedback-top').onclick = openFeedback;

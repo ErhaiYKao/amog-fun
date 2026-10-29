@@ -162,12 +162,12 @@ function optimizeRaw(name, payload, score, extraSeeds = []) {
   return best;
 }
 
-// Best orbital dv budget for a payload. ion: also count ion-tug dv.
-function budgetScoreFn(ion) {
+// Best orbital dv budget for a payload. ionCap: how much ion-tug dv counts (0: none, Infinity: all of it).
+function budgetScoreFn(ionCap) {
   return (res, design) => {
     if (!res.ok) return -Infinity;
     const cost = G.designCost(design);
-    if (res.status === 'orbit') return 1e6 + res.budget + (ion ? res.spaceDv : 0) - cost * 1e-4;
+    if (res.status === 'orbit') return 1e6 + res.budget + Math.min(res.spaceDv, ionCap) - cost * 1e-4;
     return res.maxSpeed + res.maxAlt * 1e-4;
   };
 }
@@ -197,8 +197,15 @@ function capSeeds() {
   return seeds;
 }
 
-export function bestBudget(payload, ion = false) {
-  const best = optimize((ion ? 'capi:' : 'cap:') + payload, payload, budgetScoreFn(ion), capSeeds());
+// how much ion dv mission m can use (G.ionHelp), rounded down to share memo entries between missions
+export function ionCapFor(m, traj) {
+  if (!G.state.research.engIon) return 0;
+  const c = G.ionHelp(m, Infinity, traj);
+  return c === Infinity ? Infinity : Math.floor(c / 250) * 250;
+}
+
+export function bestBudget(payload, ionCap = 0) {
+  const best = optimize('cap:' + payload + ':' + ionCap, payload, budgetScoreFn(ionCap), capSeeds());
   if (!best || best.res.status !== 'orbit') return { budget: 0, spaceDv: 0, design: best && best.design };
   return { budget: best.res.budget, spaceDv: best.res.spaceDv, design: best.design, cost: G.designCost(best.design) };
 }
@@ -235,23 +242,23 @@ export function capabilityTable(opts = {}) {
   for (const tier of TIERS) {
     tier.research.forEach((id) => { s.research[id] = true; });
     s.structure.tanks = tier.tanks - D.STRUCTURE.tanks.start;
-    const cap = {}, capIon = {};
-    const ionPayloads = new Set(D.MISSIONS.filter((m) => m.ionOk).map((m) => m.payload));
-    for (const p of payloads) {
-      cap[p] = bestBudget(p, false);
-      capIon[p] = s.research.engIon && ionPayloads.has(p) ? bestBudget(p, true) : cap[p];
-    }
+    const cap = {};
+    for (const p of payloads) cap[p] = bestBudget(p, 0);
     const feasible = new Set();
     for (const m of D.MISSIONS) {
       const traj = G.canAssist(m) ? 'assist' : 'direct';
       // compare with the in-window requirement
       const need = Math.round(G.missionNeed(m, traj, windowOpenTime(m)));
-      const c = m.ionOk ? capIon[m.payload] : cap[m.payload];
-      const avail = c.budget + (m.ionOk ? c.spaceDv : 0);
+      let avail = cap[m.payload].budget;
+      const ionCap = Math.min(ionCapFor(m, traj), need);
+      if (ionCap > 0 && avail < need) {
+        const c = bestBudget(m.payload, ionCap);
+        avail = Math.max(avail, c.budget + Math.min(c.spaceDv, ionCap));
+      }
       if (avail >= need) feasible.add(m.id);
     }
     const added = [...feasible].filter((id) => !feasiblePrev.has(id));
-    rows.push({ tier: tier.name, cap, capIon, feasible: [...feasible], added });
+    rows.push({ tier: tier.name, cap, feasible: [...feasible], added });
     say(tier.name.padEnd(30) + payloads.map((p) => (p + 'kg ' + (cap[p].budget / 1000).toFixed(2)).padStart(12)).join('') +
       '  | +' + added.length + ': ' + added.join(', '));
     feasiblePrev = feasible;
@@ -370,7 +377,7 @@ export function runBot(opts = {}) {
     return res.maxAlt - G.designCost(design) * 1e-3;
   }
 
-  function budgetScore() { return budgetScoreFn(false); }
+  function budgetScore() { return budgetScoreFn(0); }
 
   function fmtClock(t) {
     const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = Math.floor(t % 60);
@@ -433,11 +440,10 @@ export function runBot(opts = {}) {
         }
       }
       // design one
-      const useIon = !!(m.ionOk && s.research.engIon);
-      const bb = bestBudget(m.payload, useIon);
+      const bb = bestBudget(m.payload, ionCapFor(m, traj));
       if (!bb.design || !bb.budget) continue;
       const best = { design: bb.design, res: { status: 'orbit', budget: bb.budget, spaceDv: bb.spaceDv } };
-      const avail = best.res.budget + (m.ionOk ? best.res.spaceDv : 0);
+      const avail = best.res.budget + G.ionHelp(m, best.res.spaceDv, traj);
       const needNow = G.missionNeed(m, traj);
       const needWin = Math.round(needNow / (win.open ? 1 : D.WINDOW.offPenalty));
       if (avail >= needNow && G.designCost(best.design) + G.missionOps(m) <= s.funds) {
@@ -558,7 +564,7 @@ export function runBot(opts = {}) {
     if (!s.gotOrbit) {
       const alt = optimize('alt', D.PAYLOAD_MASS, altScore);
       if (s.research.guidance) {
-        const orb = bestBudget(D.PAYLOAD_MASS, false);
+        const orb = bestBudget(D.PAYLOAD_MASS, 0);
         if (orb.budget && G.designCost(orb.design) <= s.funds) { fly(orb.design); continue; }
       }
       if (alt && alt.res.maxAlt > s.bestAlt * 1.03 + 50) {
