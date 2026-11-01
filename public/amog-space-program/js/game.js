@@ -742,7 +742,7 @@
       var m = findBy(D.MISSIONS, obj.id);
       if (m) {
         var need = G.missionNeed(m, obj.traj);
-        var avail = result.budget + G.ionHelp(m, meta.spaceDv, obj.traj);
+        var avail = result.budget + G.ionHelp(m, meta.spaceDv);
         var why = G.dispatchBlocker(m, avail, meta.payload, 0, obj.traj);
         if (!why) {
           result.mission = startMission(m, obj.traj, result.budget, meta.spaceDv, true);
@@ -969,7 +969,7 @@
 
   G.missionById = function (id) { return findBy(D.MISSIONS, id); };
   G.missionVisible = function (m) {
-    return !m.requires || !!G.state.missionsDone[m.requires];
+    return !m.requires || !!G.state.missionsDone[m.requires] || !!G.state.missionsDone[m.id];
   };
   G.canAssist = function (m) { return !!(m.assistDv && G.state.research.slingshot); };
 
@@ -995,12 +995,14 @@
     if (!G.missionWindow(m, t).open) dv *= D.WINDOW.offPenalty;
     return Math.round(dv);
   };
-  // How much of an ion tug's dv mission m can use: all of it on ion-friendly missions, none on landings, and
-  // elsewhere up to D.ION.share of the need (the departure burn has to be quick; ion spirals out too slowly)
-  G.ionHelp = function (m, ionDv, traj) {
-    if (!ionDv || m.noIon || m.descent) return 0;
-    if (m.ionOk) return ionDv;
-    return Math.min(ionDv, Math.floor(G.missionNeed(m, traj) * D.ION.share));
+  // How many m/s of mission m an ion tug's dv is worth: one for one on ion-friendly missions, none on landings,
+  // D.ION.spiral per m/s elsewhere (a low-thrust spiral out of Earth's gravity wastes about half of it)
+  G.ionRate = function (m) {
+    if (m.noIon || m.descent) return 0;
+    return m.ionOk ? 1 : D.ION.spiral;
+  };
+  G.ionHelp = function (m, ionDv) {
+    return ionDv ? Math.floor(ionDv * G.ionRate(m)) : 0;
   };
   G.missionOps = function (m) {
     return (m.cost || 0) * (G.state.missionsDone[m.id] ? 0.5 : 1);
@@ -1018,12 +1020,14 @@
   };
   // Excess Δv buys a faster trajectory — barely-enough budget flies the slow
   // Hohmann transfer, double the budget roughly halves the trip. Gravity
-  // assists and ion legs take longer.
+  // assists take longer, and so do ion legs: ion = the share of the need the
+  // tug covers, an all-ion trip takes 1 + D.ION.slow times as long.
   G.missionDuration = function (m, budget, traj, ion) {
     var need = G.missionNeed(m, traj);
     var ratio = need > 0 ? budget / need : 1;
     var timeMult = Math.max(0.5, Math.min(1, 2 / (1 + ratio)));
-    return m.time * timeMult * (traj === 'assist' ? 1.6 : 1) * (ion ? 1.5 : 1);
+    var ionShare = ion === true ? 1 : Math.max(0, Math.min(1, +ion || 0));
+    return m.time * timeMult * (traj === 'assist' ? 1.6 : 1) * (1 + D.ION.slow * ionShare);
   };
   G.activeCount = function () { return G.state.missions.length; };
 
@@ -1044,13 +1048,13 @@
   function startMission(m, traj, budget, ionDv, manual) {
     var st = G.state;
     var need = G.missionNeed(m, traj);
-    var ionUse = G.ionHelp(m, ionDv, traj);
-    var ion = ionUse > 0 && budget < need;
-    var total = budget + ionUse;
+    // the tug only flies the part chemistry can't (ion legs are slow)
+    var ionUse = budget < need ? Math.min(G.ionHelp(m, ionDv), need - budget) : 0;
+    var ion = ionUse > 0;
     var ops = G.missionOps(m);
     st.funds -= ops;
     earn('missions', -ops, 0);
-    var am = { uid: ++st.uid, id: m.id, t0: st.clock, dur: G.missionDuration(m, total, traj, ion),
+    var am = { uid: ++st.uid, id: m.id, t0: st.clock, dur: G.missionDuration(m, budget + ionUse, traj, need > 0 ? ionUse / need : 0),
       traj: traj === 'assist' && G.canAssist(m) ? 'assist' : 'direct', mult: 1, ion: ion, manual: !!manual };
     st.missions.push(am);
     G.addLog('Mission underway: ' + m.name + (am.traj === 'assist' ? ' (gravity assist)' : '') +
@@ -1064,7 +1068,7 @@
   G.capableVehicles = function (m, traj) {
     var need = G.missionNeed(m, traj);
     return G.state.vehicles.filter(function (v) {
-      return v.payload >= m.payload && v.budget + G.ionHelp(m, v.ionDv, traj) >= need;
+      return v.payload >= m.payload && v.budget + G.ionHelp(m, v.ionDv) >= need;
     }).sort(function (a, b) { return G.designCost(a) - G.designCost(b); });
   };
   // What a dispatch would cost and whether it can go: {vehicle, cost, why}
@@ -1073,14 +1077,14 @@
     if (!vs.length) {
       var best = 0;
       G.state.vehicles.forEach(function (v) {
-        if (v.payload >= m.payload) best = Math.max(best, v.budget + G.ionHelp(m, v.ionDv, traj));
+        if (v.payload >= m.payload) best = Math.max(best, v.budget + G.ionHelp(m, v.ionDv));
       });
       return { vehicle: null, cost: 0, why: best ? 'Best proven vehicle for ' + m.payload + ' kg has ' +
         D.fmtSpeed(best) + ' — need ' + D.fmtSpeed(G.missionNeed(m, traj)) + '.' :
         'No proven vehicle carries ' + m.payload + ' kg to orbit yet.' };
     }
     var v = vs[0], cost = G.designCost(v);
-    var why = G.dispatchBlocker(m, v.budget + G.ionHelp(m, v.ionDv, traj), v.payload, cost, traj);
+    var why = G.dispatchBlocker(m, v.budget + G.ionHelp(m, v.ionDv), v.payload, cost, traj);
     return { vehicle: v, cost: cost + G.missionOps(m), why: why };
   };
   // Re-fly a proven vehicle for mission id (no flight to watch).

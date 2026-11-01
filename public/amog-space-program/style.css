@@ -125,7 +125,21 @@ button.ghost {
 }
 button.tiny { padding: 3px 10px; font-size: 13px; border-radius: 6px; }
 button.danger { background: #742c28; color: #ffd9d4; }
-#launch-btn { width: 100%; margin: 10px 0 6px; padding: 13px; font-size: 16px; letter-spacing: 1px; }
+#launch-btn { width: 100%; margin: 6px 0; padding: 13px; font-size: 16px; letter-spacing: 1px; }
+/* stays on screen while the stages scroll, so the prediction is visible as you tweak */
+#launch-dock {
+  position: sticky; bottom: -12px; z-index: 2;
+  margin: 10px -12px 0; padding: 6px 12px 10px;
+  background: var(--panel); border-top: 1px solid var(--edge);
+  box-shadow: 0 -8px 16px -8px rgba(0, 0, 0, 0.6);
+}
+#launch-dock .predict { margin-top: 2px; }
+details.tips { margin-top: 6px; font-size: 12px; color: var(--dim); line-height: 1.45; }
+details.tips summary { cursor: pointer; color: var(--blue); width: max-content; list-style: none; }
+details.tips summary::-webkit-details-marker { display: none; }
+details.tips summary::before { content: '💡 '; }
+details.tips[open] summary { margin-bottom: 3px; }
+details.tips p + p { margin-top: 4px; }
 #add-stage { width: 100%; margin-bottom: 8px; }
 #auto-wrap { font-size: 13px; color: var(--dim); display: block; margin-bottom: 8px; }
 #guidance { margin: 10px 0; }
@@ -264,6 +278,8 @@ footer {
   main { flex-direction: column-reverse; }
   #left { width: 100%; max-width: none; border-right: none; border-top: 1px solid var(--edge); }
   .panel { max-height: 48vh; }
+  #launch-btn { padding: 9px; font-size: 15px; margin: 4px 0; }
+  #launch-dock { padding-bottom: 6px; }
   #viewwrap { min-height: 40vh; }
   #brand h1 { font-size: 15px; letter-spacing: 2px; }
   #brand .brand { font-size: 18px; padding-right: 10px; }

@@ -18,15 +18,16 @@
 //   ~0:09      Kestrel; the Kármán line falls (a deliberate, satisfying burst)
 //   0:10-0:45  the long climb to orbit: staging, Merlin, telemetry, guidance,
 //              vacuum nozzles — one research every ~4-6 min, contracts between
-//   0:45       FIRST ORBIT (phase 2); weather sat and MEO right after
-//   1:20       hydrolox -> Moon flyby; 1:30-2:05 4th stage, heavy-lift I,
-//              aerobraking, ion, heavy-lift II open Moon orbit, Venus, Mars,
-//              L2, Mercury, Ceres, Moon landing one or two at a time
-//   2:20-3:40  Jupiter, NERVA, Mars landing, gravity assists, Saturn, Uranus
-//   ~4:10      heavy-lift III -> Voyager (phase 3)
-//   4:10-5:40  precursor flybys -> Alpha Centauri ... galactic core colonies
-//              -> Andromeda (~5h40). Expect a human at ~1.5-2x these times.
-// No tier of the capability table opens more than 3 missions; NERVA opens 1.
+//   0:41       FIRST ORBIT (phase 2); weather sat and MEO right after
+//   1:07-3:33  the mission chain, one new mission every ~2-28 min: Moon flyby,
+//              Moon orbit, Mars flyby (1:25), Venus lander, Mars orbit, ion ->
+//              Ceres, Moon landing, NERVA (1:56), Jupiter, Saturn, Mars
+//              landing, Neptune, Voyager (3:33, phase 3)
+//   3:33-5:05  precursor flybys -> Alpha Centauri ... galactic core colonies
+//              -> Andromeda (~5h05). Expect a human at ~1.5-2x these times.
+// Missions form one chain, so the capability table counts what each tier opens
+// along it. No tier opens more than 3; the landings (no ion) pace the outer
+// flybys that a big ion tug could otherwise fly all at once.
 
 import { runBot, capabilityTable, fmtClock, P, D, G } from './bot.mjs';
 

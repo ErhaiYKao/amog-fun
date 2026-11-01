@@ -49,19 +49,24 @@
       <button id="add-stage" class="ghost hidden">+ add stage</button>
       <div id="guidance" class="hidden">
         <h3>Guidance program</h3>
-        <label class="toggle"><input type="checkbox" id="guidance-on"> fly the gravity turn
-          <span class="hint">(off = straight up — better until your rocket is orbit-class)</span></label>
+        <label class="toggle"><input type="checkbox" id="guidance-on"> fly the gravity turn</label>
         <label>Pitch-over start <span id="ts-val"></span>
           <input type="range" id="turn-start" min="200" max="5000" step="100"></label>
         <label>Fully sideways by <span id="te-val"></span>
           <input type="range" id="turn-end" min="8000" max="80000" step="1000"></label>
         <button id="tune-pitch" class="ghost tiny" title="Fly this rocket headless with many pitch programs and keep the one that leaves the most Δv in orbit">auto-tune for this rocket</button>
-        <p class="hint">Orbit is mostly <em>sideways</em> speed. Turn too early and drag eats you; too late and gravity does.</p>
+        <details class="tips"><summary>tips</summary>
+          <p>Orbit is mostly <em>sideways</em> speed. Turn too early and drag eats you; too late and gravity does.</p>
+          <p>With the gravity turn off, the rocket flies straight up, which goes higher until the rocket is orbit-class.</p>
+        </details>
       </div>
       <div id="design-stats"></div>
       <div class="formula" title="The Tsiolkovsky rocket equation">Δv = v<sub>e</sub> · ln(m₀ / m₁)</div>
-      <button id="launch-btn">LAUNCH 🚀</button>
-      <div id="launch-why" class="bad hidden"></div>
+      <div id="launch-dock">
+        <div id="predict" class="predict hidden"></div>
+        <button id="launch-btn">LAUNCH 🚀</button>
+        <div id="launch-why" class="bad hidden"></div>
+      </div>
       <div id="crew-box" class="hidden"></div>
       <div id="last-flight" class="hidden"></div>
       <div id="shop">
@@ -73,14 +78,12 @@
 
     <section id="panel-rnd" class="panel">
       <h3>Research</h3>
-      <p class="hint">Researching an engine is all it takes to fly it — its price is in the research.</p>
       <div id="research-list"></div>
     </section>
 
     <section id="panel-contracts" class="panel">
       <h3>Job board</h3>
-      <p class="hint">Clients with their own payloads and targets. Accept one to make it your flight objective; finishing it pays on landing.
-        <span id="contract-next"></span></p>
+      <p class="hint" id="contract-next"></p>
       <div id="contract-list"></div>
     </section>
 

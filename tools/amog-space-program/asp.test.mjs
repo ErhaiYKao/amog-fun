@@ -375,8 +375,8 @@ test('missions need a proven vehicle with enough payload and Δv; slots limit co
 
 test('launch windows: off-window needs more Δv; auto-dispatch waits for the window', () => {
   const st = orbitalState();
-  st.missionsDone = { weather: 1, meo: 1, moonFlyby: 1 };
-  const m = G.missionById('venusFlyby');
+  st.missionsDone = { weather: 1, meo: 1, moonFlyby: 1, moonOrbit: 1 };
+  const m = G.missionById('marsFlyby');
   let tOpen = -1, tShut = -1;
   for (let t = 0; t < m.window * 2; t++) {
     if (G.missionWindow(m, t).open && tOpen < 0) tOpen = t;
@@ -389,7 +389,7 @@ test('launch windows: off-window needs more Δv; auto-dispatch waits for the win
   st.research.dispatch = true;
   st.vehicles.push({ key: 'v', name: 'V', payload: 500, budget: m.dv * 2, ionDv: 0, stages: [{ engine: 'merlin', count: 1, tanks: 10 }] });
   st.clock = tShut;
-  G.setAutoMission('venusFlyby', true);
+  G.setAutoMission('marsFlyby', true);
   G.tick(0.01);
   assert.equal(st.missions.length, 0, 'waits for the window');
   st.clock = tOpen + (tOpen < tShut ? 0 : m.window);
@@ -651,26 +651,43 @@ test('auto-tune finds a pitch program at least as good as the current one, and p
   assert.ok(Math.abs(f.remainingDv() - after.budget) < 1);
 });
 
-test('ion tugs: all of the Δv on ion-friendly missions, up to a third elsewhere, none on landings', () => {
+test('ion tugs: one for one on ion-friendly missions, at the spiral rate elsewhere, none on landings', () => {
   const st = fresh();
   st.gotOrbit = true;
   const m = (id) => G.missionById(id);
-  assert.equal(G.ionHelp(m('ceres'), 20000, 'direct'), 20000);
-  assert.equal(G.ionHelp(m('moonLanding'), 20000, 'direct'), 0);
-  assert.equal(G.ionHelp(m('venusLander'), 20000, 'direct'), 0);
+  assert.equal(G.ionHelp(m('ceres'), 20000), 20000);
+  assert.equal(G.ionHelp(m('moonLanding'), 20000), 0);
+  assert.equal(G.ionHelp(m('venusLander'), 20000), 0);
   const v = m('voyager');
-  assert.equal(G.ionHelp(v, 20000, 'direct'), Math.floor(G.missionNeed(v, 'direct') * D.ION.share));
-  assert.equal(G.ionHelp(v, 500, 'direct'), 500);
-  // a vehicle with 12 km/s of tug but too little chemical Δv still can't go; with enough it can
-  ['weather', 'meo', 'moonFlyby', 'marsFlyby', 'jupiterFlyby', 'saturnFlyby'].forEach((id) => { st.missionsDone[id] = 1; });
+  assert.equal(G.ionHelp(v, 20000), Math.floor(20000 * D.ION.spiral));
+  // airetho's 40 km/s tug flies solar escape on its own, slowly
+  D.MISSIONS.forEach((x) => { if (x.id !== 'voyager') st.missionsDone[x.id] = 1; });
   st.funds = 1e9;
   const need = G.missionNeed(v, 'direct');
-  st.vehicles = [{ key: 'a', name: 'A', payload: 400, budget: Math.round(need * 0.5), ionDv: 12000, stages: [{ engine: 'raptor', count: 1, tanks: 10 }] }];
-  assert.equal(G.dispatchPlan(v, 'direct').vehicle, null);
-  st.vehicles[0].budget = Math.ceil(need * (1 - D.ION.share));
+  st.vehicles = [{ key: 'a', name: 'A', payload: 400, budget: 0, ionDv: Math.ceil(need / D.ION.spiral) - 10, stages: [{ engine: 'raptor', count: 1, tanks: 10 }] }];
+  assert.equal(G.dispatchPlan(v, 'direct').vehicle, null, 'just short');
+  st.vehicles[0].ionDv = 40000;
   assert.ok(G.dispatchPlan(v, 'direct').vehicle);
   const am = G.dispatch('voyager', 'direct');
   assert.ok(am && am.ion, 'flies with an ion leg');
+  assert.ok(Math.abs(am.dur - v.time * (1 + D.ION.slow)) < 1e-6, 'an all-ion trip is the slowest');
+  // half chemical, half ion: in between
+  st.missions = [];
+  st.vehicles[0].budget = Math.round(need / 2);
+  const am2 = G.dispatch('voyager', 'direct');
+  assert.ok(am2.dur > v.time && am2.dur < v.time * (1 + D.ION.slow));
+  // plenty of chemical Δv: the tug stays home
+  st.missions = [];
+  st.vehicles[0].budget = need;
+  assert.equal(G.dispatch('voyager', 'direct').ion, false);
+});
+
+test('missions form one chain, and every mission-gated research points at a real mission', () => {
+  D.MISSIONS.forEach((x, i) => {
+    if (i === 0) assert.equal(x.requires, undefined);
+    else assert.equal(x.requires, D.MISSIONS[i - 1].id, x.id + ' requires the one before');
+  });
+  D.RESEARCH.forEach((r) => { if (r.requiresMission) assert.ok(G.missionById(r.requiresMission), r.id); });
 });
 
 test('licensing: mission-gated research can be bought early for 5x the money, never the phase-3 tech', () => {

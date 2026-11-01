@@ -40,6 +40,18 @@
     refresh();
   }
 
+  // Advice and flavour sit behind a "tips" toggle so the panels stay short. Panels re-render every
+  // second, so which toggles are open is remembered here by key.
+  var tipsOpen = {};
+  function tips(key, html) {
+    if (!html) return '';
+    return '<details class="tips" data-tips="' + key + '"' + (tipsOpen[key] ? ' open' : '') + '><summary>tips</summary>' + html + '</details>';
+  }
+  document.addEventListener('toggle', function (e) {
+    var k = e.target.dataset && e.target.dataset.tips;
+    if (k) tipsOpen[k] = e.target.open;
+  }, true);
+
   // ---- Rocket builder -------------------------------------------------------
 
   function objectiveInfo() {
@@ -86,12 +98,13 @@
         'Expires in ' + clock(c.expires - st.clock) + '.</div>';
     } else if (info.mission) {
       var m = info.mission, w = G.missionWindow(m);
-      html += '<div class="hint">Reach orbit carrying <b>' + m.payload + ' kg</b> with <b>≥ ' +
-        D.fmtSpeed(G.missionNeed(m, info.traj)) + '</b> of Δv left' + ionText(m, info.traj) +
-        ' and the probe departs. ' + windowText(m, w) +
-        (st.missions.length >= G.missionSlots() ? ' <span class="bad">All mission slots busy.</span>' : '') + '</div>';
+      html += '<div class="hint">Reach orbit with <b>' + m.payload + ' kg</b> and <b>≥ ' +
+        D.fmtSpeed(G.missionNeed(m, info.traj)) + '</b> of Δv left. ' + windowText(m, w) +
+        (st.missions.length >= G.missionSlots() ? ' <span class="bad">All mission slots busy.</span>' : '') + '</div>' +
+        tips('obj', '<p>Make orbit with that much Δv to spare and the probe departs on its own.' + ionText(m) + '</p>' +
+          (m.note ? '<p>' + txt(m.note) + '</p>' : ''));
     } else if (st.gotOrbit) {
-      html += '<div class="hint">Pick a mission or contract to set the payload. Free flights that reach orbit deploy a satellite.</div>';
+      html += tips('obj', '<p>Pick a mission or contract to set the payload. Free flights that reach orbit deploy a satellite.</p>');
     }
     box.innerHTML = html;
     $('obj-select').onchange = function () {
@@ -106,13 +119,17 @@
     };
   }
 
-  // what an ion tug can do for mission m, for the objective hint ('' before ion research)
-  function ionText(m, traj) {
+  // what an ion tug is worth on mission m, as a sentence ('' before ion research)
+  function ionText(m) {
     if (!G.state.research.engIon) return '';
-    var cap = G.ionHelp(m, Infinity, traj);
-    if (!cap) return ' (ion tugs can’t help a landing)';
-    if (cap === Infinity) return ' (ion tugs count in full)';
-    return ' (ion tugs can cover up to ' + D.fmtSpeed(cap) + ' of it)';
+    var r = G.ionRate(m);
+    if (!r) return ' Ion tugs can’t help a landing.';
+    if (r === 1) return ' Ion-friendly: every m/s of ion tug counts.';
+    return ' Ion tug Δv counts at ' + Math.round(r * 100) + '% here (spiralling out is wasteful), and ion legs are slow.';
+  }
+  function ionShort(m) {
+    var r = G.ionRate(m);
+    return !r ? 'no ion' : r === 1 ? 'ion ×1' : 'ion ×' + r;
   }
 
   function windowText(m, w) {
@@ -191,7 +208,8 @@
   function renderDesignStats() {
     var box = $('design-stats');
     var r = G.resolveDesign();
-    var html = '';
+    var st = G.state;
+    var html = '', tip = '';
     if (r.ascent.length && !r.invalid) {
       html += '<table><tr><th></th><th>Δv</th><th>TWR</th><th>burn</th></tr>';
       r.stats.perStage.forEach(function (ps, i) {
@@ -201,54 +219,59 @@
       });
       html += '</table>';
       html += '<div class="total">Total ascent Δv: <b>' + D.fmtSpeed(r.stats.totalDv) + '</b>';
-      if (G.state.gotOrbit || G.state.bestAlt > 100e3) {
-        html += ' <span class="hint">(orbit needs ≈ ' + D.fmtSpeed(D.LEO_DV) + ' incl. losses)</span>';
-      }
+      if (st.gotOrbit || st.bestAlt > 100e3) html += ' <span class="hint">(orbit ≈ ' + D.fmtSpeed(D.LEO_DV) + ')</span>';
       html += '</div>';
-      html += '<div class="hint">Payload ' + r.probe + ' kg · liftoff mass ' + (r.stats.liftoffMass / 1000).toFixed(2) +
-        ' t · hardware <b>$' + D.fmt(G.launchCost()) + '</b>/launch, paid out of the flight’s earnings (never more than half)' +
-        (G.state.research.reuse ? ' (stage 1 recovered)' : '') + '</div>';
+      if (r.spaceDv > 0) html += '<div class="good">Ion tug: ' + D.fmtSpeed(r.spaceDv) + '</div>';
+      html += '<div class="hint">' + r.probe + ' kg payload · ' + (r.stats.liftoffMass / 1000).toFixed(2) +
+        ' t · hardware <b>$' + D.fmt(G.launchCost()) + '</b>/launch' + (st.research.reuse ? ' (stage 1 recovered)' : '') + '</div>';
       if (r.stats.liftoffTwr < 1.02) {
         html += '<div class="bad">TWR &lt; 1 — this will sit on the pad and burn until it’s light enough.</div>';
       } else if (r.stats.liftoffTwr > 2.6) {
-        html += '<div class="hint">TWR ' + r.stats.liftoffTwr.toFixed(1) +
-          (G.state.bestAlt < 200e3 ? ' — thick air punishes speed (drag ∝ v²). Fewer engines or more tanks usually flies higher.</div>'
-            : ' — every extra engine is dead weight once you’re off the pad. Fewer engines and more tanks usually leaves more Δv in orbit.</div>');
+        tip += '<p>Liftoff TWR ' + r.stats.liftoffTwr.toFixed(1) + (st.bestAlt < 200e3
+          ? ': thick air punishes speed (drag ∝ v²). Fewer engines or more tanks usually flies higher.</p>'
+          : ': every extra engine is dead weight once you’re off the pad. Fewer engines and more tanks usually leaves more Δv in orbit.</p>');
+      }
+      if (r.stats.perStage.some(function (ps, i) { return i > 0 && ps.twr < 0.5; })) {
+        tip += '<p>A stage with TWR under 0.5 that lights before orbit spends much of its Δv holding itself up. ' +
+          'Let the stages below it reach orbit, or give it more engines.</p>';
       }
       if (r.spaceDv > 0) {
-        html += '<div class="good">Orbital tug Δv: ' + D.fmtSpeed(r.spaceDv) +
-          ' <span class="hint">(all of it counts on ion-friendly missions, up to a third of the Δv on other missions, none on landings)</span></div>';
+        tip += '<p>The ion tug only burns once you’re in orbit. It counts in full on ion-friendly missions, at half on other ' +
+          'missions (spiralling out on paper-thin thrust wastes the rest), and not at all on landings. Ion legs make trips slower.</p>';
       }
-      html += predictionHtml(r);
+      tip += '<p>Hardware is paid out of the flight’s earnings and never takes more than half of them, so a launch can’t lose money.</p>';
+      html += tips('design', tip);
     } else {
       html = '<div class="bad">' + txt(r.invalid || 'No atmosphere-capable engines.') + '</div>';
     }
     box.innerHTML = html;
+    var pb = $('predict'), ph = r.ascent.length && !r.invalid ? predictionHtml() : '';
+    pb.innerHTML = ph;
+    pb.classList.toggle('hidden', !ph);
   }
 
   // The builder's flight, flown ahead of time (once guidance exists, i.e. once orbit is the goal).
-  function predictionHtml(r) {
+  // Shown in the launch dock, which stays on screen while you scroll the stages.
+  function predictionHtml() {
     var st = G.state;
     if (!st.research.guidance) return '';
     var p = G.predict();
     if (!p) return '';
-    var html = '<div class="predict">Predicted flight: ';
-    var weak = r.stats.perStage.some(function (ps, i) { return i > 0 && ps.twr < 0.5; });
+    var html = 'Predicted: ';
     if (p.status === 'orbit' || p.status === 'escape') {
       html += (p.status === 'orbit' ? '<b class="good">orbit</b>' : '<b class="good">escapes Earth</b>') +
-        ' with <b>' + D.fmtSpeed(p.budget) + '</b> of Δv left' + (p.ionDv ? ' + ' + D.fmtSpeed(p.ionDv) + ' ion' : '') + '.';
+        ', <b>' + D.fmtSpeed(p.budget) + '</b> left' + (p.ionDv ? ' + ' + D.fmtSpeed(p.ionDv) + ' ion' : '') + '.';
       var o = st.objective, m = o && o.kind === 'mission' ? G.missionById(o.id) : null;
       if (m) {
-        var need = G.missionNeed(m, o.traj), have = p.budget + G.ionHelp(m, p.ionDv, o.traj);
+        var need = G.missionNeed(m, o.traj), have = p.budget + G.ionHelp(m, p.ionDv);
         html += have >= need ? ' <span class="good">Enough for ' + txt(m.name) + '.</span>'
-          : ' <span class="bad">' + txt(m.name) + ' needs ' + D.fmtSpeed(need) + ': short by ' + D.fmtSpeed(need - have) + '.</span>';
+          : ' <span class="bad">Short by ' + D.fmtSpeed(need - have) + ' (need ' + D.fmtSpeed(need) + ').</span>';
       }
     } else {
-      html += '<b class="bad">no orbit</b>: tops out at ' + D.fmtDist(p.maxAlt) + ', ' + D.fmtSpeed(p.maxSpeed) + '.' +
-        (st.design.guidanceOn ? ' Try auto-tune, or more Δv in the lower stages.' : ' Turn on the gravity turn.');
+      html += '<b class="bad">no orbit</b>, tops out at ' + D.fmtDist(p.maxAlt) + ', ' + D.fmtSpeed(p.maxSpeed) + '.' +
+        (st.design.guidanceOn ? ' Try auto-tune or more Δv low down.' : ' Turn on the gravity turn.');
     }
-    if (weak) html += '<div class="hint">A stage with TWR under 0.5 that lights before orbit spends much of its Δv holding itself up. Let the stages below it reach orbit, or give it more engines.</div>';
-    return html + '</div>';
+    return html;
   }
 
   function renderLaunchButton() {
@@ -409,9 +432,9 @@
   function renderContracts() {
     var st = G.state, box = $('contract-list');
     box.innerHTML = '';
-    $('contract-next').textContent = st.contracts.length >= D.CONTRACTS.board
-      ? 'Board full — finish or decline one to make room.'
-      : 'Next offer in ' + clock(st.nextContractAt - st.clock) + '.';
+    $('contract-next').textContent = (st.contracts.length >= D.CONTRACTS.board
+      ? 'Board full: finish or decline one to make room.'
+      : 'Next offer in ' + clock(st.nextContractAt - st.clock) + '.') + ' Accepting one makes it your flight objective.';
     if (!st.contracts.length) {
       box.appendChild(el('p', 'hint', 'No offers right now. Clients call every minute or so.'));
       return;
@@ -443,13 +466,14 @@
     var slots = G.missionSlots();
     $('budget-box').innerHTML =
       '<div class="budget">Mission slots: <b>' + st.missions.length + ' / ' + slots + '</b> in flight' +
-      ' · public interest <b class="good">×' + G.fameMult().toFixed(1) + '</b>' +
-      '<div class="hint">Every new place you visit adds +' + Math.round(D.FAME_PER_MISSION * 100) +
-      '% to all income. Repeats keep the lights on; exploring is how you grow.</div>' +
-      '<div class="hint">Two ways to send a probe: set a mission as the <b>flight objective</b> and fly a rocket to orbit with enough Δv left, ' +
-      'or <b>dispatch</b> a proven vehicle (any design that has reached orbit with that payload) without watching.' +
-      (st.research.slingshot ? ' <b class="good">Gravity assists available.</b>' : '') +
-      (st.research.aerobrake ? ' <b class="good">Aerobraking applied.</b>' : '') + '</div></div>';
+      ' · public interest <b class="good">×' + G.fameMult().toFixed(2) + '</b></div>' +
+      tips('missions', '<p>Two ways to send a probe: <b>Plan flight</b> makes the mission your flight objective, then fly a rocket ' +
+        'to orbit with enough Δv left; or <b>Dispatch</b> re-flies a proven vehicle (any design that reached orbit with that payload) without watching.</p>' +
+        '<p>Each mission unlocks the next. Every new one adds +' + Math.round(D.FAME_PER_MISSION * 100) +
+        '% to all income; repeats pay less but keep the lights on.</p>' +
+        (st.research.engIon ? '<p>Ion tugs: ×1 = every m/s counts, ×0.5 = half counts (and the trip is slower), none on landings.</p>' : '') +
+        (st.research.slingshot ? '<p>Gravity assists: less Δv, 60% longer trip. Toggle with direct ⇄.</p>' : '') +
+        (st.research.aerobrake ? '<p>Aerobraking is already counted in the Δv shown.</p>' : ''));
 
     var box = $('active-mission');
     box.innerHTML = '';
@@ -479,14 +503,16 @@
       var mult = G.globalMult();
       var plan = G.dispatchPlan(m, traj);
       var card = el('div', 'card mission' + (done ? ' done' : ''));
+      var more = (m.note ? '<p>' + txt(m.note) + '</p>' : '') +
+        (m.descent ? '<p>🕹 You fly the landing yourself: a soft touchdown pays ×1.5, a crater ×0.5.</p>' : '') +
+        (m.assistDv && !G.canAssist(m) ? '<p>With gravity assists (research): ' + D.fmtSpeed(m.assistDv) + '.</p>' : '') +
+        (m.aeroDv && !st.research.aerobrake ? '<p>Aerobraking (research) would cut it to ' + D.fmtSpeed(m.aeroDv) + '.</p>' : '') +
+        (st.research.engIon ? '<p>' + ionText(m).trim() + '</p>' : '');
       card.innerHTML = '<b>' + txt(m.name) + (done ? ' ✓' + (done > 1 ? '×' + done : '') : '') + '</b>' +
-        '<span>Δv <b>' + D.fmtSpeed(need) + '</b> beyond LEO · payload <b>' + m.payload + ' kg</b> · ~' +
-        D.fmtTime(m.time * (traj === 'assist' ? 1.6 : 1)) + ' trip' +
-        (st.research.engIon ? (m.ionOk ? ' · ion: all of it' : G.ionHelp(m, Infinity, traj) ? ' · ion: up to ⅓' : ' · no ion') : '') + (m.descent ? ' · 🕹 manual landing (soft = ×1.5)' : '') +
-        (m.assistDv && !G.canAssist(m) ? ' · with assists: ' + D.fmtSpeed(m.assistDv) : '') +
-        (m.aeroDv && !st.research.aerobrake ? ' · aerobraking would help' : '') + '</span>' +
+        '<span>Δv <b>' + D.fmtSpeed(need) + '</b> · <b>' + m.payload + ' kg</b> · ~' +
+        D.fmtTime(m.time * (traj === 'assist' ? 1.6 : 1)) + (m.descent ? ' · 🕹 landing' : '') +
+        (st.research.engIon ? ' · ' + ionShort(m) : '') + '</span>' +
         (m.window ? '<span>' + windowText(m) + '</span>' : '') +
-        (m.note ? '<span class="hint">' + txt(m.note) + '</span>' : '') +
         '<em>' + (rw.first ? 'first: ' : 'repeat: ') + '+$' + D.fmt(rw.funds * mult) + ' +' + D.fmt(rw.sci * mult) + '⚗' +
         (G.missionOps(m) ? ' · ops −$' + D.fmt(G.missionOps(m)) : '') + '</em>';
       var row = el('div', 'btnrow');
@@ -521,6 +547,7 @@
       }
       card.appendChild(row);
       if (plan.why) card.appendChild(el('span', 'hint why', txt(plan.why)));
+      if (more) card.insertAdjacentHTML('beforeend', tips('m:' + m.id, more));
       list.appendChild(card);
     });
 

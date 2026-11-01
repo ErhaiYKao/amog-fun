@@ -162,12 +162,12 @@ function optimizeRaw(name, payload, score, extraSeeds = []) {
   return best;
 }
 
-// Best orbital dv budget for a payload. ionCap: how much ion-tug dv counts (0: none, Infinity: all of it).
-function budgetScoreFn(ionCap) {
+// Best orbital dv budget for a payload. ionRate: what each m/s of ion-tug dv is worth (G.ionRate: 0, spiral or 1).
+function budgetScoreFn(ionRate) {
   return (res, design) => {
     if (!res.ok) return -Infinity;
     const cost = G.designCost(design);
-    if (res.status === 'orbit') return 1e6 + res.budget + Math.min(res.spaceDv, ionCap) - cost * 1e-4;
+    if (res.status === 'orbit') return 1e6 + res.budget + res.spaceDv * ionRate - cost * 1e-4;
     return res.maxSpeed + res.maxAlt * 1e-4;
   };
 }
@@ -197,15 +197,13 @@ function capSeeds() {
   return seeds;
 }
 
-// how much ion dv mission m can use (G.ionHelp), rounded down to share memo entries between missions
-export function ionCapFor(m, traj) {
-  if (!G.state.research.engIon) return 0;
-  const c = G.ionHelp(m, Infinity, traj);
-  return c === Infinity ? Infinity : Math.floor(c / 250) * 250;
+// what an ion tug's dv is worth on mission m (G.ionRate), 0 before ion research
+export function ionRateFor(m) {
+  return G.state.research.engIon ? G.ionRate(m) : 0;
 }
 
-export function bestBudget(payload, ionCap = 0) {
-  const best = optimize('cap:' + payload + ':' + ionCap, payload, budgetScoreFn(ionCap), capSeeds());
+export function bestBudget(payload, ionRate = 0) {
+  const best = optimize('cap:' + payload + ':' + ionRate, payload, budgetScoreFn(ionRate), capSeeds());
   if (!best || best.res.status !== 'orbit') return { budget: 0, spaceDv: 0, design: best && best.design };
   return { budget: best.res.budget, spaceDv: best.res.spaceDv, design: best.design, cost: G.designCost(best.design) };
 }
@@ -250,18 +248,21 @@ export function capabilityTable(opts = {}) {
       // compare with the in-window requirement
       const need = Math.round(G.missionNeed(m, traj, windowOpenTime(m)));
       let avail = cap[m.payload].budget;
-      const ionCap = Math.min(ionCapFor(m, traj), need);
-      if (ionCap > 0 && avail < need) {
-        const c = bestBudget(m.payload, ionCap);
-        avail = Math.max(avail, c.budget + Math.min(c.spaceDv, ionCap));
+      const rate = ionRateFor(m);
+      if (rate > 0 && avail < need) {
+        const c = bestBudget(m.payload, rate);
+        avail = Math.max(avail, c.budget + G.ionHelp(m, c.spaceDv));
       }
       if (avail >= need) feasible.add(m.id);
     }
-    const added = [...feasible].filter((id) => !feasiblePrev.has(id));
-    rows.push({ tier: tier.name, cap, feasible: [...feasible], added });
+    // every mission needs the one before it, so a tier only opens the run of missions it reaches along the chain
+    const reach = new Set();
+    for (const m of D.MISSIONS) { if (!feasible.has(m.id)) break; reach.add(m.id); }
+    const added = [...reach].filter((id) => !feasiblePrev.has(id));
+    rows.push({ tier: tier.name, cap, feasible: [...reach], byDv: [...feasible], added });
     say(tier.name.padEnd(30) + payloads.map((p) => (p + 'kg ' + (cap[p].budget / 1000).toFixed(2)).padStart(12)).join('') +
       '  | +' + added.length + ': ' + added.join(', '));
-    feasiblePrev = feasible;
+    feasiblePrev = reach;
   }
   return rows;
 }
@@ -440,10 +441,10 @@ export function runBot(opts = {}) {
         }
       }
       // design one
-      const bb = bestBudget(m.payload, ionCapFor(m, traj));
+      const bb = bestBudget(m.payload, ionRateFor(m));
       if (!bb.design || !bb.budget) continue;
       const best = { design: bb.design, res: { status: 'orbit', budget: bb.budget, spaceDv: bb.spaceDv } };
-      const avail = best.res.budget + G.ionHelp(m, best.res.spaceDv, traj);
+      const avail = best.res.budget + G.ionHelp(m, best.res.spaceDv);
       const needNow = G.missionNeed(m, traj);
       const needWin = Math.round(needNow / (win.open ? 1 : D.WINDOW.offPenalty));
       if (avail >= needNow && G.designCost(best.design) + G.missionOps(m) <= s.funds) {
