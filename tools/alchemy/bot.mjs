@@ -49,10 +49,10 @@ function fight(mob, d) {
   if (m.level >= 15 && (!need("diamondSword", 1, d + 1) || !need("diamondArmor", 1, d + 1))) return false;
   if (!A.tool(s, "sword") && !need("woodSword", 1, d + 1)) return false;
   if (s.faintT > 0) { wait(); return false; }
-  // grind the toughest monster we can already fight until the target unlocks
-  const target = A.mobOpen(s, mob) ? mob : Object.keys(MOBS).filter(k => A.mobOpen(s, k)).sort((a, b) => MOBS[a].level - MOBS[b].level).pop();
-  A.setMob(s, target);
+  // fight wherever the target lives (whatever wanders in); until it's unlocked, stay on the platform
+  A.setZone(s, A.mobOpen(s, mob) ? m.area : "platform");
   if (s.hp < 7) { if (!A.eat(s)) tick(4); return false; } // back off and heal
+  if (A.charge(s) < 1) tick((1 - A.charge(s)) * A.DATA.CONFIG.combat.cooldown + 1e-6); // wait for a full swing
   A.attack(s); clicks++; tick(1 / CPS);
   return false;
 }
@@ -74,7 +74,7 @@ function need(id, n, d = 0) {
   if (id === "log") { if (A.grownTrees(s)) click("chop"); else wait(); return act(); }
   if (id === "leaves" || id === "sapling") { if (A.grownTrees(s)) click("leaves"); else wait(); return act(); }
   if (id === "silkworm") { if (!need("crook", 1, d + 1)) return false; click("leaves"); return act(); }
-  if (dropOf(id) && id !== "string" && id !== "ironPiece") return fight(dropOf(id), d);
+  if (dropOf(id) && !SIEVED[id] && id !== "string") return fight(dropOf(id), d); // sieve what a sieve finds
   if (id === "wheat") { // grow it: farmland planted with wheat seeds
     if (!needBuilt("farmland", 1, d + 1)) return false;
     const f = s.island.findIndex(t => t && t.id === "farmland");
@@ -145,6 +145,16 @@ function need(id, n, d = 0) {
       A.addFuel(s, f, 2);
     }
     if (!busy) A.queueSmelt(s, inp, 1); else wait();
+    return false;
+  }
+  if (A.DATA.LAB[id]) {
+    if (!needBuilt("lab", 1, d + 1)) return false;
+    const L = A.DATA.LAB[id], busy = s.labQueue.length || s.labSlots.some(Boolean);
+    if (!busy) {
+      for (const [k, v] of Object.entries(L.needs || {})) if (!need(k, v, d + 1)) return false;
+      for (const [k, v] of Object.entries(L.in)) if (!need(k, v, d + 1)) return false;
+      A.queueAt(s, "lab", id, 1);
+    } else wait();
     return false;
   }
   const r = RECIPES.find(r => r.out[id]);

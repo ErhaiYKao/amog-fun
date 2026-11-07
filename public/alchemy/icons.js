@@ -85,7 +85,7 @@
     },
     mob(P, c, kind) {
       for (let y = 1; y < 15; y++) for (let x = 2; x < 14; x++) P(x, y, shade(c, (x < 4 ? 0.12 : x > 11 ? -0.2 : 0) + (y > 11 ? -0.1 : 0)));
-      const eye = { zombie: "#1d2a17", skeleton: "#111111", spider: "#d42a1f", enderman: "#c77dff", piglin: "#2a1a10", blaze: "#2a1a00", ghast: "#555" }[kind] || "#000";
+      const eye = { zombie: "#1d2a17", skeleton: "#111111", spider: "#d42a1f", enderman: "#c77dff", piglin: "#2a1a10", blaze: "#2a1a00", ghast: "#555", creeper: "#111", witch: "#2ecc71" }[kind] || "#000";
       if (kind === "piglin") { for (let y = 8; y < 11; y++) for (let x = 6; x < 10; x++) P(x, y, "#f3c3bd"); P(7, 9, "#8a4a44"); P(8, 9, "#8a4a44"); for (let y = 3; y < 9; y++) P(12, y, "#5d9b4a"); }
       if (kind === "blaze") for (let y = 12; y < 15; y++) for (let x = 2; x < 14; x += 3) P(x, y, "#ff7a1a");
       if (kind === "ghast") { for (let x = 3; x < 13; x += 2) { P(x, 13, "#d8d4c4"); P(x, 14, "#d8d4c4"); } for (let x = 6; x < 10; x++) P(x, 10, "#555"); }
@@ -93,6 +93,13 @@
       else { P(4, 6, eye); P(5, 6, eye); P(10, 6, eye); P(11, 6, eye); if (kind === "enderman") { P(3, 6, eye); P(12, 6, eye); } }
       if (kind === "zombie") for (let x = 5; x < 11; x++) P(x, 10, shade(c, -0.45));
       if (kind === "skeleton") for (let x = 5; x < 11; x++) P(x, 10, x % 2 ? "#111" : shade(c, -0.3));
+      if (kind === "creeper") { for (let y = 8; y < 13; y++) for (let x = 6; x < 10; x++) if (y < 10 ? x === 7 || x === 8 : y < 12 || x === 6 || x === 9) P(x, y, "#111"); }
+      if (kind === "witch") { for (let x = 1; x < 15; x++) P(x, 3, "#3d2a52"); for (let y = 0; y < 3; y++) for (let x = 5 + y; x < 11 - y; x++) P(x, 2 - y, "#3d2a52"); P(8, 9, "#5d9b4a"); P(8, 10, "#5d9b4a"); }
+    },
+    tnt(P) {
+      for (let y = 1; y < 15; y++) for (let x = 1; x < 15; x++) P(x, y, y > 5 && y < 10 ? (x > 3 && x < 12 ? "#efe9d8" : "#e8e2d0") : x % 3 === 0 ? "#a02a1f" : "#d0392b");
+      for (let x = 5; x < 11; x += 2) P(x, 7, "#222");
+      P(8, 0, "#8a8a8a");
     },
     paperclip(P, c) {
       for (let y = 3; y <= 12; y++) { P(4, y, c); P(11, y, c); }

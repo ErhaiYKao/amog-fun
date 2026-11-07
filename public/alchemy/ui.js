@@ -38,6 +38,7 @@
       if (e.type === "quest") UI.log(`Quest complete: ${e.text}`, "quest");
       if (e.type === "new") UI.log(`New: ${e.text}`, "new", e.id === "area" ? null : e.id);
       if (e.type === "land") UI.log(`The island grew: ${e.text}.`, "quest");
+      if (e.type === "boom") UI.log(`The ${e.text.toLowerCase()} went off.`, "");
       if (e.type === "faint") UI.log(`The ${e.text.toLowerCase()} knocked you out. Back in a few seconds.`, "");
     }
   }
@@ -46,6 +47,11 @@
   };
 
   // ---------- quest + stats ----------
+  // a "build" quest you've crafted the building for but not placed yet: which items are waiting in the inventory
+  function unplaced(s, q) {
+    const need = q.need.built || {}, ids = [...Object.keys(need), ...(q.need.anyBuilt || [])];
+    return ids.filter(id => A.built(s, id) < (need[id] || 1)).map(id => (id === "tree" ? "sapling" : id)).filter(id => (s.inv[id] || 0) > 0);
+  }
   function renderQuest() {
     const s = UI.s, open = A.openQuests(s), n = D.QUESTS.filter(x => s.quests[x.id]).length;
     // the advancement tree: done, open now, or locked behind other quests
@@ -53,13 +59,15 @@
     const list = D.QUESTS.map(x => {
       const st = s.quests[x.id] ? "done" : open.includes(x) ? "open" : "locked";
       const after = st === "locked" ? ` <small>after ${x.after.filter(a => !s.quests[a]).map(title).join(", ")}</small>` : "";
-      return `<li class="${st}">${UI.esc(x.title)}${after}</li>`;
+      const wait = st !== "done" && unplaced(s, x).length ? " <small>· crafted, not placed yet</small>" : "";
+      return `<li class="${st}">${UI.esc(x.title)}${after}${wait}</li>`;
     }).join("");
     const tree = `<details ${UI.treeOpen ? "open" : ""} data-tree><summary>advancement tree (${n}/${D.QUESTS.length})</summary><ol>${list}</ol></details>`;
     const q = open.find(x => x.id === UI.questPick) || open[0];
     const others = open.filter(x => x !== q);
     UI.setHTML($("quest"), "quest", q
       ? `<div class="num">${open.length > 1 ? `${open.length} quests open` : "Quest"} · ${n}/${D.QUESTS.length} done</div><h2>${UI.esc(q.title)}</h2><p>${UI.esc(q.text)}</p>` +
+        unplaced(s, q).map(id => `<p class="hint">${UI.img(id, "sm")} You have ${/^[aeiou]/i.test(UI.name(id)) ? "an" : "a"} ${UI.esc(UI.name(id).toLowerCase())} in your inventory: drag it onto an empty tile to place it.</p>`).join("") +
         (others.length ? `<div class="also">also open: ${others.map(x => `<button class="linkish" data-act="quest:${x.id}">${UI.esc(x.title)}</button>`).join(" · ")}</div>` : "") + tree
       : `<div class="num">All ${D.QUESTS.length} quests done</div><h2>Everything</h2><p>The void has been fully factored. Keep automating, or reset and speedrun it.</p>${tree}`);
     UI.setHTML($("stats"), "stats", `<span>played <b data-v="st:time"></b></span><span>clicks <b data-v="st:clicks"></b></span><span>quests <b>${n}/${D.QUESTS.length}</b></span>`);

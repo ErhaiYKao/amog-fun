@@ -5,10 +5,11 @@
  *          buildings go into the inventory; drag them onto the island. plants: placing this item puts that
  *          building down instead (a sapling plants a tree).
  * RECIPES  crafting: { in: {id: n}, out: {id: n}, at: "table", needs: {id: n}, name, scale: {per, k} }
- *          at: a building that must be on the island ("table", or "lab" for the alchemy lab). needs: items you must own, not used up.
+ *          at: a building that must be on the island ("table"; the lab's transmutations are in LAB). needs: items you must own, not used up.
  *          scale: inputs cost (1 + k * how many `per` you already have), rounded up. Used to stop barrel spam.
  * SMELT    furnace: input -> { out, time (s), heat }. Heat 1 = wood, 2 = charcoal, 3 = coal.
  * ALLOY    alloy smelter: output -> { in: {id: n}, n (made per job), time, heat }. Shares the furnace fuel.
+ * LAB      alchemy lab transmutations: output -> { in, n, time, needs }. No fuel; one job per lab at a time.
  * CROPS    farmland: seed -> { grow (s), drops }. The seed stays planted and regrows forever.
  * AUTO     auto machines: id -> { action, kind (tool it holds: hammer/mesh/chammer), time (s) }.
  *          Each auto machine holds its own tool (best one taken when placed; swap it in the machine panel).
@@ -19,8 +20,10 @@
  *          built. needTool: power from `per` alone isn't enough, you need the tool too. toolName: for messages.
  * Drop tables are lists of [item, chance, amount, gate]. gate is a minimum mesh tier (number)
  *          or a tool kind you must own (string, e.g. "crook").
- * MOBS     monsters in the wilds: { name, area, hp, dmg (per hit), every (s between hits), xp, level (to fight, by the
- *          highest level you've reached, so spending levels never locks one again), drops, icon }. Your sword is CONFIG.tools.sword, your armor CONFIG.tools.armor.
+ * MOBS     monsters in the wilds: { name, area, hp, dmg (per hit), every (s between hits), xp, level (to meet it, by the
+ *          highest level you've reached, so spending levels never locks one again), drops, icon }. They wander in at random
+ *          from the area you pick. fuse: no hits; it explodes for dmg after that many seconds of fighting. pierce: armor
+ *          blocks only that fraction of its usual share. Your sword is CONFIG.tools.sword, your armor CONFIG.tools.armor.
  * AREAS    unlockable places off the island (they take no tiles): { name, unlock: {id: n}, desc }.
  * QUESTS   an advancement tree. need: { got: {id: n} } (ever obtained), { built: {id: n} },
  *          { anyBuilt: [ids] }, { gotAny: [ids] }, { land: tiles }, { area: id }, { enchanted: levels }. reward: {id: n}.
@@ -68,6 +71,8 @@
     ghastTear: { name: "Ghast Tear", icon: ["gem", "#e8f4f8"], desc: "From ghasts in the Nether. The enchanting table can go past V with one tear per extra level." },
     flintSteel: { name: "Flint and Steel", icon: ["flintsteel"], desc: "Lights a Nether portal." },
     enderPearl: { name: "Ender Pearl", icon: ["ball", "#1f8f7a"], desc: "Endermen drop it. An enchanting table needs one." },
+    gunpowder: { name: "Gunpowder", icon: ["pile", "#5b5b60"], desc: "From creepers you kill before they go off. Packed with sand into TNT." },
+    tnt: { name: "TNT", icon: ["tnt"], desc: "Throw it in a fight: 40 damage to whatever you're fighting, no cooldown." },
     wool: { name: "Wool", icon: ["block", "#eeeae0", "dust"], desc: "From the pasture's sheep. Pulls apart into 4 string." },
     leather: { name: "Leather", icon: ["hide", "#8b5a2b"], desc: "From the cow pasture. Armor and books." },
     rawBeef: { name: "Raw Beef", icon: ["lump", "#c0504d"], desc: "From the cow pasture. Cook it in a furnace." },
@@ -195,7 +200,7 @@
     crusher: { name: "Crusher", icon: ["crusher", "#4fd6e8"], place: true, desc: "30 W. Doubles ore chunks into dust, or crushes stone into gravel, sand and dust. Click it to queue jobs." },
     energizedSmelter: { name: "Energized Smelter", icon: ["furnace", "#4fd6e8"], place: true, desc: "20 W. Smelts with electricity, twice as fast as a furnace. No heat or fuel requirement." },
     infuser: { name: "Metallurgic Infuser", icon: ["infuser", "#b98be3"], place: true, desc: "40 W. Makes steel and redstone alloy with half the coal or redstone. Click it to queue jobs." },
-    lab: { name: "Alchemy Lab", icon: ["lab", "#9b59b6"], place: true, desc: "Transmutes one thing into another: cobblestone into coal, iron into copper and nickel, rotten flesh into leather, sand and dust into clay (and, with a philosopher's stone, diamonds into emeralds). Its recipes are in the crafting list; click it to auto-make one." },
+    lab: { name: "Alchemy Lab", icon: ["lab", "#9b59b6"], place: true, desc: "Transmutes one thing into another: cobblestone into coal, iron into copper and nickel, rotten flesh into leather, sand and dust into clay (and, with a philosopher's stone, diamonds into emeralds). Click it to queue transmutations; each takes time, and every lab works one job at a time." },
     treeHarvester: { name: "Tree Harvester", icon: ["harvester", "#73aa56"], place: true, desc: "60 W for 10 s per tree: 4 logs, 4 leaves and a sapling. Replants by itself; trees take 45 s to regrow. Click it to pause or resume." },
   };
 
@@ -253,6 +258,17 @@
     invar: { in: { iron: 2, nickel: 1 }, n: 3, time: 12, heat: 3 },
   };
 
+  // the alchemy lab: output -> { in, n, time, needs }. Each lab runs one job at a time, no fuel or power.
+  const LAB = {
+    coal: { in: { cobble: 16 }, n: 1, time: 4 },
+    copper: { in: { iron: 1, redstone: 2 }, n: 1, time: 6 },
+    nickel: { in: { iron: 2, glowstone: 1 }, n: 2, time: 8 },
+    leather: { in: { rottenFlesh: 4 }, n: 1, time: 5 },
+    clayBlock: { in: { sand: 8, dust: 8 }, n: 2, time: 6 },
+    pstone: { in: { diamond: 4, glowstone: 16, redstone: 16, blazeRod: 2, ghastTear: 1, invar: 4 }, n: 1, time: 60 },
+    emerald: { in: { diamond: 4 }, needs: { pstone: 1 }, n: 1, time: 20 },
+  };
+
   const POWER = {
     fuelGenerator: { watts: 40, capacity: 4000, fuels: { coal: 3200, charcoal: 1600, blazeRod: 10000 } },
     solarGenerator: { watts: 10, capacity: 2000 },
@@ -301,6 +317,12 @@
       drops: [["bone", 1, 1], ["bone", 0.5, 1]] },
     spider: { name: "Spider", area: "platform", hp: 16, dmg: 3, every: 1, xp: 7, level: 4, icon: ["mob", "#2a2a33", "spider"],
       drops: [["string", 1, 2], ["string", 0.5, 1]] },
+    // fuse: never swings; blows up for dmg after this many seconds of fighting unless it's dead first
+    creeper: { name: "Creeper", area: "platform", hp: 20, dmg: 14, fuse: 6, xp: 10, level: 6, icon: ["mob", "#4caf50", "creeper"],
+      drops: [["gunpowder", 1, 1], ["gunpowder", 0.5, 1]] },
+    // pierce: potions splash past armor, which blocks only this fraction of what it usually would
+    witch: { name: "Witch", area: "platform", hp: 26, dmg: 4, every: 1.3, pierce: 0.5, xp: 13, level: 8, icon: ["mob", "#7a5a9a", "witch"],
+      drops: [["redstone", 1, 2], ["glowstone", 0.6, 1], ["redstone", 0.4, 2]] },
     enderman: { name: "Enderman", area: "platform", hp: 40, dmg: 7, every: 1.5, xp: 20, level: 10, icon: ["mob", "#151318", "enderman"],
       drops: [["enderPearl", 0.5, 1]] },
     // the Nether (through the portal)
@@ -407,22 +429,16 @@
     { in: { emerald: 3, stick: 2, twine: 1 }, out: { emeraldAxe: 1 }, at: "table" },
     { in: { emerald: 4, diamondMesh: 1 }, out: { emeraldMesh: 1 }, at: "table" },
     { in: { glass: 6, gold: 4, redstone: 8, glowstone: 4, diamond: 1 }, out: { lab: 1 }, at: "table" },
-    // transmutation happens in the alchemy lab (at: "lab"); the lab or a table can auto-make it
-    { name: "Transmute", in: { cobble: 16 }, out: { coal: 1 }, at: "lab" },
-    { name: "Transmute", in: { iron: 1, redstone: 2 }, out: { copper: 1 }, at: "lab" },
-    { name: "Transmute", in: { iron: 2, glowstone: 1 }, out: { nickel: 2 }, at: "lab" },
-    { name: "Transmute", in: { rottenFlesh: 4 }, out: { leather: 1 }, at: "lab" },
-    { name: "Transmute", in: { sand: 8, dust: 8 }, out: { clayBlock: 2 }, at: "lab" },
-    { in: { diamond: 4, glowstone: 16, redstone: 16, blazeRod: 2, ghastTear: 1, invar: 4 }, out: { pstone: 1 }, at: "lab" },
-    { name: "Transmute", in: { diamond: 4 }, needs: { pstone: 1 }, out: { emerald: 1 }, at: "lab" },
+    // transmutations are queued in the lab itself (LAB above)
+    { in: { gunpowder: 5, sand: 4 }, out: { tnt: 1 }, at: "table" },
     // compressed blocks, both ways
     ...[["dirt", "cDirt"], ["cobble", "cCobble"], ["gravel", "cGravel"], ["sand", "cSand"], ["dust", "cDust"], ["steel", "steelBlock"]].flatMap(([b, c]) => [
       { in: { [b]: 9 }, out: { [c]: 1 } },
       { name: "Uncompress", in: { [c]: 1 }, out: { [b]: 9 } },
     ]),
     // heavy machinery: the manual ones are iron-age, the automatic ones need steel (as in SF3)
-    { in: { cCobble: 3, iron: 2, twine: 2 }, out: { cHammer: 1 }, at: "table" },
-    { in: { diamond: 3, cHammer: 1, twine: 2 }, out: { diamondCHammer: 1 }, at: "table" },
+    { in: { cCobble: 8, iron: 12, gear: 2, twine: 3 }, out: { cHammer: 1 }, at: "table" },
+    { in: { diamond: 9, cHammer: 1, gear: 2, twine: 3 }, out: { diamondCHammer: 1 }, at: "table" }, // it smashes 9 at a time
     { in: { sieve: 1, cCobble: 2, iron: 2 }, out: { heavySieve: 1 }, at: "table" },
     { in: { furnace: 1, iron: 6, gear: 2 }, out: { alloy: 1 }, at: "table" },
     // auto versions: upgrade either the auto machine or the manual heavy one (a compressed hammer goes in as its tool)
@@ -453,53 +469,54 @@
     { id: "grow", title: "Another Tree", text: "Drag a sapling from your inventory onto an empty tile to plant it. Grown trees drop leaves by themselves.", need: { built: { tree: 2 } } },
     { id: "land", title: "More Land", text: "Every quest and advancement you complete adds a tile of land to the island. Keep going and the island keeps growing.", need: { land: 7 } },
     { id: "silk", title: "Silkworm", text: "Keep shaking leaves with the crook until a silkworm falls out.", need: { got: { silkworm: 1 } } },
-    { id: "infest", title: "Infested Leaves", text: "Put the silkworm on leaves. The colony spins string forever.", need: { built: { infested: 1 } } },
+    { id: "infest", title: "Infested Leaves", text: "Craft infested leaves (a silkworm on leaves) and place them on the island. The colony spins string forever.", need: { built: { infested: 1 } } },
     { id: "string", title: "String Theory", text: "Collect 6 string.", need: { got: { string: 6 } } },
     { id: "sieve", title: "Sift", text: "Build a sieve and a string mesh, then sieve dirt for pebbles.", need: { got: { pebble: 1 } } },
     { id: "cobble", title: "Cobblestone", text: "Four pebbles make a cobblestone.", need: { got: { cobble: 4 } } },
     { id: "twine", title: "Twine", text: "Tools need a binding. Twist 3 string into twine.", need: { got: { twine: 1 } } },
     { id: "hammer", title: "Hammer Time", text: "Make a hammer and smash cobblestone into gravel.", need: { got: { gravel: 1 } } },
-    { id: "furnace", title: "Furnace", text: "Build a furnace from 8 cobblestone.", need: { built: { furnace: 1 } } },
+    { id: "furnace", title: "Furnace", text: "Craft a furnace from 8 cobblestone and place it on the island.", need: { built: { furnace: 1 } } },
     { id: "charcoal", title: "Charcoal", text: "Fuel the furnace with planks and smelt a log.", need: { got: { charcoal: 1 } } },
+    { id: "fight", title: "First Blood", text: "Unlock the Dark Platform in the Wilds, craft a sword and kill whatever wanders in.", need: { got: { rottenFlesh: 1 } } },
     { id: "clay", title: "Clay", text: "Build a rain barrel and let it fill. Hammer sand into dust and mix it in.", need: { got: { clayBlock: 1 } } },
-    { id: "crucible", title: "Crucible", text: "Fire a clay crucible and set it over torches. It melts cobblestone into lava.", need: { built: { crucible: 1 } } },
-    { id: "gen", title: "Infinite Cobblestone", text: "A bucket of water and a bucket of lava make a generator (the buckets go with them). Mine it with a pickaxe from the Work panel.", need: { built: { cobblegen: 1 } } },
+    { id: "crucible", title: "Crucible", text: "Fire a clay crucible, set it over torches, and place it on the island. It melts cobblestone into lava.", need: { built: { crucible: 1 } } },
+    { id: "gen", title: "Infinite Cobblestone", text: "A bucket of water and a bucket of lava make a cobblestone generator (the buckets go with them). Place it on the island and mine it with a pickaxe from the Work panel.", need: { built: { cobblegen: 1 } } },
     { id: "coal", title: "Real Coal", text: "Sieve gravel for coal. Only coal burns hot enough for ore.", need: { got: { coal: 1 } } },
     { id: "iron", title: "Iron Age", text: "Four iron pieces make a chunk. Smelt it with coal.", need: { got: { iron: 1 } } },
-    { id: "farm", title: "Green Thumb", text: "Build farmland (dirt and a water bucket) and plant wheat seeds from sieving dirt. Wheat is rich compost; later, seeds can grow ore.", need: { built: { farmland: 1 } } },
+    { id: "farm", title: "Green Thumb", text: "Craft farmland (dirt and a water bucket), place it, and plant wheat seeds from sieving dirt. Wheat is rich compost; later, seeds can grow ore.", need: { built: { farmland: 1 } } },
+    { id: "moo", title: "Moo", text: "Unlock the cow pasture in the Wilds. Cows give leather and beef; feed them wheat to breed more.", need: { area: "pasture" } },
+    { id: "milk", title: "Got Milk?", text: "Make an iron bucket and milk a cow in the pasture. Drinking it in a fight heals you completely.", need: { got: { milkBucket: 1 } } },
+    { id: "baa", title: "Baa", text: "Lure two sheep into the pasture with wheat. Wool pulls apart into string.", need: { got: { wool: 1 } } },
     { id: "cast", title: "Pickaxe Cast", text: "Mould a pickaxe cast from clay and fire it.", need: { got: { cast: 1 } } },
     { id: "ironpick", title: "Iron Pickaxe", text: "Cast an iron pickaxe. Every swing at the generators mines far more.", need: { got: { ironPick: 1 } } },
-    { id: "auto", title: "Automation", text: "Build an auto-hammer or an auto-sieve. Redstone comes from sieving dust. Each one can be set to its own input, so you can chain them.", need: { anyBuilt: ["autoHammer", "autoSieve"] } },
-    { id: "autogen", title: "Hands-Free Stone", text: "Upgrade a cobblestone generator into an auto-generator. It mines itself, and has its own upgrades.", need: { anyBuilt: ["autoGen", "autoGen2", "autoGen3", "autoGen4"] } },
+    { id: "auto", title: "Automation", text: "Craft an auto-hammer or an auto-sieve and place it. Redstone comes from sieving dust. Each one can be set to its own input, so you can chain them.", need: { anyBuilt: ["autoHammer", "autoSieve"] } },
+    { id: "autogen", title: "Hands-Free Stone", text: "Upgrade a cobblestone generator into an auto-generator and place it. It mines itself, and has its own upgrades.", need: { anyBuilt: ["autoGen", "autoGen2", "autoGen3", "autoGen4"] } },
     { id: "heavy", title: "Heavy Machinery", text: "Compress blocks 9 to 1, then build a heavy sieve or a compressed hammer to work them all at once.", need: { gotAny: ["heavySieve", "cHammer"] } },
     { id: "diamond", title: "Diamonds", text: "An iron mesh finds diamonds in gravel.", need: { got: { diamond: 1 } } },
-    { id: "alloy", title: "Alloy Smelter", text: "Build an alloy smelter from a furnace, iron and gears. Click it on the island to queue recipes.", need: { built: { alloy: 1 } } },
+    { id: "alloy", title: "Alloy Smelter", text: "Craft an alloy smelter from a furnace, iron and gears, and place it. Click it on the island to queue recipes.", need: { built: { alloy: 1 } } },
     { id: "steel", title: "Steel", text: "Alloy iron with coal. Steel is what the automatic heavy machines are made of.", need: { got: { steel: 1 } } },
-    { id: "lab", title: "The Alchemist", text: "Build an alchemy lab from glass, gold, redstone, glowstone and a diamond. Its transmutations show up in the crafting list.", need: { built: { lab: 1 } } },
-    { id: "metals", title: "Base Metals", text: "Transmute iron into copper (with redstone) and nickel (with glowstone) in the alchemy lab.", need: { got: { copper: 1, nickel: 1 } } },
+    { id: "compress", title: "Squeeze Play", text: "Craft and place an auto-compressor. Point one at dust, put it between your auto-hammers and an auto heavy sieve, and the dust farm runs itself.", need: { built: { autoCompressor: 1 } } },
+    { id: "lab", title: "The Alchemist", text: "Craft an alchemy lab from glass, gold, redstone, glowstone and a diamond, and place it on the island. Click it to queue transmutations.", need: { built: { lab: 1 } } },
+    { id: "metals", title: "Base Metals", text: "Queue copper (iron + redstone) and nickel (iron + glowstone) in the alchemy lab.", need: { got: { copper: 1, nickel: 1 } } },
     { id: "alloys", title: "Thermal Expansion", text: "Alloy copper and nickel into constantan, and iron and nickel into invar. Geothermal generators, energized smelters and mob grinders are built from them.", need: { got: { constantan: 1, invar: 1 } } },
-    { id: "power", title: "Watt Now?", text: "Build a fuel or solar generator. All powered machines share one grid: 1 watt supplies 1 joule each second. Click a generator to configure it.", need: { anyBuilt: ["fuelGenerator", "solarGenerator"] } },
-    { id: "orepower", title: "Double or Nothing", text: "Build a crusher and an energized smelter. Crush one ore chunk into two dust, then smelt them into two ingots.", need: { built: { crusher: 1, energizedSmelter: 1 } } },
-    { id: "infusion", title: "Applied Metallurgy", text: "Build a metallurgic infuser to make alloys faster with less coal and redstone.", need: { built: { infuser: 1 } } },
-    { id: "forestry", title: "The Forest Works for You", text: "Build a tree harvester. It uses 600 J per harvest and replants automatically; plant more trees to keep it busy.", need: { built: { treeHarvester: 1 } } },
-    { id: "storage", title: "Potential Energy", text: "Build an energy cell to store 20,000 more joules for later.", need: { built: { battery: 1 } } },
-    { id: "fight", title: "First Blood", text: "Unlock the Dark Platform in the Wilds, craft a sword and fight a zombie.", need: { got: { rottenFlesh: 1 } } },
-    { id: "milk", title: "Got Milk?", text: "Make an iron bucket and milk a cow in the pasture. Drinking it in a fight heals you completely.", need: { got: { milkBucket: 1 } } },
-    { id: "moo", title: "Moo", text: "Unlock the cow pasture in the Wilds. Cows give leather and beef; feed them wheat to breed more.", need: { area: "pasture" } },
-    { id: "baa", title: "Baa", text: "Lure two sheep into the pasture with wheat. Wool pulls apart into string.", need: { got: { wool: 1 } } },
+    { id: "power", title: "Watt Now?", text: "Craft a fuel or solar generator and place it. All powered machines share one grid: 1 watt supplies 1 joule each second. Click a generator to configure it.", need: { anyBuilt: ["fuelGenerator", "solarGenerator"] } },
+    { id: "orepower", title: "Double or Nothing", text: "Craft and place a crusher and an energized smelter. Crush one ore chunk into two dust, then smelt them into two ingots.", need: { built: { crusher: 1, energizedSmelter: 1 } } },
+    { id: "infusion", title: "Applied Metallurgy", text: "Craft and place a metallurgic infuser to make alloys faster with less coal and redstone.", need: { built: { infuser: 1 } } },
+    { id: "forestry", title: "The Forest Works for You", text: "Craft and place a tree harvester. It uses 600 J per harvest and replants automatically; plant more trees to keep it busy.", need: { built: { treeHarvester: 1 } } },
+    { id: "storage", title: "Potential Energy", text: "Craft and place an energy cell to store 20,000 more joules for later.", need: { built: { battery: 1 } } },
     { id: "bookworm", title: "Bookworm", text: "Sieve sand for sugarcane, grow it on farmland, and bind three paper in leather into a book.", need: { got: { book: 1 } } },
+    { id: "boom", title: "That's a Nice Island", text: "Kill a creeper before it goes off and pack its gunpowder with sand into TNT. Throw it in a fight for 40 damage.", need: { got: { tnt: 1 } } },
     { id: "ender", title: "The End?", text: "Reach level 10 and take an ender pearl from an enderman. Bring armor.", need: { got: { enderPearl: 1 } } },
     { id: "enchant", title: "Enchanted", text: "Build an enchanting table and spend XP levels enchanting a tool.", need: { enchanted: 1 } },
     { id: "nether", title: "Through the Portal", text: "Ten obsidian and a flint and steel open the Nether in the Wilds.", need: { area: "nether" } },
     { id: "blaze", title: "Hot Property", text: "Reach level 15 and take a blaze rod from a blaze. It's superb fuel.", need: { got: { blazeRod: 1 } } },
     { id: "tear", title: "Crying Shame", text: "Reach level 18 and bring back a ghast tear. It lets enchantments go past V.", need: { got: { ghastTear: 1 } } },
-    { id: "pstone", title: "The Philosopher's Stone", text: "Diamonds, glowstone, redstone, blaze rods, a ghast tear and invar make a philosopher's stone in the alchemy lab.", need: { got: { pstone: 1 } } },
+    { id: "pstone", title: "The Philosopher's Stone", text: "Diamonds, glowstone, redstone, blaze rods, a ghast tear and invar make a philosopher's stone. Queue it in the alchemy lab.", need: { got: { pstone: 1 } } },
     { id: "emerald", title: "Green With Envy", text: "With the stone in hand, the lab turns four diamonds into an emerald. Emerald tools beat diamond ones.", need: { got: { emerald: 1 } } },
     { id: "darksteel", title: "Dark Arts", text: "Alloy steel with obsidian into dark steel. It upgrades diamond swords and armor.", need: { got: { darkSteel: 1 } } },
     { id: "blazefarm", title: "Hellfire Harvest", text: "Make blaze seeds and plant them on farmland.", need: { got: { blazeSeeds: 1 } } },
-    { id: "grind", title: "Grind Time", text: "Build a powered mob grinder to farm monster drops while you do other things.", need: { built: { mobGrinder: 1 } } },
-    { id: "geo", title: "Hot Rocks", text: "Pour water onto lava for obsidian, then build a geothermal generator. It turns crucible lava into 150 W.", need: { built: { geothermal: 1 } } },
-    { id: "compress", title: "Squeeze Play", text: "Build an auto-compressor. Point one at dust, put it between your auto-hammers and an auto heavy sieve, and the dust farm runs itself.", need: { built: { autoCompressor: 1 } } },
+    { id: "grind", title: "Grind Time", text: "Craft and place a powered mob grinder to farm monster drops while you do other things.", need: { built: { mobGrinder: 1 } } },
+    { id: "geo", title: "Hot Rocks", text: "Pour water onto lava for obsidian, then craft and place a geothermal generator. It turns crucible lava into 150 W.", need: { built: { geothermal: 1 } } },
     { id: "clips", title: "A Perfectly Harmless Objective", text: "Turn a steel ingot into eight paperclips. They do nothing. Maximizing them is entirely your decision.", need: { got: { paperclip: 8 } } },
     { id: "terminal", title: "The Terminal Object", text: "Every object in the void has a unique arrow to it. It takes a bit of everything, from diamonds to ghast tears. Build it to finish.", need: { got: { terminal: 1 } } },
   ];
@@ -513,7 +530,7 @@
     farm: ["clay", "charcoal"], cast: ["clay", "charcoal"], ironpick: ["cast", "iron"], auto: ["iron"],
     autogen: ["auto", "gen"], heavy: ["iron"], diamond: ["iron"], alloy: ["iron"], steel: ["alloy"],
     lab: ["diamond"], metals: ["lab"], alloys: ["metals", "alloy"], pstone: ["alloys", "blaze", "tear"], emerald: ["pstone"], milk: ["moo", "iron"],
-    terminal: ["emerald", "steel", "blaze", "tear", "darksteel"], geo: ["power", "alloys"], fight: ["cobble"], moo: ["farm"], baa: ["moo"], bookworm: ["moo"], darksteel: ["geo", "alloy"], blazefarm: ["blaze"], ender: ["fight", "iron"],
+    terminal: ["emerald", "steel", "blaze", "tear", "darksteel"], geo: ["power", "alloys"], fight: ["cobble"], moo: ["farm"], baa: ["moo"], bookworm: ["moo"], darksteel: ["geo", "alloy"], blazefarm: ["blaze"], ender: ["fight", "iron"], boom: ["fight"],
     enchant: ["bookworm", "ender", "diamond"], grind: ["fight", "power"], nether: ["ender", "geo"], blaze: ["nether"], tear: ["nether"], compress: ["steel", "heavy"],
     power: ["steel"], orepower: ["power", "alloys"], infusion: ["power"], forestry: ["power"], storage: ["power", "metals"], clips: ["steel"],
   };
@@ -523,7 +540,17 @@
     start: { land: 6 },
     // land: every completed quest/advancement adds a tile (no buying land); the 9×7 map holds 63
     land: { max: 63, perQuest: 1 },
-    combat: { hp: 20, regen: 1, faint: 10, fist: 1, armorPct: 0.04, armorSoft: 0.6, armorMax: 0.9, levelXp: 10, steakHeal: 8, calm: 4 },
+    // cooldown: seconds for a swing to recharge; a swing hits for sword × (minHit + (1 − minHit)·charge²), so spamming is weak.
+    // Monsters wander in at random from the area you're in (any you've unlocked there).
+    combat: { hp: 20, regen: 1, faint: 10, fist: 2, armorPct: 0.04, armorSoft: 0.6, armorMax: 0.9, levelXp: 10, steakHeal: 8, calm: 4,
+      cooldown: 0.5, minHit: 0.2, tnt: 40,
+      // arena difficulties: monsters get ×hp and ×dmg, you get ×xp and the drop table rolled `loot` times (fractions are a chance
+      // of one more roll). Each past Normal is an arena upgrade, bought once (in order) with `unlock`.
+      difficulty: [
+        { name: "Normal", hp: 1, dmg: 1, xp: 1, loot: 1 },
+        { name: "Hard", hp: 1.8, dmg: 1.5, xp: 2, loot: 1.6, unlock: { cCobble: 16, iron: 32, torch: 32 }, desc: "Wall the platform in and light it less: tougher monsters, double XP." },
+        { name: "Nightmare", hp: 3, dmg: 2.2, xp: 3.5, loot: 2.5, unlock: { obsidian: 24, steelBlock: 2, glowstone: 32, gunpowder: 16 }, desc: "An obsidian pit rigged with gunpowder traps." },
+      ] },
     // cows come with the pasture; sheep are lured in (lure brings `start` of them), then bred like cows
     pasture: { start: 2, max: 12, every: 40, breed: { wheat: 2 }, drops: [["leather", 1, 1], ["rawBeef", 0.6, 1]],
       sheep: { lure: { wheat: 6 }, start: 2, max: 12, every: 30, breed: { wheat: 2 }, drops: [["wool", 1, 1], ["wool", 0.25, 1]] } },
@@ -559,13 +586,13 @@
       pick: [["stonePick", 1], ["ironPick", 3], ["diamondPick", 6], ["emeraldPick", 9]], // mining power per swing (plus 1 per generator)
       mesh: [["stringMesh", 1], ["flintMesh", 2], ["ironMesh", 3], ["diamondMesh", 4], ["emeraldMesh", 5]],
       chammer: [["cHammer", 3], ["diamondCHammer", 6]],
-      sword: [["woodSword", 2], ["stoneSword", 3], ["ironSword", 5], ["diamondSword", 8], ["darkSteelSword", 11]], // damage per hit
+      sword: [["woodSword", 4], ["stoneSword", 6], ["ironSword", 10], ["diamondSword", 16], ["darkSteelSword", 22]], // damage per fully charged hit
       armor: [["leatherArmor", 4], ["ironArmor", 10], ["diamondArmor", 16], ["darkSteelArmor", 21]], // each point blocks 4% of a hit, softly capped (engine armorBlock)
     },
     meshLuck: [0, 1, 1.25, 1.5, 1.8, 2.1], // drop chance multiplier per mesh tier
   };
 
-  const DATA = { ITEMS, RECIPES, SMELT, ALLOY, POWER, ELECTRIC, CROPS, MOBS, AREAS, AUTO, SIEVE, HEAVY_SIEVE, ACTIONS, QUESTS, CONFIG };
+  const DATA = { ITEMS, RECIPES, SMELT, ALLOY, LAB, POWER, ELECTRIC, CROPS, MOBS, AREAS, AUTO, SIEVE, HEAVY_SIEVE, ACTIONS, QUESTS, CONFIG };
   root.ALCHEMY_DATA = DATA;
   if (typeof module !== "undefined" && module.exports) module.exports = DATA;
 })(typeof window !== "undefined" ? window : globalThis);

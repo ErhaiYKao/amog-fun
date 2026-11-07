@@ -28,6 +28,7 @@
     for (const [inp, t] of Object.entries(ACTIONS.chammer.inputs)) if (t.some(d => d[0] === id)) add(`heavy-smashing ${name(inp).toLowerCase()} with a compressed hammer (9 at once)`);
     for (const [inp, r] of Object.entries(SMELT)) if (r.out === id) add(`smelting ${name(inp).toLowerCase()} in a furnace`);
     if (ALLOY[id]) add("an alloy smelter");
+    if (D.LAB[id]) add("transmuting in an alchemy lab");
     for (const [st, cfg] of Object.entries(D.ELECTRIC))
       if (Object.values(cfg.recipes).some(r => r.out === id)) add(`a powered ${name(st).toLowerCase()}`);
     if (C.harvester.drops[id]) add("a powered tree harvester");
@@ -151,7 +152,8 @@
   UI.search = "";
   UI.focus = null; // item id: show only the recipes that make it, plus where else it comes from
   UI.amount = 1;
-  const STATION_IDS = ["furnace", "alloy", ...Object.keys(D.ELECTRIC)];
+  const STATION_IDS = ["furnace", "alloy", "lab", ...Object.keys(D.ELECTRIC)];
+  const aName = id => `${/^[aeiou]/i.test(name(id)) ? "an" : "a"} ${name(id).toLowerCase()}`;
 
   function craftRow(s, r) {
     const [outId, outN] = Object.entries(r.out)[0];
@@ -170,14 +172,14 @@
     const rec = A.STATIONS[st].rec(id), key = `${st}|${id}`, max = A.stationMax(s, st, id);
     return {
       key, station: st, id, outId: rec.out, outN: rec.n, title: name(rec.out), place: false, ok: max > 0, max,
-      why: A.built(s, st) ? "" : `place a ${name(st).toLowerCase()} on the island`,
-      hid: s.hide[key] === 1 ? "user" : null, extra: "", ings: Object.entries(rec.in), needs: [],
-      note: A.STATIONS[st].watts ? `${A.STATIONS[st].watts} W · ${rec.time} s · ${A.STATIONS[st].watts * rec.time} J/job` : `heat ${rec.heat} (${HEAT[rec.heat]}) · ${rec.time} s`,
+      why: !A.built(s, st) ? `place ${aName(st)} on the island` : Object.keys(rec.needs || {}).some(k => A.count(s, k) < rec.needs[k]) ? `needs ${name(Object.keys(rec.needs)[0])}` : "",
+      hid: s.hide[key] === 1 ? "user" : null, extra: "", ings: Object.entries(rec.in), needs: Object.keys(rec.needs || {}),
+      note: A.STATIONS[st].watts ? `${A.STATIONS[st].watts} W · ${rec.time} s · ${A.STATIONS[st].watts * rec.time} J/job` : rec.heat ? `heat ${rec.heat} (${HEAT[rec.heat]}) · ${rec.time} s` : `${rec.time} s`,
     };
   }
   function rowsFor(s, tab) {
     if (tab === "craft") return RECIPES.filter(r => A.visible(s, r)).map(r => craftRow(s, r));
-    const list = Object.keys(tab === "furnace" ? SMELT : tab === "alloy" ? ALLOY : D.ELECTRIC[tab].recipes);
+    const list = Object.keys(tab === "furnace" ? SMELT : tab === "alloy" ? ALLOY : tab === "lab" ? D.LAB : D.ELECTRIC[tab].recipes);
     return list.filter(id => Object.keys(A.STATIONS[tab].rec(id).in).some(k => s.seen[k])).map(id => stationRow(s, tab, id));
   }
   const matches = (row, q) => [row.title, name(row.outId), ...row.ings.map(([k]) => name(k))].some(t => t.toLowerCase().includes(q));
@@ -187,7 +189,7 @@
     const ings = x.ings.map(([k, n]) =>
       `<span class="ing ${A.count(s, k) < n ? "lack" : ""}" data-tip="${k}" data-act="focus:${k}">${img(k, "sm")}<span data-v="c:${k}"></span>/${n}</span>`).join("") +
       x.needs.map(k => `<span class="ing need" data-tip="${k}" data-act="focus:${k}">${img(k, "sm")}needs</span>`).join("");
-    const tag = x.station !== "craft" && !x.inMachine ? ` <small>· in a ${name(x.station).toLowerCase()}</small>` : "";
+    const tag = x.station !== "craft" && !x.inMachine ? ` <small>· in ${aName(x.station)}</small>` : "";
     const note = x.hid === "auto" ? " <small>· you have this or better</small>" : x.hid ? " <small>· hidden</small>" : x.note ? ` <small>· ${esc(x.note)}</small>` : "";
     const rid = x.station === "craft" ? x.r.id : `${x.station}|${x.id}`;
     UI.v("m:" + rid, x.max < 2 ? "max" : x.max);
@@ -216,6 +218,7 @@
       rows = [...RECIPES.filter(r => r.out[id]).map(r => craftRow(s, r)),
         ...Object.keys(SMELT).filter(k => SMELT[k].out === id).map(k => stationRow(s, "furnace", k)),
         ...(ALLOY[id] ? [stationRow(s, "alloy", id)] : []),
+        ...(D.LAB[id] ? [stationRow(s, "lab", id)] : []),
         ...Object.entries(D.ELECTRIC).flatMap(([st, cfg]) => Object.keys(cfg.recipes).filter(k => cfg.recipes[k].out === id).map(k => stationRow(s, st, k)))];
       const src = sources(id), uses = usersOf(id).length;
       focusHTML = `<div class="top">${img(id, "sm")}<b>${esc(name(id))}</b><span class="meta">${rows.length ? `${rows.length} recipe${rows.length === 1 ? " makes" : "s make"} it` : "no recipe makes it"}</span>
@@ -289,9 +292,9 @@
   // auto-make: tables and furnace-like machines can each be set to make one thing whenever they can
   function autoMakeHTML(s, t, i) {
     if (!s.quests.auto) return `<h3>Auto-make</h3><p class="meta">Unlocks with the Automation quest.</p>`;
-    const crafty = t.id === "table" || t.id === "lab"; // a lab auto-makes only its own transmutations
+    const crafty = t.id === "table";
     const opts = crafty
-      ? RECIPES.filter(r => A.visible(s, r) && (t.id !== "lab" || r.at === "lab")).map(r => craftRow(s, r)).map(x => [x.key, x.title + (x.outN > 1 ? ` ×${x.outN}` : "")])
+      ? RECIPES.filter(r => A.visible(s, r)).map(r => craftRow(s, r)).map(x => [x.key, x.title + (x.outN > 1 ? ` ×${x.outN}` : "")])
       : rowsFor(s, t.id).map(x => [x.id, x.title]);
     const outOf = key => crafty ? Object.keys((RECIPES.find(r => r.key === key) || { out: {} }).out)[0] : A.STATIONS[t.id].rec(key)?.out;
     const out = t.auto && outOf(t.auto);
@@ -302,7 +305,7 @@
 
   function machineBody(s, t, i) {
     const id = t.id;
-    if (A.STATIONS[id]) return (D.ELECTRIC[id] ? gridHTML(s) : fuelHTML(s)) + stationHTML(s, id) + autoMakeHTML(s, t, i);
+    if (A.STATIONS[id]) return (D.ELECTRIC[id] ? gridHTML(s) : id === "lab" ? "" : fuelHTML(s)) + stationHTML(s, id) + autoMakeHTML(s, t, i);
     if (D.AUTO[id]) {
       const cfg = D.AUTO[id], inputs = Object.keys(ACTIONS[cfg.action].inputs);
       const kindName = { hammer: "hammer", mesh: "mesh", chammer: "compressed hammer" }[cfg.kind];
@@ -383,8 +386,6 @@
         return `<p class="meta">${C.autoGen[id]} cobblestone/s</p>`;
       case "table":
         return autoMakeHTML(s, t, i);
-      case "lab":
-        return `<p class="meta">Its transmutations are in the crafting list.</p>` + autoMakeHTML(s, t, i);
       case "enchantTable": {
         const L = A.level(s), ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
         const EFFECT = { sword: "damage", armor: "protection", meshEff: "speed", meshFortune: "drops" };

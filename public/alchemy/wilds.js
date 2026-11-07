@@ -1,5 +1,6 @@
 /* Alchemy — the Wilds: places off the island that cost no tiles. The Dark Platform and the Nether (fight monsters
- * for XP and drops: swords hit harder, armor blocks hits, steak heals, milk heals fully) and the pasture (cows: leather, beef and milk; sheep: wool). */
+ * for XP and drops: monsters wander in at random, a swing recharges, swords hit harder, armor blocks hits, steak heals,
+ * milk heals fully, TNT is a free 40 damage, arena upgrades unlock harder difficulties) and the pasture (cows: leather, beef and milk; sheep: wool). */
 (function () {
   "use strict";
   const UI = window.AlchemyUI, { A, D, $ } = UI;
@@ -9,39 +10,54 @@
   const ings = cost => Object.entries(cost).map(([k, n]) =>
     `<span class="ing ${A.count(UI.s, k) < n ? "lack" : ""}" data-tip="${k}">${img(k, "sm")}<span data-v="c:${k}"></span>/${n}</span>`).join("");
 
+  const AREA_NAME = { platform: "Dark Platform", nether: "The Nether" };
   function combatHTML(s) {
-    const L = A.level(s), peak = A.peakLevel(s), lo = A.xpFor(L), hi = A.xpFor(L + 1), m = D.MOBS[s.mob.id];
+    const L = A.level(s), peak = A.peakLevel(s), lo = A.xpFor(L), hi = A.xpFor(L + 1), m = D.MOBS[s.mob.id], d = A.difficulty(s);
     UI.v("w:hp", s.hp / K.hp);
     UI.v("w:hpt", s.faintT > 0 ? `knocked out · back in ${Math.ceil(s.faintT)} s` : `${Math.ceil(s.hp)} / ${K.hp} HP`);
     UI.v("w:xp", (s.xp - lo) / (hi - lo));
     UI.v("w:xpt", `level ${L}${peak > L ? ` (best ${peak})` : ""} · ${Math.floor(s.xp - lo)} / ${hi - lo} XP`);
-    UI.v("w:mob", s.mob.hp / m.hp);
-    UI.v("w:mobt", `${Math.max(0, Math.ceil(s.mob.hp))} / ${m.hp} HP`);
+    UI.v("w:mob", s.mob.hp / s.mob.max);
+    UI.v("w:mobt", `${Math.max(0, Math.ceil(s.mob.hp))} / ${Math.round(s.mob.max)} HP`);
+    UI.v("w:charge", A.charge(s));
+    UI.v("w:fuse", m.fuse ? (s.mob.fuse || 0) / m.fuse : 0);
+    UI.v("w:fuset", m.fuse ? (s.calmT >= K.calm ? "hissing quietly" : `goes off in ${Math.max(0, m.fuse - (s.mob.fuse || 0)).toFixed(1)} s`) : "");
     UI.v("d:fight", s.faintT > 0);
+    UI.v("d:tnt", !(s.inv.tnt > 0) || s.faintT > 0);
     UI.v("d:eat", !(s.inv.steak > 0) || s.hp >= K.hp || s.faintT > 0);
     UI.v("d:drink", !(s.inv.milkBucket > 0) || s.hp >= K.hp || s.faintT > 0);
     const sword = A.tool(s, "sword"), armor = A.tool(s, "armor");
-    // monsters stay unlocked by your best level ever, so enchanting never takes one away
-    const chip = ([id, mb]) => A.mobOpen(s, id)
-      ? `<button class="chip" style="padding-left:4px" data-act="mob:${id}" aria-pressed="${s.mob.id === id}">${img(id, "sm")}${mb.name}</button>`
-      : `<span class="chip" style="padding-left:4px;opacity:.45;cursor:default" title="reach level ${mb.level}">${img(id, "sm")}level ${mb.level}</span>`;
-    const group = area => Object.entries(D.MOBS).filter(([, mb]) => mb.area === area);
-    const mobs = (s.areas.platform ? `<div class="chips"><span class="meta">Dark Platform</span>${group("platform").map(chip).join("")}</div>` : "") +
-      (s.areas.nether ? `<div class="chips"><span class="meta">the Nether</span>${group("nether").map(chip).join("")}</div>` : "");
-    const where = m.area === "nether" ? "The Nether" : "Dark Platform";
-    return `<div class="area"><div class="row"><b>${where}</b><span class="meta">${Object.values(s.kills).reduce((a, n) => a + n, 0)} kills</span></div>
+    // where to fight: whatever you've unlocked there wanders in; locked ones show the level they need
+    const zones = Object.keys(AREA_NAME).filter(z => s.areas[z]).map(z => {
+      const open = A.zoneMobs(s, z).length;
+      return open ? `<button class="chip" style="padding-left:9px" data-act="zone:${z}" aria-pressed="${s.zone === z}">${AREA_NAME[z]}</button>`
+        : `<span class="chip" style="padding-left:9px;opacity:.45;cursor:default">${AREA_NAME[z]} · level ${Math.min(...Object.values(D.MOBS).filter(mb => mb.area === z).map(mb => mb.level))}</span>`;
+    }).join("");
+    const roster = Object.entries(D.MOBS).filter(([, mb]) => mb.area === s.zone).map(([id, mb]) => A.mobOpen(s, id)
+      ? `<span class="chip" style="padding-left:4px;cursor:default" title="${esc(mb.name)}">${img(id, "sm")}${mb.name}</span>`
+      : `<span class="chip" style="padding-left:4px;opacity:.45;cursor:default" title="reach level ${mb.level}">${img(id, "sm")}level ${mb.level}</span>`).join("");
+    // arena difficulty: the ones you've built, then the next upgrade with its price
+    const D2 = K.difficulty, next = D2[(s.arena || 0) + 1];
+    const diffs = D2.slice(0, (s.arena || 0) + 1).map((x, n) => `<button class="chip" style="padding-left:9px" data-act="diff:${n}" aria-pressed="${(s.diff || 0) === n}">${x.name}</button>`).join("");
+    const upgrade = next && peak >= 6 ? `<div class="row"><span class="meta grow">arena upgrade: <b>${next.name}</b> · ${esc(next.desc)} Monsters ×${next.hp} HP, ×${next.dmg} damage; ×${next.xp} XP and ×${next.loot} loot.</span>
+      <div class="ings">${ings(next.unlock)}</div><button class="mini" data-act="arena" ${Object.entries(next.unlock).every(([k, n]) => A.count(s, k) >= n) ? "" : "disabled"}>Build</button></div>` : "";
+    const hits = m.fuse ? `explodes for ${Math.round(m.dmg * d.dmg)} after ${m.fuse} s` : `hits for ${+(m.dmg * d.dmg).toFixed(1)} every ${m.every} s${m.pierce ? " (half through armor)" : ""}`;
+    return `<div class="area"><div class="row"><b>${AREA_NAME[s.zone] || "Dark Platform"}</b><span class="meta">${d.name} · ${Object.values(s.kills).reduce((a, n) => a + n, 0)} kills</span></div>
+      <div class="chips">${zones}${D2.length > 1 && s.arena ? `<span class="meta" style="margin-left:8px">difficulty</span>${diffs}` : ""}</div>
       <div class="fight">
         <div class="side">
-          <div class="meta">you · ${sword ? esc(name(sword[0])) : "bare fists"} (${A.swordDmg(s).toFixed(1)} dmg) · ${armor ? `${esc(name(armor[0]))} (blocks ${Math.round(A.armorBlock(s) * 100)}%)` : "no armor"}</div>
+          <div class="meta">you · ${sword ? esc(name(sword[0])) : "bare fists"} (${A.swordDmg(s).toFixed(1)} per full swing) · ${armor ? `${esc(name(armor[0]))} (blocks ${Math.round(A.armorBlock(s) * 100)}%)` : "no armor"}</div>
           <div class="bar hp"><i data-w="w:hp"></i></div><span class="meta" data-v="w:hpt"></span>
           <div class="bar xp"><i data-w="w:xp"></i></div><span class="meta" data-v="w:xpt"></span>
         </div>
-        <div class="side foe">${img(s.mob.id)}<div><b>${m.name}</b><div class="meta">hits for ${m.dmg} every ${m.every} s · ${m.xp} XP</div><div class="bar foehp"><i data-w="w:mob"></i></div><span class="meta" data-v="w:mobt"></span></div></div>
+        <div class="side foe">${img(s.mob.id)}<div><b>${m.name}</b><div class="meta">${hits} · ${Math.round(m.xp * d.xp)} XP</div><div class="bar foehp"><i data-w="w:mob"></i></div><span class="meta" data-v="w:mobt"></span>
+          ${m.fuse ? `<div class="bar fuse"><i data-w="w:fuse"></i></div><span class="meta" data-v="w:fuset"></span>` : ""}</div></div>
       </div>
-      <div class="row"><button class="go fightbtn" data-act="fight" data-d="d:fight">⚔ Attack <span class="k">8</span></button>
+      <div class="row"><button class="go fightbtn" data-act="fight" data-d="d:fight" title="a swing takes ${K.cooldown} s to recharge; swinging early hits for less">⚔ Attack <span class="k">8</span><i class="charge" data-w="w:charge"></i></button>
+        ${s.got.tnt ? `<button class="mini" data-act="tnt" data-d="d:tnt" data-tip="tnt">Throw TNT · <span data-v="i:tnt"></span></button>` : ""}
         <button class="mini" data-act="eat" data-d="d:eat" data-tip="steak">Eat steak · <span data-v="i:steak"></span></button>
         ${s.got.milkBucket ? `<button class="mini" data-act="drink" data-d="d:drink" data-tip="milkBucket">Drink milk · <span data-v="i:milkBucket"></span></button>` : ""}</div>
-      ${mobs}</div>`;
+      <div class="chips"><span class="meta">wanders in here</span>${roster}</div>${upgrade}</div>`;
   }
 
   const costText = cost => Object.entries(cost).map(([k, n]) => `${n} ${esc(name(k).toLowerCase())}`).join(", ");
@@ -80,18 +96,19 @@
     UI.setHTML($("wilds"), "wilds", h);
   }
 
-  function swing() {
-    const r = A.attack(UI.s);
-    // only your first kill of each monster gets a log line; the panel counts the rest
-    if (r && r.killed && UI.s.kills[UI.s.mob.id] === 1) UI.log(`First ${D.MOBS[UI.s.mob.id].name.toLowerCase()} down: +${r.xp} XP.`, "quest", UI.s.mob.id);
-  }
+  // only your first kill of each monster gets a log line; the panel counts the rest
+  const noteKill = r => { if (r && r.killed && UI.s.kills[r.id] === 1) UI.log(`First ${D.MOBS[r.id].name.toLowerCase()} down: +${r.xp} XP.`, "quest", r.id); };
+  const swing = () => noteKill(A.attack(UI.s));
   Object.assign(UI.handlers, {
     area: ([id]) => A.unlockArea(UI.s, id),
     fight: () => swing(),
     eat: () => A.eat(UI.s),
     drink: () => A.drink(UI.s),
     milk: () => A.milk(UI.s),
-    mob: ([id]) => A.setMob(UI.s, id),
+    zone: ([z]) => A.setZone(UI.s, z),
+    diff: ([n]) => A.setDifficulty(UI.s, +n),
+    arena: () => A.upgradeArena(UI.s),
+    tnt: () => noteKill(A.throwTnt(UI.s)),
     breed: ([kind]) => A.breed(UI.s, kind || "cows"),
   });
   let lastKey = 0;

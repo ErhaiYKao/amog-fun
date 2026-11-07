@@ -37,19 +37,20 @@
   const STATIONS = {
     furnace: { q: "queue", sl: "slots", rec: id => SMELT[id] && { in: { [id]: 1 }, out: SMELT[id].out, n: 1, time: SMELT[id].time, heat: SMELT[id].heat } },
     alloy: { q: "aqueue", sl: "aslots", rec: id => ALLOY[id] && { ...ALLOY[id], out: id } },
+    lab: { q: "labQueue", sl: "labSlots", rec: id => D.LAB[id] && { ...D.LAB[id], out: id } }, // no heat: needs no fuel
     ...Object.fromEntries(Object.entries(D.ELECTRIC).map(([id, cfg]) =>
       [id, { q: id + "Queue", sl: id + "Slots", watts: cfg.watts, recipes: cfg.recipes, rec: key => cfg.recipes[key] }])),
   };
 
   function create(now = Date.now()) {
     const s = {
-      v: 8, t: now, start: now, won: 0, clicks: 0,
+      v: 9, t: now, start: now, won: 0, clicks: 0,
       inv: {}, got: {}, seen: {}, island: [], work: {}, quests: {}, hide: {},
       sel: { sieve: "dirt", hammer: "cobble", chammer: "cCobble", hsieve: "cGravel", autoHammer: "cobble", autoSieve: "gravel", autoCHammer: "cCobble", autoHeavySieve: "cGravel" },
       opt: { feedBarrels: true, compostSaplings: false, feedCrucible: true },
       fuel: [0, 0, 0, 0], queue: [], slots: [], aqueue: [], aslots: [], fold: {}, ev: [],
       energy: 0, power: { generated: 0, used: 0 },
-      areas: {}, hp: C.combat.hp, xp: 0, mob: { id: "zombie", hp: MOBS.zombie.hp }, hitT: 0, calmT: 99, faintT: 0, kills: {},
+      areas: {}, hp: C.combat.hp, xp: 0, mob: { id: "zombie", hp: MOBS.zombie.hp, max: MOBS.zombie.hp, fuse: 0 }, zone: "platform", diff: 0, arena: 0, swingT: C.combat.cooldown, hitT: 0, calmT: 99, faintT: 0, kills: {},
       cows: 0, cowT: 0, sheep: 0, sheepT: 0, ench: {},
     };
     for (const st of Object.values(STATIONS)) { s[st.q] = []; s[st.sl] = []; }
@@ -291,6 +292,7 @@
   function stationMax(s, st, id) {
     const rec = STATIONS[st].rec(id);
     if (!rec || !built(s, st)) return 0;
+    for (const k in rec.needs || {}) if (count(s, k) < rec.needs[k]) return 0;
     return Math.min(...Object.entries(rec.in).map(([k, n]) => Math.floor(count(s, k) / n)));
   }
   function queueAt(s, st, id, n) {
@@ -332,6 +334,12 @@
       const job = slotList[i];
       if (!job) continue;
       const rec = S.rec(job.id);
+      if (!rec.heat) { // the alchemy lab: just time
+        job.stalled = false;
+        job.p += dt / rec.time;
+        if (job.p >= 1 - 1e-6) { give(s, rec.out, rec.n); slotList[i] = null; }
+        continue;
+      }
       let t = dt;
       while (t > 1e-9) {
         let lvl = 0;
@@ -375,7 +383,7 @@
   // limit: make until you have this many; uncapped: ignore the limit and keep making while ingredients last
   function setAuto(s, i, recipe, limit, uncapped) {
     const t = s.island[i];
-    if (!t || !(t.id === "table" || t.id === "lab" || STATIONS[t.id])) return false;
+    if (!t || !(t.id === "table" || STATIONS[t.id])) return false;
     if (recipe !== undefined) t.auto = recipe || null;
     if (limit !== undefined) t.limit = Math.max(1, Math.min(99999, limit | 0));
     if (uncapped !== undefined) t.uncapped = !!uncapped;
@@ -406,23 +414,75 @@
     const K = C.combat, x = toolValue(s, "armor") * K.armorPct, room = K.armorMax - K.armorSoft;
     return x <= K.armorSoft ? x : K.armorSoft + room * (1 - Math.exp(-(x - K.armorSoft) / room));
   }
-  function setMob(s, id) {
-    if (!mobOpen(s, id) || s.mob.id === id) return false;
-    s.mob = { id, hp: MOBS[id].hp };
+  // arena difficulty: the chosen one, never past the upgrades you've built
+  const DIFF = C.combat.difficulty;
+  const difficulty = s => DIFF[Math.min(s.diff || 0, s.arena || 0)] || DIFF[0];
+  const zoneMobs = (s, z) => Object.keys(MOBS).filter(id => MOBS[id].area === z && mobOpen(s, id));
+  function spawn(s, id) {
+    const hp = MOBS[id].hp * difficulty(s).hp;
+    s.mob = { id, hp, max: hp, fuse: 0 };
+    s.hitT = 0;
+  }
+  // a random monster you've unlocked wanders in from the area you're in
+  function wander(s) {
+    const list = zoneMobs(s, s.zone);
+    if (!list.length) return false;
+    spawn(s, list[Math.floor(Math.random() * list.length)]);
     return true;
   }
-  // one swing at the current mob; returns { dmg, killed, drops } or null if you can't fight right now
-  function attack(s) {
-    if (!mobOpen(s, s.mob.id) || s.faintT > 0) return null;
-    const m = MOBS[s.mob.id], dmg = swordDmg(s);
+  function setZone(s, z) {
+    if (!AREAS[z] || !s.areas[z] || !zoneMobs(s, z).length || s.zone === z) return false;
+    s.zone = z;
+    return wander(s);
+  }
+  function setDifficulty(s, n) {
+    if (!(n >= 0 && n <= (s.arena || 0) && n < DIFF.length) || (s.diff || 0) === n) return false;
+    s.diff = n;
+    spawn(s, s.mob.id);
+    return true;
+  }
+  function upgradeArena(s) {
+    const next = DIFF[(s.arena || 0) + 1];
+    if (!next || !s.areas.platform || Object.entries(next.unlock).some(([k, n]) => count(s, k) < n)) return false;
+    for (const [k, n] of Object.entries(next.unlock)) take(s, k, n);
+    s.arena = (s.arena || 0) + 1;
+    return true;
+  }
+  // meet a particular monster (tests, old saves); the area follows it
+  function setMob(s, id) {
+    if (!mobOpen(s, id) || s.mob.id === id) return false;
+    s.zone = MOBS[id].area;
+    spawn(s, id);
+    return true;
+  }
+  // a swing recharges over CONFIG.combat.cooldown; swinging early hits for a fraction
+  const charge = s => Math.min(1, (s.swingT ?? C.combat.cooldown) / C.combat.cooldown);
+  const swingDmg = s => swordDmg(s) * (C.combat.minHit + (1 - C.combat.minHit) * charge(s) ** 2);
+  function hurt(s, dmg) {
+    const id = s.mob.id, m = MOBS[id];
     s.calmT = 0;
     s.mob.hp -= dmg;
-    if (s.mob.hp > 1e-9) return { dmg, killed: false };
-    gainXp(s, m.xp);
-    s.kills[s.mob.id] = (s.kills[s.mob.id] || 0) + 1;
-    const drops = roll(s, m.drops);
-    s.mob = { id: s.mob.id, hp: m.hp };
-    return { dmg, killed: true, drops, xp: m.xp };
+    if (s.mob.hp > 1e-9) return { dmg, killed: false, id };
+    const d = difficulty(s), xp = Math.round(m.xp * d.xp);
+    gainXp(s, xp);
+    s.kills[id] = (s.kills[id] || 0) + 1;
+    const drops = {};
+    for (let k = 0; k < Math.floor(d.loot) + (Math.random() < d.loot % 1 ? 1 : 0); k++)
+      for (const [i, n] of Object.entries(roll(s, m.drops))) drops[i] = (drops[i] || 0) + n;
+    if (!wander(s)) spawn(s, id);
+    return { dmg, killed: true, drops, xp, id };
+  }
+  // one swing at the current mob; returns { dmg, killed, drops, xp, id } or null if you can't fight right now
+  function attack(s) {
+    if (!mobOpen(s, s.mob.id) || s.faintT > 0) return null;
+    const dmg = swingDmg(s);
+    s.swingT = 0;
+    return hurt(s, dmg);
+  }
+  function throwTnt(s) {
+    if (!((s.inv.tnt || 0) > 0) || !mobOpen(s, s.mob.id) || s.faintT > 0) return null;
+    take(s, "tnt", 1);
+    return hurt(s, C.combat.tnt);
   }
   function eat(s) {
     if ((s.inv.steak || 0) < 1 || s.hp >= C.combat.hp || s.faintT > 0) return false;
@@ -445,20 +505,33 @@
   function tickCombat(s, dt) {
     if (!s.areas.platform && !s.areas.nether) return;
     const K = C.combat;
+    s.swingT = Math.min(K.cooldown, (s.swingT ?? K.cooldown) + dt);
     if (s.faintT > 0) { s.faintT = Math.max(0, s.faintT - dt); if (!s.faintT) s.hp = K.hp; return; }
     s.calmT += dt;
-    if (s.calmT >= K.calm) { // nobody's swinging: the mob wanders off to heal, and so do you
+    if (s.calmT >= K.calm) { // nobody's swinging: the mob backs off to heal, and so do you
       s.hp = Math.min(K.hp, s.hp + K.regen * dt);
-      s.mob.hp = MOBS[s.mob.id].hp;
+      s.mob.hp = s.mob.max;
+      s.mob.fuse = 0;
       s.hitT = 0;
       return;
     }
-    const m = MOBS[s.mob.id];
+    const m = MOBS[s.mob.id], d = difficulty(s);
+    const faint = () => { s.hp = 0; s.faintT = K.faint; s.mob.hp = s.mob.max; s.mob.fuse = 0; s.hitT = 0; emit(s, "faint", m.name, {}); };
+    if (m.fuse) { // a creeper: no swings, it just goes off if it's still alive when the fuse runs out
+      s.mob.fuse += dt;
+      if (s.mob.fuse < m.fuse) return;
+      s.hp -= m.dmg * d.dmg * (1 - armorBlock(s) * (m.pierce ?? 1));
+      emit(s, "boom", m.name, {});
+      const id = s.mob.id;
+      if (!wander(s)) spawn(s, id);
+      if (s.hp <= 0) faint();
+      return;
+    }
     s.hitT += dt;
     while (s.hitT >= m.every) {
       s.hitT -= m.every;
-      s.hp -= m.dmg * (1 - armorBlock(s));
-      if (s.hp <= 0) { s.hp = 0; s.faintT = K.faint; s.mob.hp = m.hp; s.hitT = 0; emit(s, "faint", m.name, {}); break; }
+      s.hp -= m.dmg * d.dmg * (1 - armorBlock(s) * (m.pierce ?? 1));
+      if (s.hp <= 0) { faint(); break; }
     }
   }
   // the pasture's herds: cows come with it, sheep have to be lured in first (the lure brings `start` of them)
@@ -744,7 +817,7 @@
         case "autoHammer": case "autoSieve": case "autoCHammer": case "autoHeavySieve":
           autoRun(s, tile, dt);
           break;
-        case "table": case "lab": autoCraftTable(s, tile, dt); break;
+        case "table": autoCraftTable(s, tile, dt); break;
         case "autoCompressor": {
           const [out, n] = C.compress.map[tile.sel] || [];
           tile.t += dt;
@@ -849,6 +922,14 @@
     if (s.v < 6) s.v = 6; // v6: land comes from quests (growLand below), the wilds; new fields filled from create()
     if (s.v < 7) { s.peak = Math.max(s.peak || 0, Math.floor(Math.sqrt((s.xp || 0) / C.combat.levelXp))); s.v = 7; } // v7: peak level
     if (s.v < 8) s.v = 8; // v8: sheep in the pasture (fields filled from create()); auto-make can be uncapped
+    if (s.v < 9) {
+      // v9: random encounters by area (start where your last monster lived), difficulty, the lab became a station
+      const m = MOBS[s.mob && s.mob.id] ? s.mob : { id: "zombie" };
+      s.zone = MOBS[m.id].area;
+      s.mob = { id: m.id, hp: MOBS[m.id].hp, max: MOBS[m.id].hp, fuse: 0 };
+      s.island.forEach(t => { if (t && t.id === "lab" && t.auto) { const out = String(t.auto).split("<")[0]; t.auto = D.LAB[out] ? out : null; } });
+      s.v = 9;
+    }
     s.ev = [];
     growLand(s); // land owed for quests already done
     return s;
@@ -871,6 +952,7 @@
     cost, recipeState, maxCraft, craft, visible, hidden, toolKind, landTarget, demolish, pickUp, place, move, placesAs, isPlace, feedBarrels, fullRain, lavaCrucible,
     mixClay, fillBucket, queueSmelt, clearQueue, queueAt, clearAt, stationMax, STATIONS, addFuel, tick,
     insertTool, pullTool, autoPeriod, setSeed, setAuto, unlockArea, level, xpFor, swordDmg, armorBlock, setMob, attack, eat, milk, drink,
+    setZone, zoneMobs, setDifficulty, upgradeArena, difficulty, charge, swingDmg, throwTnt,
     breed, breedCost, autoLimit, enchant, enchantCost, enchantBlocker, enchLevel, bestOwned, enchMult, peakLevel, mobOpen, energyCapacity, currentQuest, openQuests, serialize, revive, catchUp,
   };
   root.Alchemy = api;

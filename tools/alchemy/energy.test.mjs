@@ -157,7 +157,7 @@ test('old saves migrate without changing legacy machines, inventory or recipe pr
   delete s.energy; delete s.power;
   for (const st of Object.keys(D.ELECTRIC)) { delete s[A.STATIONS[st].q]; delete s[A.STATIONS[st].sl]; }
   const saved = A.serialize(s), revived = A.revive(saved);
-  assert.equal(revived.v, 8);
+  assert.equal(revived.v, 9);
   assert.equal(revived.energy, 0);
   assert.deepEqual(revived.island, s.island);
   assert.deepEqual(revived.inv, s.inv);
@@ -295,10 +295,10 @@ test('combat: swords hit harder, armor blocks, fainting is temporary, kills give
   A.give(s, 'cobble', 32); A.give(s, 'planks', 16);
   assert.equal(A.attack(s), null);                 // no platform yet
   assert.ok(A.unlockArea(s, 'platform'));
-  assert.equal(A.swordDmg(s), 1);                   // fists
+  assert.equal(A.swordDmg(s), 2);                   // fists
   A.give(s, 'ironSword');
-  assert.equal(A.swordDmg(s), 5);
-  let r; do r = A.attack(s); while (!r.killed);
+  assert.equal(A.swordDmg(s), 10);
+  let r; do { r = A.attack(s); A.tick(s, 0.5); } while (!r.killed);
   assert.equal(s.xp, D.MOBS.zombie.xp);
   assert.ok(s.inv.rottenFlesh >= 1);
   assert.ok(!A.setMob(s, 'enderman'));               // level-gated
@@ -321,17 +321,23 @@ test('#25: armor keeps improving, enchanting never hides better tools, lab, milk
   // an enchanted diamond sword hits as hard as dark steel, but the dark steel recipe stays visible
   const t = island('table'); A.give(t, 'diamondSword'); t.ench = { sword: 4 }; t.seen.diamondSword = 1;
   const ds = D.RECIPES.find(r => r.out.darkSteelSword);
-  assert.ok(A.swordDmg(t) >= 11); assert.equal(A.hidden(t, ds), null);
+  assert.ok(A.swordDmg(t) >= 22); assert.equal(A.hidden(t, ds), null);
   A.give(t, 'darkSteelSword'); assert.equal(A.hidden(t, ds), 'auto');
-  // transmutation needs the lab on the island; the old iron → gold → diamond is gone
-  const cu = D.RECIPES.find(r => r.out.copper);
+  // transmutation is queued in the lab (no crafting-list recipe); the old iron → gold → diamond is gone
+  assert.ok(!D.RECIPES.some(r => r.out.copper || r.out.emerald || r.at === 'lab'));
+  assert.ok(!D.LAB.gold && !D.LAB.diamond);
   A.give(t, 'iron', 4); A.give(t, 'redstone', 8);
-  assert.equal(A.recipeState(t, cu).reason, 'needs an alchemy lab');
-  assert.ok(!D.RECIPES.some(r => r.name === 'Transmute' && (r.out.gold || r.out.diamond)));
+  assert.equal(A.stationMax(t, 'lab', 'copper'), 0);  // no lab on the island
   const lab = island('lab'); A.give(lab, 'iron', 4); A.give(lab, 'redstone', 8);
-  assert.equal(A.craft(lab, cu, 2), 2); assert.equal(lab.inv.copper, 2);
-  const em = D.RECIPES.find(r => r.out.emerald); A.give(lab, 'diamond', 4);
-  assert.equal(A.recipeState(lab, em).ok, false); A.give(lab, 'pstone'); assert.equal(A.craft(lab, em, 1), 1);
+  assert.equal(A.queueAt(lab, 'lab', 'copper', 2), 2);
+  run(lab, D.LAB.copper.time + 0.1, 0.5); assert.equal(lab.inv.copper, 1); // one job at a time per lab
+  run(lab, D.LAB.copper.time, 0.5); assert.equal(lab.inv.copper, 2);
+  A.give(lab, 'diamond', 4);
+  assert.equal(A.queueAt(lab, 'lab', 'emerald', 1), 0); A.give(lab, 'pstone');
+  assert.equal(A.queueAt(lab, 'lab', 'emerald', 1), 1);
+  run(lab, D.LAB.emerald.time + 0.1, 1); assert.equal(lab.inv.emerald, 1); assert.equal(lab.inv.pstone, 1);
+  const two = island('lab', 'lab'); A.give(two, 'cobble', 32); A.queueAt(two, 'lab', 'coal', 2);
+  run(two, D.LAB.coal.time + 0.1, 0.5); assert.equal(two.inv.coal, 2); // more labs work in parallel
   assert.ok(D.ALLOY.constantan && D.ALLOY.invar && D.ELECTRIC.infuser.recipes.invar);
   // milk: an iron bucket at the pasture, drunk in a fight for a full heal; the bucket comes back
   const m = island(); m.areas.pasture = 1; m.cows = 2; A.give(m, 'ironBucket');
@@ -362,7 +368,7 @@ test('pasture, bone meal and enchanting', () => {
   assert.ok(!A.enchant(s, 'sword'));                 // no table
   A.give(s, 'enchantTable'); A.place(s, 'enchantTable', s.island.indexOf(null));
   assert.ok(A.enchant(s, 'sword'));
-  close(A.swordDmg(s), 3 * 1.25);
+  close(A.swordDmg(s), 6 * 1.25);
   assert.equal(A.level(s), 2);                      // spent 3 levels
   assert.ok(!A.enchant(s, 'sword'));                 // next one costs 6
 });
@@ -481,4 +487,54 @@ test('dark steel upgrades the best sword and armor', () => {
   A.give(s, 'darkSteelSword'); A.give(s, 'darkSteelArmor');
   assert.ok(A.swordDmg(s) > before[0] && A.armorBlock(s) > before[1]);
   assert.ok(D.ALLOY.darkSteel && D.ELECTRIC.infuser.recipes.darkSteel);
+});
+test('#30: swings recharge, monsters wander in by area, creepers go off, difficulty, TNT', () => {
+  const K = D.CONFIG.combat;
+  const s = island(); s.areas.platform = 1; A.give(s, 'ironSword');
+  s.mob.hp = s.mob.max = 1e9; s.calmT = 0;
+  const full = A.attack(s).dmg, early = A.attack(s).dmg;  // second swing comes straight after the first
+  close(full, 10); close(early, 10 * K.minHit);
+  A.tick(s, K.cooldown); close(A.charge(s), 1);
+  // random encounters: only monsters unlocked in the area you're in
+  s.xp = A.xpFor(10); s.peak = 10;
+  const seen = new Set();
+  for (let i = 0; i < 300; i++) { s.mob.hp = 1; A.attack(s); seen.add(s.mob.id); A.tick(s, K.cooldown); }
+  assert.deepEqual([...seen].sort(), ['creeper', 'enderman', 'skeleton', 'spider', 'witch', 'zombie']);
+  assert.ok(!A.setZone(s, 'nether'));                      // not unlocked
+  s.areas.nether = 1; s.xp = A.xpFor(12); s.peak = 12;
+  assert.ok(A.setZone(s, 'nether')); assert.equal(s.mob.id, 'piglin');
+  // a creeper never swings, then goes off for its damage and is gone
+  const c = island(); c.areas.platform = 1; c.peak = 6; A.setMob(c, 'creeper'); c.calmT = 0;
+  const fight = secs => { for (let t = 0; t < secs - 1e-9; t += 0.5) { c.calmT = 0; A.tick(c, 0.5); } }; // keep engaging
+  fight(D.MOBS.creeper.fuse - 0.5); assert.equal(c.hp, K.hp);
+  fight(0.5);
+  assert.equal(c.hp, K.hp - D.MOBS.creeper.dmg);
+  // difficulty: needs the arena upgrade; tougher monsters, more XP
+  const h = island(); h.areas.platform = 1;
+  assert.ok(!A.setDifficulty(h, 1));
+  for (const [k, n] of Object.entries(K.difficulty[1].unlock)) A.give(h, k, n);
+  assert.ok(A.upgradeArena(h)); assert.equal(h.arena, 1);
+  assert.ok(A.setDifficulty(h, 1));
+  close(h.mob.max, D.MOBS.zombie.hp * K.difficulty[1].hp);
+  h.mob.hp = 0.1; assert.equal(A.attack(h).xp, Math.round(D.MOBS.zombie.xp * K.difficulty[1].xp));
+  // TNT: flat damage, ignores the cooldown
+  A.give(h, 'tnt', 2); h.swingT = 0;
+  assert.equal(A.throwTnt(h).dmg, K.tnt); assert.equal(h.inv.tnt, 1);
+});
+test('#30: pricier compressed hammers, build quests say place, advancement order', () => {
+  const ch = D.RECIPES.find(r => r.out.cHammer), dch = D.RECIPES.find(r => r.out.diamondCHammer);
+  assert.ok(ch.in.gear && ch.in.cCobble >= 8 && ch.in.iron >= 12);
+  assert.equal(dch.in.diamond, 9);
+  for (const q of D.QUESTS) if (q.need.built || q.need.anyBuilt) assert.match(q.text, /place|plant|drag|put/i, q.id);
+  const at = id => D.QUESTS.findIndex(q => q.id === id);
+  assert.ok(at('moo') < at('milk'));
+  assert.ok(at('fight') < at('clay') && at('moo') < at('auto') && at('compress') < at('lab'));
+});
+test('#30: v8 saves keep their lab auto-make and current monster', () => {
+  const s = island('lab'); s.v = 8; s.island[0].auto = 'copper<iron+redstone'; s.mob = { id: 'skeleton', hp: 3 };
+  delete s.zone; delete s.labQueue; delete s.labSlots;
+  const r = A.revive(A.serialize(s));
+  assert.equal(r.island[0].auto, 'copper'); assert.equal(r.zone, 'platform');
+  assert.equal(r.mob.id, 'skeleton'); assert.equal(r.mob.max, D.MOBS.skeleton.hp);
+  assert.deepEqual(r.labQueue, []);
 });
