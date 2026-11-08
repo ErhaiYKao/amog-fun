@@ -173,7 +173,17 @@
   });
 
   // ---------- saving ----------
-  function save() { try { UI.s.t = Date.now(); localStorage.setItem(A.KEY, A.serialize(UI.s)); } catch {} }
+  function save() { try { UI.s.t = Date.now(); localStorage.setItem(A.KEY, A.serialize(UI.s)); } catch {} achieve(UI.s); }
+  // sitewide achievements (/assets/ach.js), checked whenever the game saves
+  function achieve(s) {
+    const H = window.AmogAch;
+    if (!H) return;
+    if (s.quests.table) H.unlock("alc.table");
+    if (s.quests.nether) H.unlock("alc.nether");
+    if ((s.arena || 0) >= 2) H.unlock("alc.nightmare");
+    if (s.quests.terminal) H.unlock("alc.terminal");
+    H.score("alc", "paperclips", s.got.paperclip || 0);
+  }
   function load() {
     try {
       const raw = localStorage.getItem(A.KEY);

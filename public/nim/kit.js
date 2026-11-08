@@ -61,7 +61,7 @@
     const allOpts = (cfg.options || []).concat(baseOpts);
     const opts = Object.assign(Object.fromEntries(allOpts.map(o => [o.key, o.def])), store.get(K + ".opts", {}));
     const score = store.get(K + ".score", [0, 0]);
-    let s, turn, over, gid = 0, timer, log = [], hint = store.get(K + ".hint", false);
+    let s, turn, over, gid = 0, timer, log = [], hint = store.get(K + ".hint", false), peeked = false;
 
     root.innerHTML = `<div class="nk">
       <div class="nk-board-wrap"><div class="nk-board" id="nk-board"></div>
@@ -94,7 +94,7 @@
       sync();
     });
     $("nk-hintbox").checked = hint;
-    $("nk-hintbox").addEventListener("change", e => { hint = e.target.checked; store.set(K + ".hint", hint); render(); });
+    $("nk-hintbox").addEventListener("change", e => { hint = e.target.checked; if (hint && !over) peeked = true; store.set(K + ".hint", hint); render(); });
     $("nk-new").addEventListener("click", () => newGame());
     $("nk-again").addEventListener("click", () => newGame(lastCustom));
     let lastCustom = null;
@@ -126,6 +126,7 @@
       turn = opts.first === "you" ? 0 : 1;
       over = false;
       log = [];
+      peeked = hint;
       $("nk-over").classList.remove("show");
       render();
       if (turn === 1) later();
@@ -184,6 +185,7 @@
       over = true;
       const winner = misere() ? turn : 1 - turn;
       score[winner]++;
+      if (winner === 0 && window.AmogAch) achieve();
       store.set(K + ".score", score);
       const lastWho = 1 - turn;
       const how = misere() ? `${lastWho === 0 ? "You" : "Amog"} made the last move, which loses in misère play.` : `${lastWho === 0 ? "You" : "Amog"} made the last move.`;
@@ -191,6 +193,15 @@
       $("nk-op").textContent = how + (winner === 0 ? " The Order will hear of this." : " As the theorem predicted.");
       $("nk-over").classList.add("show");
       render();
+    }
+
+    // achievements: any win over the novice; full-strength Amog from a dealt start, without peeking at the math
+    function achieve() {
+      const A = window.AmogAch;
+      if (opts.level === "easy") return A.unlock("nim.novice");
+      if (lastCustom || peeked) return;
+      A.unlock("nim." + cfg.id);
+      if (A.NIM.every(([k]) => A.has("nim." + k))) A.unlock("nim.all");
     }
 
     function render() {

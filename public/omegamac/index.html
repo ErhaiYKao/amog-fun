@@ -7,6 +7,7 @@
 <meta name="description" content="A zetamac-style mental math trainer: arithmetic, powers and roots, totients, divisor counts and sums, gcd and lcm, factorials, binomials and derangements against the clock, with shareable presets and high scores.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><text x='32' y='48' font-size='44' text-anchor='middle' fill='%234fd6e8' font-family='Georgia,serif'>%CE%A9</text></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
 <script src="/omegamac/gen.js"></script>
 <script src="/assets/lb.js"></script>
@@ -337,6 +338,15 @@
     setState("play"); show(); ans.value = ""; ans.focus();
     clearInterval(tick); tick = setInterval(update, 100); update();
   }
+  // achievements: the built-in presets only (scores at 120 s, and a full round of each for the tour)
+  function achieve(cur) {
+    const A = window.AmogAch, p = cur.builtin && O.PRESETS.find(x => x.key === cur.key);
+    if (!A || !p) return;
+    if (playS.d === 120) A.score("omega", p.id + "@120", score);
+    const seen = A.note("omega.presets") || [];
+    if (!seen.includes(p.id)) A.note("omega.presets", seen.concat(p.id));
+    if (O.PRESETS.every(x => seen.includes(x.id) || x.id === p.id)) A.unlock("omega.tour");
+  }
   function update() {
     const ms = end - performance.now(), left = Math.max(0, Math.ceil(ms / 1000));
     $("left").textContent = left;
@@ -349,6 +359,7 @@
     if (abort) { ranked = null; setState("idle"); sync(); return; }
     const key = O.typesKey(playS), prev = best(playS.d, key), cur = current();
     if (score > prev) { db.scores[playS.d + "|" + key] = score; persist(); }
+    achieve(cur);
     $("final").textContent = score;
     $("bestline").innerHTML = score > prev && prev ? `<span class="nb">New best</span> for ${esc(cur.name)} at ${playS.d} s (was ${prev}).`
       : score > prev ? `<span class="nb">First score</span> for ${esc(cur.name)} at ${playS.d} s.`

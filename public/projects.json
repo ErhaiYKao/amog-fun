@@ -39,26 +39,14 @@
     "slug": "omegamac",
     "title": "Omegamac",
     "signature": "omegamac : Brain × [0, 120] → ℕ",
-    "blurb": "Zetamac, continued to the end of the alphabet. Two minutes of arithmetic, powers, $\\varphi(n)$, $\\sigma(n)$, gcds, $\\binom{n}{k}$ and derangements against the clock. Choose a preset or build your own, share it as a link, and try to beat your best.",
+    "blurb": "Zetamac, continued to the end of the alphabet. Two minutes of arithmetic, powers, $\\varphi(n)$, $\\sigma(n)$, gcds, $\\binom{n}{k}$ and derangements against the clock. Choose a preset (Alphamac is the high-school one) or build your own, share it as a link, and try to beat your best.",
     "tags": [
       "game",
       "math"
     ],
     "group": "clock",
-    "short": "Two minutes of mental math, with a leaderboard.",
+    "short": "Two minutes of mental math, Alphamac included, with leaderboards.",
     "featured": 4
-  },
-  {
-    "slug": "alphamac",
-    "title": "Alphamac",
-    "signature": "alphamac : HighSchool × [0, 120] → ℕ",
-    "blurb": "Omegamac from the start of the alphabet: arithmetic, squares and cubes and their roots, powers and logs up to 1000, gcds, lcms and factorials up to $6!$, against the clock. A ranked preset with its own leaderboard.",
-    "tags": [
-      "game",
-      "math"
-    ],
-    "group": "clock",
-    "short": "High-school mental math against the clock."
   },
   {
     "slug": "palinode",

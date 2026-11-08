@@ -7,6 +7,7 @@
 <meta name="description" content="Play Dots and Boxes against Amog Magnussen, an AI that knows about double-crosses.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><circle cx='18' cy='18' r='5' fill='%23ece8de'/><circle cx='46' cy='18' r='5' fill='%23ece8de'/><circle cx='18' cy='46' r='5' fill='%23ece8de'/><circle cx='46' cy='46' r='5' fill='%23ece8de'/><path d='M18 18H46V46' stroke='%23ff5a5f' stroke-width='4' fill='none'/></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/ach.js" defer></script>
 <style>
   :root { --you: var(--g1); --amog: var(--g2); }
   .game { display: grid; grid-template-columns: 1fr 320px; gap: 40px; align-items: start; padding: 8px 0 24px; }
@@ -175,7 +176,7 @@
     first: store.get("first", "you"),
   };
 
-  let G, drawn, drawnBy, owner, score, turn, over, lastEdge, busy, aiTimer, gameId = 0;
+  let G, drawn, drawnBy, owner, score, turn, over, lastEdge, busy, aiTimer, gameId = 0, declined = false;
   let edgeEls, boxEls, hitEls, layers;
 
   // ---------- setup ----------
@@ -189,7 +190,7 @@
     owner = new Int8Array(G.NB).fill(-1);
     score = [0, 0]; // 0 = you, 1 = amog
     turn = opts.first === "you" ? 0 : 1;
-    over = false; lastEdge = -1; busy = false;
+    over = false; lastEdge = -1; busy = false; declined = false;
     $("overlay").classList.remove("show");
     buildBoard();
     render();
@@ -243,7 +244,9 @@
 
   function humanMove(e) {
     if (over || busy || turn !== 0 || drawn[e]) return;
+    const couldTake = DBAI.computeSides(G, drawn).some(x => x === 3);
     const got = apply(e, 0);
+    if (couldTake && !got && !over) declined = true; // turned down a box: a double-cross if it works out
     render(e);
     if (over) return finish();
     if (got) setStatus(got === 2 ? "Two at once. Go again." : "Box! Go again.");
@@ -301,6 +304,7 @@
     const k = `${opts.level}-${opts.size}`;
     rec[k] = rec[k] || [0, 0, 0];
     let title, text;
+    if (y > a) achieve(); // achievements
     if (y > a) { rec[k][0]++; title = "You win."; text = `${y}–${a}. Amog demands a rematch and is quietly revising his lemma.`; }
     else if (a > y) { rec[k][1]++; title = "Amog wins."; text = `${a}–${y}, exactly as Theorem 1 predicted.`; }
     else { rec[k][2]++; title = "A draw."; text = `${y}–${a}. The diagram commutes.`; }
@@ -310,6 +314,17 @@
     $("overlay").classList.add("show");
     render();
     showRecord();
+  }
+
+  function achieve() {
+    const A = window.AmogAch, n = +opts.size, lvl = opts.level, strong = lvl !== "easy";
+    if (!A) return;
+    if (lvl === "easy") A.unlock("dab.undergrad");
+    if (lvl === "medium" && n >= 4) A.unlock("dab.postdoc");
+    if (lvl === "hard" && n >= 5) A.unlock("dab.magnussen");
+    if (lvl === "hard" && n >= 6 && opts.first === "amog") A.unlock("dab.second");
+    if (strong && n >= 4 && score[1] === 0) A.unlock("dab.shutout");
+    if (strong && declined) A.unlock("dab.decline");
   }
 
   function showRecord() {

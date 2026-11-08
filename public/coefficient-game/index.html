@@ -7,6 +7,7 @@
 <meta name="description" content="Pick any commutative ring and a degree, then take turns choosing the coefficients of a polynomial. A wins if it has a root. Play computer Amog or a friend online.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><rect x='8' y='20' width='18' height='24' rx='4' fill='none' stroke='%234fd6e8' stroke-width='3'/><text x='44' y='44' font-size='30' text-anchor='middle' fill='%23c8f04a' font-family='Georgia,serif' font-style='italic'>x</text></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
 <script src="/coefficient-game/ring.js"></script>
 <script src="/coefficient-game/amog.js"></script>
@@ -286,7 +287,12 @@
     $("log").innerHTML = g.log.map(l => `<li><span class="${l.by === "A" ? "a" : "s"}">${mode === "pass" ? l.by : l.by === mySide() ? "you" : mode === "amog" ? "Amog" : "friend"}</span>: a<sub>${l.k}</sub> = ${esc(R.show(l.v))}</li>`).join("");
   }
   function resultHTML() {
-    const me = mySide(), won = g.winner;
+    const me = mySide(), won = g.winner, A = window.AmogAch;
+    if (A && mode === "online" && me) A.unlock("coef.online");
+    if (A && mode === "amog" && me && won === me) { // achievements
+      A.unlock("coef.win");
+      if (R.finite) { const sides = A.note("coef.sides") || []; if (!sides.includes(me)) A.note("coef.sides", sides.concat(me)); if (sides.length + !sides.includes(me) >= 2) A.unlock("coef.both"); }
+    }
     const big = mode === "pass" ? `${sideName(won)} wins` : !me ? `${sideName(won)} wins` : won === me ? "You win!" : mode === "amog" ? "Amog wins." : "Your friend wins.";
     const p = `$p(x) = ${texPoly(g.c)}$`;
     let why;

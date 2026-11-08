@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Achievements · amog.fun</title>
+<meta name="description" content="Every achievement on amog.fun, from lemmas to open conjectures, and the ones you've proved so far.">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/ach.js" defer></script>
+<script src="/assets/math.js" defer></script>
+<style>
+  h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 8vw, 76px); line-height: 1; margin: 10px 0 6px; }
+  .lede { color: var(--muted); max-width: 62ch; margin: 0 0 22px; }
+  .sum { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+  .chip { border: 1px solid var(--line-2); border-radius: 999px; padding: 6px 14px; font-family: var(--mono); font-size: 13px; color: var(--muted); background: var(--bg-2); }
+  .chip b { color: var(--ink); font-weight: 500; }
+  .chip i { font-style: normal; color: var(--c); }
+  .bar { height: 6px; border-radius: 3px; background: var(--bg-3); overflow: hidden; margin: 0 0 26px; max-width: 520px; }
+  .bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--g3), var(--g1)); }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 24px; }
+  .filters button { font: 13px var(--mono); color: var(--muted); background: transparent; border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+  .filters button[aria-pressed=true] { color: var(--bg); background: var(--ink); border-color: var(--ink); }
+  section.game { margin: 0 0 30px; }
+  section.game h2 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0 0 10px; display: flex; align-items: baseline; gap: 12px; }
+  section.game h2 a { text-decoration: none; }
+  section.game h2 a:hover { text-decoration: underline; }
+  section.game h2 small { font: 12px var(--mono); color: var(--faint); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+  .ach { --c: var(--line-2); display: flex; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2); scroll-margin-top: 20px; }
+  .ach .q { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed var(--line-2); color: var(--faint); font: 15px var(--mono); }
+  .ach .k { font: 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--c); }
+  .ach .n { font-size: 17px; line-height: 1.25; }
+  .ach .d { font-size: 14px; color: var(--muted); line-height: 1.4; }
+  .ach .m { font-size: 14px; line-height: 1.45; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line-2); }
+  .ach .w { font: 11px var(--mono); color: var(--faint); margin-top: 4px; }
+  .ach.got { border-color: color-mix(in srgb, var(--c) 55%, var(--line)); }
+  .ach.got .q { border-style: solid; border-color: var(--c); color: var(--c); }
+  .ach:not(.got) .n { color: var(--muted); }
+  .ach:target { box-shadow: 0 0 0 2px var(--c); }
+  .tiers { color: var(--muted); font-size: 15px; max-width: 70ch; }
+  .tiers b { font-weight: 600; }
+  footer { margin: 40px 0 50px; font: 12px var(--mono); color: var(--faint); }
+  footer button { font: inherit; color: var(--muted); background: none; border: 0; text-decoration: underline; cursor: pointer; padding: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a></header>
+  <main>
+    <h1>Achievements</h1>
+    <p class="lede">Results proved across the Institute's objects. They're kept in this browser, so the only referee is your conscience. Locked ones show what to prove; the math behind each one appears once you've proved it.</p>
+    <div class="sum" id="sum"></div>
+    <div class="bar"><span id="bar"></span></div>
+    <div class="filters" id="filters"></div>
+    <div id="list"></div>
+    <p class="tiers" id="tiers"></p>
+  </main>
+  <footer>Saved under <code>amog.ach.v1</code> in localStorage. <button id="reset">Forget all achievements</button></footer>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  const A = window.AmogAch, $ = id => document.getElementById(id);
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let filter = "all";
+  try { filter = localStorage.getItem("amog.achievements.filter") || "all"; } catch {}
+  const date = ms => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+
+  function render() {
+    const d = A.load(), T = A.TIERS;
+    const got = A.LIST.filter(a => d.u[a.id]), total = A.LIST.reduce((n, a) => n + T[a.tier].pts, 0), pts = A.points(d);
+    $("sum").innerHTML = `<span class="chip"><b>${got.length}</b> / ${A.LIST.length} proved</span><span class="chip"><b>${pts}</b> / ${total} points</span>`
+      + Object.entries(T).map(([k, t]) => `<span class="chip" style="--c:${t.color}"><i>${t.name}s</i> ${A.LIST.filter(a => a.tier === k && d.u[a.id]).length}/${A.LIST.filter(a => a.tier === k).length}</span>`).join("");
+    $("bar").style.width = (100 * pts / total).toFixed(1) + "%";
+    const fs = [["all", "all"], ["got", "proved"], ["open", "open"], ...Object.entries(T).map(([k, t]) => [k, t.name.toLowerCase() + "s"])];
+    $("filters").innerHTML = fs.map(([k, l]) => `<button data-f="${k}" aria-pressed="${k === filter}">${l}</button>`).join("");
+    const keep = a => filter === "all" || (filter === "got" ? d.u[a.id] : filter === "open" ? !d.u[a.id] : a.tier === filter);
+    $("list").innerHTML = A.GAMES.map(([g, title, href]) => {
+      const all = A.LIST.filter(a => a.id.startsWith(g + ".")), rows = all.filter(keep);
+      if (!rows.length) return "";
+      return `<section class="game"><h2><a href="${href}">${esc(title)}</a><small>${all.filter(a => d.u[a.id]).length}/${all.length}</small></h2><div class="grid">${rows.map(a => {
+        const t = T[a.tier], on = d.u[a.id], hide = a.secret && !on;
+        return `<div class="ach${on ? " got" : ""}" id="${a.id}" style="--c:${t.color}"><span class="q">${on ? "∎" : "?"}</span><div>
+          <div class="k">${t.name} · ${t.pts} pt${t.pts > 1 ? "s" : ""}${a.secret ? " · secret" : ""}</div>
+          <div class="n">${hide ? "???" : esc(a.name)}</div>
+          <div class="d">${hide ? esc(a.hint || "A secret.") : esc(a.desc)}</div>
+          ${on && a.math ? `<div class="m">${a.math}</div>` : ""}
+          ${on ? `<div class="w">proved ${date(on)}</div>` : ""}</div></div>`;
+      }).join("")}</div></section>`;
+    }).join("") || `<p class="muted">Nothing here yet.</p>`;
+    $("tiers").innerHTML = "Difficulty: " + Object.values(T).map(t => `<b style="color:${t.color}">${t.name}</b> (${t.pts} pt${t.pts > 1 ? "s" : ""}, ${t.note})`).join(", ") + ".";
+    if (window.amogMath) window.amogMath($("list"));
+    if (location.hash && !render.jumped) { render.jumped = true; const el = document.getElementById(location.hash.slice(1)); if (el) el.scrollIntoView(); }
+  }
+  $("filters").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    filter = b.dataset.f;
+    try { localStorage.setItem("amog.achievements.filter", filter); } catch {}
+    render();
+  });
+  $("reset").addEventListener("click", () => {
+    if (!confirm("Forget every achievement in this browser? Your game saves are kept.")) return;
+    try { localStorage.removeItem("amog.ach.v1"); } catch {}
+    render();
+  });
+  window.addEventListener("amog-ach", render);
+  window.addEventListener("storage", e => { if (e.key === "amog.ach.v1") render(); });
+  render();
+});
+</script>
+</body>
+</html>

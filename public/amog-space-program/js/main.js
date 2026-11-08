@@ -58,8 +58,19 @@
         if (!document.hidden && !interacting) UI.refresh();
       }
       saveTimer += dt;
-      if (saveTimer >= 10) { saveTimer = 0; G.save(); }
+      if (saveTimer >= 10) { saveTimer = 0; G.save(); achieve(); }
     }
+
+    // sitewide achievements (/assets/ach.js), checked with each autosave
+    function achieve() {
+      var A = window.AmogAch, s = G.state;
+      if (!A) return;
+      if (s.gotOrbit) A.unlock('asp.orbit');
+      if (s.missionsDone.moonLanding) A.unlock('asp.moon');
+      if (s.missionsDone.voyager) A.unlock('asp.voyager');
+      if (G.starVisited('andromeda')) A.unlock('asp.andromeda');
+    }
+    achieve();
 
     function frame(now) {
       logicTick();

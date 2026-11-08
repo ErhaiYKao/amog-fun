@@ -19,6 +19,14 @@
     if (text !== undefined) node.textContent = text;
     return node;
   }
+  // sitewide achievements (/assets/ach.js): any ending, then all of them
+  function achieve() {
+    const A = window.AmogAch;
+    if (!A) return;
+    if (Object.keys(archive).length) A.unlock('pal.end');
+    if (E.endings.every(id => archive[id])) A.unlock('pal.all');
+  }
+  achieve();
   function save() {
     try { localStorage.setItem(D.SAVE_KEY, JSON.stringify({ state, archive })); }
     catch { storageWarning = 'Saving is unavailable. Keep this tab open to retain progress.'; }
@@ -28,6 +36,7 @@
     const result = E.act(state, id);
     if (!result.ok) { $('latest').textContent = result.reason; return; }
     if (state.ending) archive[state.ending] = (archive[state.ending] || 0) + 1;
+    achieve();
     save(); render();
     if (state.ending) $('ending').focus();
   }

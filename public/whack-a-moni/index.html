@@ -7,6 +7,7 @@
 <meta name="description" content="Play as Redstone. Bonk Moni. Do not bonk Megumin or Shiro.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><ellipse cx='32' cy='50' rx='22' ry='7' fill='%23000'/><ellipse cx='32' cy='30' rx='14' ry='17' fill='%23e8e4da'/><circle cx='26' cy='28' r='4' fill='%23fff' stroke='%23000' stroke-width='2'/><circle cx='38' cy='28' r='4' fill='%23fff' stroke='%23000' stroke-width='2'/><circle cx='26' cy='28' r='1.5'/><circle cx='38' cy='28' r='1.5'/></svg>">
 <link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/ach.js" defer></script>
 <style>
   :root { --moni: var(--g3); --fake: var(--g2); --red: #e0303a; }
   body { overflow-x: hidden; }
@@ -315,6 +316,8 @@
 
   let playing = false, score = 0, combo = 1, streak = 0, bonks = 0, timeLeft = ROUND;
   let lastTick = 0, nextSpawn = 0, stunnedUntil = 0, raf = 0;
+  // per-round tallies for achievements
+  let T = { slips: 0, shiroGone: 0, shiroHit: 0, megumin: 0 };
   let best = 0;
   const MAX_COMBO = 5, STREAK_PER_STEP = 5;
   // mistakes cost combo steps instead of wiping it, so one long streak doesn't decide the whole round
@@ -371,8 +374,9 @@
     h.el.classList.remove('up', 'hit');
     h.el.classList.add('down');
     if (!wasHit && (kind === 'moni' || kind === 'golden') && playing) {
-      dropCombo(combo - 1); say('escape');
+      dropCombo(combo - 1); say('escape'); T.slips++;
     }
+    if (!wasHit && kind === 'shiro' && playing) T.shiroGone++; // a Shiro got away (still up at the buzzer doesn't count)
   }
 
   function popText(h, html, cls) {
@@ -389,7 +393,7 @@
     if (now < stunnedUntil) return;
     if (h.busy) return; // already bonked, still on its way down
     if (!h.kind) {
-      dropCombo(combo - 1); say('whiff');
+      dropCombo(combo - 1); say('whiff'); T.slips++;
       return;
     }
     const kind = h.kind;
@@ -402,14 +406,17 @@
       popText(h, `+${pts}<small>${kind === 'golden' ? 'GOLDEN MONI' : 'bonk'}</small>`, 'good');
       say('moni');
       sfx.bonk(kind === 'golden');
+      if (kind === 'golden' && window.AmogAch) AmogAch.unlock('wam.golden');
     } else if (kind === 'megumin') {
       score = Math.max(0, score - 25); dropCombo(Math.floor(combo / 2));
       stunnedUntil = now + 1100;
+      T.slips++; T.megumin++;
       explode(e);
       say('megumin');
     } else {
       score = Math.max(0, score - 25); dropCombo(Math.floor(combo / 2));
       timeLeft = Math.max(0, timeLeft - 3);
+      T.slips++; T.shiroHit++;
       blank();
       say('shiro');
       sfx.blank();
@@ -467,6 +474,7 @@
   function start() {
     sfx.init();
     score = 0; combo = 1; streak = 0; bonks = 0; timeLeft = ROUND; stunnedUntil = 0;
+    T = { slips: 0, shiroGone: 0, shiroHit: 0, megumin: 0 };
     holes.forEach(h => { h.kind = null; h.busy = false; h.el.classList.remove('up', 'hit', 'down'); });
     overlay.hidden = true;
     playing = true;
@@ -481,6 +489,13 @@
     cancelAnimationFrame(raf);
     field.classList.remove('playing');
     holes.forEach(h => { if (h.kind || h.busy) hide(h, true); });
+    const A = window.AmogAch;
+    if (A) {
+      A.score('wam', 'round', score);
+      if (!T.slips && bonks) A.unlock('wam.flawless');
+      if (T.shiroHit >= 5 && !T.shiroGone) A.unlock('wam.shiro');
+      if (T.megumin >= 5) A.unlock('wam.megumin');
+    }
     const newBest = score > best;
     if (newBest) { best = score; try { localStorage.setItem('amog.whackamoni.best', best); } catch {} $('best').textContent = best; }
     const verdict =
