@@ -87,6 +87,7 @@
       <div class="s-done">
         <div class="meta">score</div>
         <div class="big" id="final">0</div>
+        <div class="fb" id="lastfb"></div>
         <p class="best" id="bestline"></p>
         <div class="submit meta" id="submit"></div>
         <button class="btn primary" id="again">Again</button>
@@ -118,7 +119,7 @@
     <p><b>Feynman</b> and <b>Sharp</b> ask math questions: powers, roots, logs, trig, factorials, primes and friends. Your guess counts if it's within 10% (Feynman) or 2% (Sharp) of the true value.</p>
     <p><b>MathGuessr</b> and <b>FermiGuessr</b> are played like GeoGuessr: ten questions against the clock (math problems, or questions about the world, from the distance to the Moon to the number of ants on Earth), and every guess scores points for how close it is. For answers up to $1$ that's $5000 \times \frac{\text{smaller}}{\text{larger}}$ of your guess and the truth: spot on is 5,000, off by a factor of 2 is 2,500, and off by 10 is 500, so a perfect game is 50,000. Finish all ten early and you keep your time; run out and the rest score nothing. Both also come in 10-minute and untimed versions (untimed runs count once all ten are answered). MathGuessr skips plain arithmetic: no products, long division or reciprocals.</p>
     <p>Logarithms are judged on what's inside them. If the answer is $\log_{10} x$ and you're off by $\Delta$, that's being off by a factor of $10^{\Delta}$ on $x$, and it scores exactly like that (with $x$'s slack). So missing $\log_{10}\!\left(31^{73}\right) \approx 108.9$ by 10 costs about as much as missing $60! \approx 8.3 \times 10^{81}$ by a factor of $10^{10}$. The same goes for $\ln$, $\log_2$ and the harmonic numbers, which are $\ln n$ in disguise.</p>
-    <p>Big answers get some slack, because they're harder: being off by 3 on the mass of the Earth is a better guess than being off by 3 on the area of your skin, and 10% of $\binom{31}{17}$ is harder to hit than 10% of $\ln 99999$. An answer $a > 1$ has slack $s = 1 + \tfrac{1}{15}\log_{10} a$. The tolerance in Feynman and Sharp is multiplied by $s$, and the Guessr score is $5000 \times \left(\frac{\text{smaller}}{\text{larger}}\right)^{1/s}$. So $\binom{31}{17} \approx 2.7 \times 10^8$ gets $s \approx 1.56$, about 16% in Feynman, and the mass of the Earth gets $s \approx 2.65$: off by a factor of 2 still scores 3,850.</p>
+    <p>Big answers get some slack, because they're harder: being off by 3 on the mass of the Earth is a better guess than being off by 3 on the area of your skin, and 10% of $\binom{31}{17}$ is harder to hit than 10% of $\ln 99999$. An answer $a > 1$ has slack $s = 1 + \tfrac{1}{15}\log_{10} a$. The tolerance in Feynman and Sharp is multiplied by $s$, so $\binom{31}{17} \approx 2.7 \times 10^8$ gets $s \approx 1.56$, about 16% in Feynman. The Guessr score is $5000 \times \left(\frac{\text{smaller}}{\text{larger}}\right)^{1/s'}$ with even more room for huge numbers, $s' = s + \left(\tfrac{1}{30}\log_{10} a\right)^2$: the mass of the Earth gets $s' \approx 3.33$, so off by a factor of 2 still scores 4,060, and $80$ on $\log_{10}\!\left(9^{87}\right) \approx 83.0$ (a factor of $1000$ on a number with $84$ digits) scores about 3,060.</p>
     <p>Some tools that help:</p>
     <ul>
       <li>Logs: $\ln 2 \approx 0.693$, $\ln 10 \approx 2.303$, $\log_{10} 2 \approx 0.301$, $\log_{10} 3 \approx 0.477$. So $e^{x} = 10^{x / 2.303}$, and $2^{10} \approx 10^3$.</li>
@@ -138,6 +139,13 @@
   const KEY = "amog.fermimac.v1", NAME = "amog.lb.name";
   let db = {};
   try { db = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
+  // achievements for bests set before a threshold was lowered (#32); ach.js is deferred, so wait for it
+  addEventListener("DOMContentLoaded", () => {
+    for (const [k, v] of Object.entries(db.scores || {})) {
+      const [id, d] = k.split("|"), p = Fermimac.preset(id);
+      if (p && v && window.AmogAch) AmogAch.score("fermi", p.rounds ? id : id + "@" + d, v);
+    }
+  });
   if (!db.scores || typeof db.scores !== "object") db.scores = {};
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
   const LB = AmogLB("fermimac", {
@@ -227,6 +235,8 @@
     if (window.AmogAch) AmogAch.score("fermi", playP.rounds ? playP.id : playP.id + "@" + playD, score); // achievements
     const n = x => x.toLocaleString("en-US");
     $("final").textContent = n(score);
+    $("lastfb").innerHTML = tried ? "last guess: " + fb.innerHTML : ""; // the final round's points and true value (#32)
+    if (window.amogMath) amogMath($("lastfb"));
     const at = playD ? `at ${playD} s` : "untimed";
     $("bestline").innerHTML = (score > prev && prev ? `<span class="nb">New best</span> for ${playP.name} ${at} (was ${n(prev)}).`
       : score > prev ? `<span class="nb">First score</span> for ${playP.name} ${at}.` : `Best for ${playP.name} ${at}: ${n(prev)}.`)

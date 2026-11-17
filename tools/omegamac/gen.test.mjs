@@ -170,3 +170,18 @@ test("number theory spot checks", () => {
   assert.equal(derange(18), 2355301661033953); assert.ok(Number.isSafeInteger(derange(18)));
   assert.equal(choose(10, 5), 252); assert.equal(perm(10, 3), 720);
 });
+
+test("#32: hard numbers switch (on in Number theorist, off in Everything)", () => {
+  const nt = O.presetSettings("nt"), ev = O.presetSettings("everything");
+  assert.equal(nt.hard, true); assert.equal(ev.hard, false);
+  assert.ok(ev.key === undefined && O.typesKey(ev).endsWith("&plain") && !O.typesKey(nt).includes("plain"));
+  assert.ok(!O.typesKey(O.presetSettings("basic")).includes("plain")); // no φ/d/σ: no token
+  const back = O.decode(O.encode(ev)).settings; assert.equal(back.hard, false); assert.equal(O.typesKey(back), O.typesKey(ev));
+  assert.equal(O.decode("phi").settings.hard, true); // old links keep the hard picker
+  // with it off, φ inputs are uniform: primes show up about as often as among all n, not ~3%
+  const only = s => { const x = O.normalize(s); for (const t of O.TYPES) x.t[t.id].on = t.id === "phi"; x.t.phi.p = [2, 1000]; return x; };
+  const isPrime = n => O.nt.factor(n).length === 1 && O.nt.factor(n)[0][1] === 1;
+  const share = s => { const rng = O.mulberry32(7); let k = 0; for (let i = 0; i < 4000; i++) if (isPrime(O.next(s, rng).args[0])) k++; return k / 4000; };
+  const hardShare = share(only(nt)), plainShare = share(only(ev));
+  assert.ok(hardShare < 0.08 && plainShare > 0.13, `${hardShare} ${plainShare}`);
+});

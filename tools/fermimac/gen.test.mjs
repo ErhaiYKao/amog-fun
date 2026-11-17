@@ -84,7 +84,7 @@ test("Guessr points: 5000 × (smaller/larger)^(1/slack)", () => {
   const p = { answer: 1 };
   assert.equal(F.points(p, "1"), 5000); assert.equal(F.points(p, "2"), 2500); assert.equal(F.points(p, "0.5"), 2500);
   assert.equal(F.points(p, "10"), 500); assert.equal(F.points(p, "1.1"), 4545); assert.equal(F.points(p, "junk"), 0); assert.equal(F.points(p, "0"), 0);
-  assert.equal(F.points({ answer: 1e15 }, "2e15"), 3536); assert.equal(F.points({ answer: 5.97e24 }, String(5.97e24 * 2)), 3850);
+  assert.equal(F.points({ answer: 1e15 }, "2e15"), 3674); assert.equal(F.points({ answer: 5.97e24 }, String(5.97e24 * 2)), 4061);
   assert.ok(F.points({ answer: 1000 }, "2000") > 2500);
   assert.equal(F.score("guessr", p, "2"), 2500); assert.equal(F.score("mathguessr", p, "2"), 2500);
   assert.equal(F.score("feynman", p, "1.05"), 1); assert.equal(F.score("feynman", p, "1.2"), 0);
@@ -94,7 +94,7 @@ test("Guessr points: 5000 × (smaller/larger)^(1/slack)", () => {
 test("#26: logs are scored on the quantity underneath, e30 parses, MathGuessr skips arithmetic", () => {
   const big = { answer: 73 * Math.log10(31), base: 10 }, fact60 = { answer: 8.320987112741391e81 };
   const offLog = F.points(big, big.answer + 10), offFact = F.points(fact60, fact60.answer * 1e10);
-  assert.ok(offLog > 100 && offLog < 600 && offFact > 100 && offFact < 600, `${offLog} ${offFact}`); // same ballpark
+  assert.ok(offLog > 600 && offLog < 2500 && offFact > 600 && offFact < 2500 && offLog < 2 * offFact, `${offLog} ${offFact}`); // same ballpark
   assert.ok(F.points(big, big.answer + 0.5) < 5000 && F.points(big, big.answer) === 5000);
   const ln = { answer: Math.log(100), base: Math.E }; // off by ln 2 on ln x = off by a factor of 2 on x
   assert.equal(F.points(ln, ln.answer + Math.log(2)), F.points({ answer: 100 }, 200));
@@ -154,4 +154,13 @@ test("leaderboard replay scores the guesses that landed", () => {
     assert.equal(verifyRun({ ...run, g: "omegamac" }, answers, times, now).ok, false);              // wrong game
     assert.equal(verifyRun(run, answers, times, now + LIMITS.expires + 1).ok, false);               // stale
   }
+});
+
+test("#32: huge answers get more Guessr slack, logs included", () => {
+  const p = { answer: 87 * Math.log10(9), base: 10 }; // log10(9^87) ≈ 83.02
+  const off3 = F.points(p, "80");
+  assert.ok(off3 > 2800 && off3 < 3400, `${off3}`); // was 1,726
+  assert.equal(off3, F.points({ answer: 10 ** p.answer }, 10 ** 80)); // still scored like the number underneath
+  assert.equal(F.points({ answer: 1 }, "2"), 2500); // small answers unchanged
+  assert.equal(F.check("feynman", { answer: 1e30 }, 1.25e30), true); assert.equal(F.check("feynman", { answer: 1e30 }, 1.35e30), false); // Feynman/Sharp: 10% × slack 3, unchanged
 });

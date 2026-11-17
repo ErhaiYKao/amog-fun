@@ -126,7 +126,7 @@
         body += `<tr><td>${s.seen[id] ? `<span class="item">${img(id, "sm")}${esc(name(id))}</span>` : "???"}</td>${cells}</tr>`;
       }
     }
-    UI.setHTML($("drops"), "drops", `<table>${head}${body}</table><p>Average number of each item per sift, by mesh (your best mesh is highlighted). — means that mesh is too coarse to catch it. ??? is something you haven't found yet. A heavy sieve rolls the same table 7 times per compressed block.</p>`);
+    UI.setHTML($("drops"), "drops", `<table>${head}${body}</table>`);
   }
 
   // ---------- inventory ----------

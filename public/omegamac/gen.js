@@ -50,7 +50,9 @@
    * Two inputs (gcd, lcm): with probability UNIFORM pick a ≠ b uniformly (often coprime); otherwise pick a common factor
    *   g >= 2 with weight g·(m - 2), m = number of multiples of g in range (big g is favoured, but needs m >= 3 so it
    *   isn't always gcd(g, 2g)), then two distinct multiples xg, yg, re-rolling a few times if x | y or y | x.
-   *   gcd(a, b) is a multiple of g, so it's usually large and lcm(a, b) = ab/gcd stays tame. */
+   *   gcd(a, b) is a multiple of g, so it's usually large and lcm(a, b) = ab/gcd stays tame.
+   * The one-input picker is the settings' "hard numbers" switch (s.hard, default on; "plain" in the URL turns it off,
+   *   and n is then uniform). Everything has it off, Number theorist on (#32). gcd/lcm always use pickPair. */
   const SMART = { UNIFORM: 0.15, ALPHA: 2 };
   function pickSmart(lo, hi, rng) {
     if (hi <= lo) return lo;
@@ -100,7 +102,7 @@
   const P = (args, tex, plain, answer) => ({ args, tex, plain, answer });
   const powGen = build => (p, rng) => { const r = pickCapped(p[0], p[1], p[2], p[3], (b, e) => b ** e <= p[4], rng); return r && build(...r); };
   const kGen = (f, build) => (p, rng) => { const r = pickCapped(p[0], p[1], p[2], p[3], (n, k) => k <= n && f(n, k) <= p[4], rng); return r && build(...r); };
-  const one = (sym, plain, f) => (p, rng) => { const n = pickSmart(p[0], p[1], rng); return P([n], `${sym}(${n})`, `${plain}(${n})`, f(n)); };
+  const one = (sym, plain, f) => (p, rng, hard = true) => { const n = hard ? pickSmart(p[0], p[1], rng) : ri(p[0], p[1], rng); return P([n], `${sym}(${n})`, `${plain}(${n})`, f(n)); };
 
   const SECTIONS = [
     { id: "basic", name: "Basic" }, { id: "exp", name: "Exponentials" },
@@ -140,11 +142,11 @@
       gen: powGen((b, e) => P([b, b ** e], `\\log_{${b}} ${b ** e}`, `log_${b} ${b ** e}`, e)) },
 
     { id: "phi", sec: "nt", name: "Totient", def: "$\\varphi(n) = \\#\\{1 \\le k \\le n : \\gcd(k, n) = 1\\}$",
-      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\varphi", "φ", phi) },
+      smart: true, f: [R("n", 2, 100, 1, 1e5)], gen: one("\\varphi", "φ", phi) },
     { id: "tau", sec: "nt", name: "Number of divisors", def: "$d(n)$, how many positive divisors $n$ has: $d(12) = 6$",
-      f: [R("n", 2, 200, 1, 1e5)], gen: one("d", "d", tau) },
+      smart: true, f: [R("n", 2, 200, 1, 1e5)], gen: one("d", "d", tau) },
     { id: "sigma", sec: "nt", name: "Sum of divisors", def: "$\\sigma(n)$, the sum of the positive divisors: $\\sigma(12) = 1 + 2 + 3 + 4 + 6 + 12 = 28$",
-      f: [R("n", 2, 100, 1, 1e5)], gen: one("\\sigma", "σ", sigma) },
+      smart: true, f: [R("n", 2, 100, 1, 1e5)], gen: one("\\sigma", "σ", sigma) },
     { id: "gcd", sec: "nt", name: "GCD", def: "$\\gcd(a, b)$, $a \\ne b$",
       f: [R("a, b", 2, 200, 1, 1e5)],
       gen: (p, rng) => { const [a, b] = pickPair(p[0], p[1], rng); return P([a, b], `\\gcd(${a}, ${b})`, `gcd(${a}, ${b})`, gcd(a, b)); } },
@@ -234,19 +236,21 @@
   function defaults(on = []) {
     const t = {};
     for (const ty of TYPES) t[ty.id] = { on: on.includes(ty.id), p: defaultsOf(ty) };
-    return { d: 120, t };
+    return { d: 120, hard: true, t };
   }
   const normDur = d => { d = Math.round(Number(d)); return Number.isFinite(d) ? Math.min(3600, Math.max(5, d)) : 120; };
   function normalize(s) {
-    const out = { d: normDur(s?.d), t: {} };
+    const out = { d: normDur(s?.d), hard: s?.hard !== false, t: {} };
     for (const ty of TYPES) { const x = s?.t?.[ty.id]; out.t[ty.id] = { on: !!x?.on, p: normParams(ty, x?.p) }; }
     return out;
   }
+  // "plain" = hard numbers off (only written when a type it affects is on, so it never splits other presets)
+  const plain = s => s.hard === false && TYPES.some(ty => ty.smart && s.t[ty.id]?.on);
   function typesKey(s) {
     return TYPES.filter(ty => s.t[ty.id]?.on).map(ty => {
       const p = normParams(ty, s.t[ty.id].p), d = defaultsOf(ty);
       return p.every((x, i) => x === d[i]) ? ty.id : `${ty.id}=${p.join("-")}`;
-    }).join("&");
+    }).concat(plain(s) ? ["plain"] : []).join("&");
   }
   const encode = (s, name) => `d=${normDur(s.d)}&${typesKey(s)}${name ? "&n=" + encodeURIComponent(name).replace(/%20/g, "+") : ""}`;
   // -> { settings, name } or null if nothing playable is in the string
@@ -256,6 +260,7 @@
       if (!part) continue;
       const eq = part.indexOf("="), k = eq < 0 ? part : part.slice(0, eq), v = eq < 0 ? "" : part.slice(eq + 1);
       if (k === "d") s.d = normDur(v);
+      else if (k === "plain") s.hard = false;
       else if (k === "n") { try { name = decodeURIComponent(v.replace(/\+/g, " ")).slice(0, 40); } catch { name = ""; } }
       else if (BY[k]) { any = true; s.t[k].on = true; if (v) s.t[k].p = normParams(BY[k], v.split("-")); }
     }
@@ -268,22 +273,23 @@
     // high school (airetho's #23; also amog.fun/alphamac): every basic and exponential type with small bounds, gcd, lcm, n! ≤ 6!
     { id: "alpha", name: "Alphamac", on: ["add", "sub", "mul", "div", "sq", "cube", "sqrt", "cbrt", "pow", "log", "gcd", "lcm", "fact"],
       p: { sq: [2, 20], sqrt: [2, 20], cube: [2, 10], cbrt: [2, 10], pow: [2, 12, 2, 10, 1000], log: [2, 12, 2, 10, 1000], fact: [0, 6] } },
-    { id: "everything", name: "Everything", on: TYPES.map(t => t.id) },
+    // Everything draws φ, d, σ inputs uniformly; Number theorist keeps the hard numbers (airetho's #32)
+    { id: "everything", name: "Everything", on: TYPES.map(t => t.id), hard: false },
     { id: "powers", name: "Powers & roots", on: TYPES.filter(t => t.sec === "exp").map(t => t.id) },
     { id: "nt", name: "Number theorist", on: TYPES.filter(t => t.sec === "nt").map(t => t.id) },
     { id: "comb", name: "Combinatorialist", on: TYPES.filter(t => t.sec === "comb").map(t => t.id) },
   ];
-  const settingsOf = pr => { const s = defaults(pr.on); for (const [id, p] of Object.entries(pr.p || {})) s.t[id].p = normParams(BY[id], p); return s; };
+  const settingsOf = pr => { const s = defaults(pr.on); if (pr.hard === false) s.hard = false; for (const [id, p] of Object.entries(pr.p || {})) s.t[id].p = normParams(BY[id], p); return s; };
   for (const p of PRESETS) p.key = typesKey(settingsOf(p));
   const presetSettings = id => settingsOf(PRESETS.find(p => p.id === id));
 
   // next problem: a uniformly random enabled type, never the exact same problem twice in a row (if avoidable).
   // Types whose bounds admit nothing (capped ones) are skipped; null if no enabled type can produce a problem.
-  const feasible = (s, id) => !!BY[id].gen(s.t[id].p, Math.random); // pickCapped's null is deterministic
+  const feasible = (s, id) => !!BY[id].gen(s.t[id].p, Math.random, s.hard !== false); // pickCapped's null is deterministic
   function next(s, rng = Math.random, prev = null) {
     let on = TYPES.filter(t => s.t[t.id]?.on), pr = null;
     for (let i = 0; i < 12 && on.length; i++) {
-      const t = on[Math.floor(rng() * on.length)], g = t.gen(s.t[t.id].p, rng);
+      const t = on[Math.floor(rng() * on.length)], g = t.gen(s.t[t.id].p, rng, s.hard !== false);
       if (!g) { on = on.filter(x => x !== t); i--; continue; }
       pr = { type: t.id, ...g };
       if (!prev || pr.tex !== prev.tex) break;

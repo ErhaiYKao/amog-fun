@@ -193,15 +193,18 @@
     if (!(g > 0) || !Number.isFinite(g)) return false;
     return Math.abs(g / prob.answer - 1) <= P.tol * slack(prob.answer) * (1 + 1e-12);
   }
-  // the Guessr modes: 5000 × (smaller / larger)^(1 / slack). Up to an answer of 1: exact = 5000, off by ×2 = 2500,
-  // off by ×10 = 500. For the mass of the Earth (slack 2.65), off by ×2 still scores 3,850.
+  // the Guessr modes: 5000 × (smaller / larger)^(1 / slack'). Up to an answer of 1: exact = 5000, off by ×2 = 2500,
+  // off by ×10 = 500. slack' adds (digits/30)^2 to slack, so huge numbers get much more room (#32): being off by
+  // a factor of 1000 on 10^83 is only 3.6% of its exponent. Mass of the Earth (slack' 3.33): off by ×2 scores 4,060.
   // A logarithm (prob.base) is judged on the quantity underneath: being off by Δ is a factor of base^Δ, and the slack
-  // is that quantity's. So log10(31^73) ≈ 108.9 off by 10 scores like 60! off by a factor of 10^10.
+  // is that quantity's. So log10(31^73) ≈ 108.9 off by 10 scores like 60! off by a factor of 10^10 (#26), and
+  // 80 on log10(9^87) ≈ 83.0 scores about 3,000.
+  const pslack = digits => { const L = Math.max(0, digits); return 1 + L / 15 + (L / 30) ** 2; };
   function points(prob, guess) {
     const g = typeof guess === "number" ? guess : parseGuess(guess);
     if (!(g > 0) || !Number.isFinite(g)) return 0;
     const lnFactor = prob.base ? Math.abs(g - prob.answer) * Math.log(prob.base) : Math.abs(Math.log(g / prob.answer));
-    const sl = prob.base ? 1 + Math.max(0, prob.answer * Math.log10(prob.base)) / 15 : slack(prob.answer);
+    const sl = pslack(prob.base ? prob.answer * Math.log10(prob.base) : Math.log10(prob.answer));
     return Math.round(MAX_POINTS * Math.exp(-lnFactor / sl));
   }
   // what one guess adds to the score: points in the Guessr modes, else 1 for a hit
