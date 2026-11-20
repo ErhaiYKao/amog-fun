@@ -18,7 +18,7 @@
     thm: { name: "Theorem", pts: 10, color: "#ffb347", note: "hard" },
     conj: { name: "Conjecture", pts: 30, color: "#ff5a5f", note: "open problem: may need real devotion" },
   };
-  const SLUGS = ["vertex", "cgt", "coefficient-game", "fermimac", "omegamac", "palinode", "alchemy", "coin-flips", "blog", "dotsandboxes", "nim", "whack-a-moni", "amog-space-program", "axis-order-incremental"];
+  const SLUGS = ["mathcraft", "vertex", "cgt", "coefficient-game", "fermimac", "omegamac", "palinode", "alchemy", "coin-flips", "blog", "dotsandboxes", "nim", "whack-a-moni", "amog-space-program", "axis-order-incremental"];
   const GAMES = [
     ["site", "amog.fun", "/"],
     ["dab", "Dots & Boxes", "/dotsandboxes/"],
@@ -30,6 +30,7 @@
     ["alc", "Alchemy", "/alchemy/"],
     ["asp", "Amog Space Program", "/amog-space-program/"],
     ["pal", "Palinode", "/palinode/"],
+    ["mc", "Mathcraft", "/mathcraft/"],
   ];
   const NIM = [
     ["classic", "Nim", "Take That", "Bouton (1901): the player to move loses exactly when the heap sizes XOR to $0$."],
@@ -107,6 +108,10 @@
     // Palinode
     { id: "pal.end", tier: "prop", name: "Return to Sender", desc: "Reach an ending of Palinode." },
     { id: "pal.all", tier: "thm", name: "Palinode", desc: "Find all five endings." },
+    // Mathcraft
+    { id: "mc.first", tier: "lemma", name: "Reflexive", desc: "Craft your first theorem in Mathcraft." },
+    { id: "mc.addition", tier: "prop", name: "Commutative Monoid", desc: "Craft all seven theorems about addition.", math: "$(\\N, +, 0)$ is a commutative monoid: associative, commutative, with identity $0$. All of it follows from two axioms and induction." },
+    { id: "mc.par", tier: "thm", name: "Proof from the Book", desc: "Craft every theorem in no more steps than Amog." },
   ];
   const BY = Object.fromEntries(LIST.map(a => [a.id, a]));
 

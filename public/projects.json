@@ -1,5 +1,17 @@
 [
   {
+    "slug": "mathcraft",
+    "title": "Mathcraft",
+    "signature": "mathcraft : Axioms → Theorems",
+    "blurb": "Prove theorems by crafting them. Axioms are machines that rewrite parts of a block, and every theorem you craft becomes a machine for the next one. A proof of concept: from $a + 0 = a$ and $a + S(b) = S(a+b)$ to $a + b = b + a$, by induction.",
+    "tags": [
+      "math",
+      "puzzle"
+    ],
+    "group": "long",
+    "short": "Prove theorems by crafting them; each one becomes a machine."
+  },
+  {
     "slug": "vertex",
     "title": "VERTEX",
     "signature": "vertex : Floor → Summit",

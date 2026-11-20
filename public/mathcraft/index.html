@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mathcraft · amog.fun</title>
+<meta name="description" content="Prove theorems by crafting them. Axioms are machines that rewrite blocks; every theorem you craft becomes a new machine. A proof of concept: addition in Peano arithmetic.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230a0a0f'/><rect x='14' y='14' width='36' height='36' rx='6' fill='none' stroke='%23c8f04a' stroke-width='4'/><path d='M23 28h18M23 37h18' stroke='%234fd6e8' stroke-width='4' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="/assets/amog.css">
+<script src="/assets/ach.js" defer></script>
+<script src="/assets/math.js" defer></script>
+<script src="/mathcraft/logic.js"></script>
+<script src="/mathcraft/quests.js"></script>
+<style>
+  .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
+  .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
+  .head p { margin: 0 0 18px; color: #d3cfc5; max-width: 62ch; }
+  .box { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .label { font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 0 0 8px; }
+  .mini { font-family: var(--mono); font-size: 13px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; }
+  .mini:hover:not(:disabled) { border-color: var(--muted); }
+  .mini:disabled { opacity: .4; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  .quests { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 16px; }
+  .quests button { font-family: var(--mono); font-size: 12.5px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--muted); cursor: pointer; }
+  .quests button.done { color: var(--g3); }
+  .quests button.on { border-color: var(--g1); color: var(--ink); }
+  .quests button:disabled { opacity: .35; cursor: default; }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .cols > * { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+  .cols aside { position: sticky; top: 12px; }
+  @media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } .cols aside { position: static; } }
+
+  /* statements */
+  .st { font-family: var(--serif); font-size: 22px; line-height: 1.5; white-space: nowrap; }
+  .st i { font-style: italic; }
+  .st .eqs { margin: 0 .38em; color: var(--muted); }
+  .st .slot { color: var(--g1); border-bottom: 1px dotted var(--g1); }
+  .st mark { background: color-mix(in srgb, var(--g3) 24%, transparent); color: inherit; border-radius: 5px; padding: 1px 2px; }
+  .st.small { font-size: 17px; }
+  .scroll { overflow-x: auto; }
+
+  #quest h2 { font-family: var(--display); font-weight: 400; font-size: 32px; line-height: 1.1; margin: 0 0 6px; }
+  #quest p { margin: 8px 0 0; color: #d3cfc5; font-size: 16.5px; }
+  #quest p.label { margin: 0 0 8px; color: var(--faint); font-size: 11.5px; }
+  #quest .goal { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  #quest .meta, .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  #quest .hint { margin-top: 8px; }
+  #quest .qed { margin-top: 12px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--g3) 55%, var(--line)); border-radius: 10px; }
+  #quest .qed b { color: var(--g3); font-weight: 600; }
+  #quest .qed .row { margin-top: 8px; }
+
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+  .tabs button { text-align: left; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--ink); cursor: pointer; }
+  .tabs button.on { border-color: var(--g3); }
+  .tabs button .meta { display: block; }
+  .tabs button.done .meta { color: var(--g3); }
+  #shop.workshop { border-color: color-mix(in srgb, var(--g3) 40%, var(--line)); }
+  .given { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0; }
+  .given .tag, .block .tag { font-family: var(--mono); font-size: 11px; color: #f5c04a; border: 1px solid #f5c04a55; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+  .given + .start, .meta + .start { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .start input { background: var(--bg); color: var(--ink); border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 12px; font-family: var(--mono); font-size: 13px; width: 130px; }
+  .start input:focus { outline: none; border-color: var(--g1); }
+
+  .bench { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; }
+  .block { display: flex; min-width: 0; gap: 10px; align-items: center; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 12px; }
+  .block.sel { border-color: var(--g1); }
+  .block.goal { border-color: var(--g3); }
+  .block .n { font-family: var(--mono); font-size: 11px; color: var(--faint); width: 14px; }
+  .block .scroll { flex: 1; min-width: 0; padding: 2px 0; }
+  .block .st { font-size: 26px; }
+  .block .x { background: none; border: 0; color: var(--faint); font-size: 15px; cursor: pointer; padding: 4px 6px; }
+  .block .x:hover { color: var(--ink); }
+  .block .t { cursor: pointer; border-radius: 6px; padding: 2px 1px; }
+  .block .t:hover:not(:has(.t:hover)) { background: #ffffff14; }
+  .block .t.sel { background: color-mix(in srgb, var(--g1) 30%, transparent); }
+  @media (max-width: 600px) { .block { gap: 6px; padding: 8px 10px; } .block .st { font-size: 20px; } .block .n { display: none; } }
+  .empty { color: var(--muted); font-style: italic; font-size: 16px; margin: 12px 0 0; }
+
+  .opts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .opt .res { overflow-x: auto; }
+  .opt { display: block; width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 12px; color: var(--ink); cursor: pointer; }
+  .opt:hover { border-color: var(--g1); }
+  .opt .top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .opt .name { font-family: var(--mono); font-size: 12.5px; color: var(--g1); }
+  .opt.hyp .name { color: #f5c04a; }
+  .opt .st.small { color: var(--muted); font-size: 15px; }
+  .opt .res { display: block; font-size: 19px; }
+  #msg { color: var(--g2); font-family: var(--mono); font-size: 12.5px; min-height: 1.4em; margin: 6px 0 0; }
+  .lib { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .lib li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .lib .name { font-family: var(--mono); font-size: 12.5px; color: var(--muted); min-width: 150px; }
+  .lib .what { font-size: 15.5px; color: #d3cfc5; }
+  .foot { margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"><a class="brand" href="/">amog<span class="dot">.</span>fun<span class="circ">∘</span></a><nav><a href="/#objects">← all objects</a></nav></header>
+  <div class="head">
+    <div class="sig">mathcraft : Axioms → Theorems</div>
+    <h1>Mathcraft</h1>
+    <p>Prove theorems by crafting them. Axioms are machines that rewrite parts of a block, and every theorem you craft becomes a machine for the next one. A proof of concept: addition, from Peano's axioms.</p>
+  </div>
+  <div class="quests" id="quests"></div>
+  <div class="cols">
+    <div>
+      <section class="box" id="quest"></section>
+      <section class="box" id="shop"></section>
+    </div>
+    <aside>
+      <section class="box" id="opts"></section>
+      <section class="box" id="lib"></section>
+    </aside>
+  </div>
+  <footer class="footer foot"><span>Mathcraft, a proof of concept. Pope Amog's idea.</span><a href="https://github.com/ErhaiYKao/amog-fun/issues/33">feedback</a></footer>
+</div>
+<script>
+(function () {
+  "use strict";
+  const L = MathcraftLogic, Q = MathcraftQuests, KEY = "amog.mathcraft.v1";
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  let save = load(), qi = 0, game = null, where = "", sel = null, msg = "", hint = false;
+
+  function load() {
+    try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v === 1 && s.done && s.steps) return s; } catch (e) {}
+    return { v: 1, done: {}, steps: {}, cur: null };
+  }
+  function store() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} }
+  const doneSet = () => new Set(Object.keys(save.done));
+  const unlocked = i => i === 0 || Q.QUESTS[i - 1].id in save.done;
+
+  /* ---------- statements as HTML ---------- */
+  // o: { live: subterms are tappable, sel / hi: path strings to mark, slot: variables are slots }
+  function tHtml(t, o = {}, path = [], paren = false) {
+    const p = path.join(".");
+    let inner;
+    if (t[0] === "0") inner = "0";
+    else if (t[0] === "v") inner = `<i${o.slot ? ' class="slot"' : ""}>${esc(t[1])}</i>`;
+    else if (t[0] === "S") inner = "S(" + tHtml(t[1], o, [...path, 0]) + ")";
+    else if (t[0] === "+") inner = tHtml(t[1], o, [...path, 0], t[1][0] === "+") + " + " + tHtml(t[2], o, [...path, 1], t[2][0] === "+");
+    else inner = tHtml(t[1], o, [...path, 0]) + '<span class="eqs">=</span>' + tHtml(t[2], o, [...path, 1]);
+    if (paren) inner = "(" + inner + ")";
+    if (o.hi === p && path.length) inner = "<mark>" + inner + "</mark>";
+    if (!o.live || !path.length) return inner;
+    return `<span class="t${o.sel === p ? " sel" : ""}" data-p="${p}">${inner}</span>`;
+  }
+  const st = (t, o, cls = "") => `<span class="st ${cls}">${tHtml(t, o)}</span>`;
+  const arrow = (a, b, o) => `<span class="st small">${tHtml(a, o)}<span class="eqs">→</span>${tHtml(b, o)}</span>`;
+
+  /* ---------- workshops ---------- */
+  function leaves() {
+    const out = [];
+    (function walk(c, at) { if (c.kids) { walk(c.kids.base, at + "b"); walk(c.kids.step, at + "s"); } else out.push({ at, c }); })(game.root, "");
+    return out;
+  }
+  const firstOpen = () => { const ls = leaves(); return (ls.find(l => !l.c.done) || ls[0]).at; };
+  const shopName = at => [...at].map(ch => (ch === "b" ? "Base case" : "Step")).join(" › ");
+  const quest = () => Q.QUESTS[qi];
+  const hypName = i => (i < (quest().given || []).length ? "given" : "induction hypothesis");
+  const and = a => (a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
+
+  function open(i) {
+    qi = i;
+    const q = quest(), ms = Q.machinesFor(i, doneSet());
+    try { game = L.replay(q, ms, save.steps[q.id] || []); } catch (e) { game = L.start(q, ms); save.steps[q.id] = []; }
+    where = firstOpen(); sel = null; msg = ""; hint = false;
+    save.cur = q.id; store();
+    draw();
+  }
+  function settle(wasDone) {
+    const q = quest();
+    save.steps[q.id] = game.steps;
+    if (game.root.done) {
+      const n = L.count(game.steps);
+      if (!(q.id in save.done) || n < save.done[q.id]) save.done[q.id] = n;
+      achievements();
+    }
+    store();
+    const here = leaves().find(l => l.at === where);
+    if (!here) { where = firstOpen(); sel = null; }
+    else if (here.c.done && !wasDone && !game.root.done) { where = firstOpen(); sel = null; }
+  }
+  function act(step) {
+    const before = leaves().find(l => l.at === where), wasDone = !!(before && before.c.done);
+    try { L.step(game, step); msg = ""; } catch (e) { msg = e.message; draw(); return; }
+    if (step.op === "induct") { where = step.at + "b"; sel = null; }
+    else if (step.op === "del" || step.op === "dup") sel = null;
+    else if (step.op === "rule") sel = { b: step.b, path: [0] };
+    else if (step.op === "refl" || step.op === "hyp" || step.op === "stamp") sel = null;
+    settle(wasDone);
+    draw();
+  }
+  function undo() {
+    if (!game.steps.length) return;
+    const steps = game.steps.slice(0, -1), last = game.steps[game.steps.length - 1];
+    game = L.replay(quest(), game.machines, steps);
+    sel = null; msg = "";
+    where = leaves().some(l => l.at === last.at) ? last.at : firstOpen();
+    save.steps[quest().id] = game.steps; store();
+    draw();
+  }
+  function restart() {
+    game = L.start(quest(), game.machines);
+    where = ""; sel = null; msg = "";
+    save.steps[quest().id] = []; store();
+    draw();
+  }
+  function achievements() {
+    if (!window.AmogAch) return;
+    AmogAch.unlock("mc.first");
+    if (Q.QUESTS.every(q => q.id in save.done)) {
+      AmogAch.unlock("mc.addition");
+      if (Q.QUESTS.every(q => save.done[q.id] <= Q.par(q))) AmogAch.unlock("mc.par");
+    }
+  }
+
+  /* ---------- drawing ---------- */
+  function drawQuests() {
+    $("quests").innerHTML = Q.QUESTS.map((q, i) =>
+      `<button data-i="${i}" class="${i === qi ? "on" : ""} ${q.id in save.done ? "done" : ""}" ${unlocked(i) ? "" : "disabled"}>${i + 1}. ${esc(q.name)}${q.id in save.done ? " ✓" : ""}</button>`).join("");
+  }
+  function drawQuest() {
+    const q = quest(), names = [...game.names], n = L.count(game.steps), par = Q.par(q), best = save.done[q.id];
+    const forAny = q.given ? "" : names.length ? `for any number${names.length > 1 ? "s" : ""} ${and(names.map(v => `<i>${v}</i>`))}` : "";
+    let h = `<p class="label">Quest ${qi + 1} of ${Q.QUESTS.length}</p><h2>${esc(q.name)}</h2>
+      <div class="goal"><span class="meta">craft</span><span class="scroll">${st(game.root.goal)}</span><span class="meta">${forAny}</span></div>
+      <p>${q.intro}</p>
+      <div class="row hint"><button class="mini" data-do="hint">${hint ? "hide hint" : "hint"}</button>
+        <button class="mini" data-do="undo" ${game.steps.length ? "" : "disabled"}>undo</button>
+        <button class="mini" data-do="restart" ${game.steps.length ? "" : "disabled"}>start over</button>
+        <span class="meta">${n} step${n === 1 ? "" : "s"} · Amog needs ${par}${best ? ` · your best ${best}` : ""}</span></div>`;
+    if (hint) h += `<p>${q.hint}</p>`;
+    if (game.root.done) {
+      const next = qi + 1 < Q.QUESTS.length;
+      const verdict = n < par ? "Shorter than Amog's proof. He would like a word." : n === par ? "As short as Amog's proof." : `Amog does it in ${par}.`;
+      h += `<div class="qed"><b>Q.E.D.</b> ${st(game.root.goal, { slot: true }, "small")} is now a machine in your library. ${n} step${n === 1 ? "" : "s"}. ${verdict}
+        <div class="row">${next ? `<button class="mini" data-do="next">next quest →</button>` : `<span class="meta">That's all of addition. More worlds if Pope Amog approves.</span>`}</div></div>`;
+    }
+    $("quest").innerHTML = h;
+    if (window.amogMath) amogMath($("quest"));
+  }
+  function drawShop() {
+    const ls = leaves(), cur = ls.find(l => l.at === where) || ls[0], c = cur.c, el = $("shop");
+    el.classList.toggle("workshop", !!where);
+    let h = "";
+    if (ls.length > 1) h += `<div class="tabs">` + ls.map(l =>
+      `<button data-at="${l.at}" class="${l.at === where ? "on" : ""} ${l.c.done ? "done" : ""}"><span class="meta">${shopName(l.at)}${l.c.done ? " ✓" : ""}</span><span class="st small">${tHtml(l.c.goal)}</span></button>`).join("") + `</div>`;
+    h += `<p class="label">${where ? "Induction workshop · " + shopName(where) : "Workbench"}</p>`;
+    if (where) h += `<div class="given"><span class="meta">craft</span><span class="scroll">${st(c.goal, {}, "small")}</span></div>`;
+    c.hyps.forEach((s, i) => {
+      h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span><button class="mini" data-hyp="${i}">put on bench</button></div>`;
+    });
+    if (c.hyps.length > (quest().given || []).length) h += `<p class="meta">The hypothesis is a fact about this one number. It only fits where the block says exactly the same thing.</p>`;
+    // starting moves
+    const sides = L.same(c.goal[1], c.goal[2]) ? [c.goal[1]] : [c.goal[1], c.goal[2]];
+    h += `<div class="start"><div class="row"><span class="meta">refl</span>` +
+      sides.map((t, i) => `<button class="mini" data-refl="${i}"><span class="st small" style="font-size:15px">${tHtml(L.eq(t, t))}</span></button>`).join("") +
+      `<input id="term" placeholder="any term" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="a term for refl"><button class="mini" data-do="term">t = t</button></div>`;
+    const canInduct = game.machines.some(m => m.id === "induct") ? [...L.vars(c.goal)].filter(v => !c.hyps.some(s => L.vars(s).has(v))) : [];
+    if (canInduct.length) h += `<div class="row" style="margin-top:8px"><span class="meta">induction</span>` + canInduct.map(v => `<button class="mini" data-induct="${v}">on <i>${v}</i></button>`).join("") + `</div>`;
+    h += `</div><div class="bench">`;
+    if (!c.bench.length) h += `<p class="empty">The bench is empty. Start with a refl block.</p>`;
+    c.bench.forEach((b, i) => {
+      const on = sel && sel.b === i, goal = L.same(b.s, c.goal);
+      h += `<div class="block ${on ? "sel" : ""} ${goal ? "goal" : ""}" data-b="${i}"><span class="n">${i + 1}</span>
+        <span class="scroll">${st(b.s, { live: true, sel: on ? sel.path.join(".") : null })}</span>
+        ${goal ? `<span class="tag" style="color:var(--g3);border-color:#c8f04a55">goal ✓</span>` : b.deps.length ? `<span class="tag" title="made using a given fact">uses ${hypName(b.deps[b.deps.length - 1])}</span>` : ""}
+        <button class="x" data-dup="${i}" title="duplicate">⧉</button><button class="x" data-del="${i}" title="throw away">✕</button></div>`;
+    });
+    h += `</div>`;
+    el.innerHTML = h;
+  }
+  let shown = [];
+  function drawOpts() {
+    const el = $("opts");
+    let h = `<p class="label">Machines that fit</p>`;
+    shown = [];
+    if (!sel) h += `<p class="empty" style="margin:0">Tap a part of a block: a number, a sum, or an $S(\\dots)$.</p>`;
+    else {
+      const c = L.ctxAt(game, where), b = c.bench[sel.b], part = L.at(b.s, sel.path);
+      shown = L.options(game, where, sel.b, sel.path);
+      h += `<div class="row" style="margin-bottom:10px"><span class="meta">selected</span>${st(part, {}, "small")}
+        <button class="mini" data-do="widen" ${sel.path.length > 1 ? "" : "disabled"}>widen</button></div><div class="opts">`;
+      if (!shown.length) h += `<p class="empty" style="margin:0">No machine fits this part.</p>`;
+      shown.forEach((o, i) => {
+        const isHyp = o.hyp, name = isHyp ? hypName(+o.step.m.slice(1)) : o.name;
+        const how = o.rule ? (o.others.length ? `<span class="meta">with block ${o.others[0] + 1}</span>` : `<span class="meta">whole block</span>`) : arrow(o.from, o.to, { slot: !isHyp });
+        h += `<button class="opt ${isHyp ? "hyp" : ""}" data-opt="${i}"><span class="top"><span class="name">${esc(name)}</span>${how}</span>
+          <span class="st res">${tHtml(o.result, { hi: o.rule ? null : sel.path.join(".") })}</span></button>`;
+      });
+      h += `</div>`;
+    }
+    h += `<p id="msg">${esc(msg)}</p>`;
+    el.innerHTML = h;
+    if (window.amogMath) amogMath(el);
+  }
+  function drawLib() {
+    let h = `<p class="label">Your machines</p><ul class="lib"><li><span class="name">refl</span><span class="what">any term <i>t</i> gives the block <i>t</i> = <i>t</i></span></li>`;
+    for (const m of game.machines) {
+      if (m.id === "induct") h += `<li><span class="name">Induction</span><span class="what">a goal about <i>a</i> splits into a workshop for 0 and one for S(<i>a</i>)</span></li>`;
+      else if (m.stmt) h += `<li><span class="name">${esc(m.name)}</span>${st(m.stmt, { slot: true }, "small")}${L.vars(m.stmt).size ? "" : `<button class="mini" data-stamp="${m.id}">put on bench</button>`}</li>`;
+      else h += `<li><span class="name">${esc(m.name)}</span><span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span></li>`;
+    }
+    h += `</ul><p class="meta" style="margin:12px 0 0">A <span class="st small" style="font-size:14px"><i class="slot">blue</i></span> letter is a slot: it fits any term. Equalities run in both directions.</p>`;
+    $("lib").innerHTML = h;
+  }
+  function draw() { drawQuests(); drawQuest(); drawShop(); drawOpts(); drawLib(); }
+
+  /* ---------- input ---------- */
+  $("quests").onclick = e => { const b = e.target.closest("button"); if (b && !b.disabled) open(+b.dataset.i); };
+  $("quest").onclick = e => {
+    const b = e.target.closest("button[data-do]"); if (!b) return;
+    const d = b.dataset.do;
+    if (d === "hint") { hint = !hint; drawQuest(); }
+    else if (d === "undo") undo();
+    else if (d === "restart") restart();
+    else if (d === "next") open(qi + 1);
+  };
+  function reflTyped() {
+    const v = $("term").value.trim();
+    if (!v) { msg = "type a term first, like S(0)+0"; drawOpts(); return; }
+    act({ op: "refl", at: where, t: v });
+  }
+  $("shop").onclick = e => {
+    const c = L.ctxAt(game, where), b = e.target.closest("button");
+    if (b) {
+      const d = b.dataset;
+      if (d.at !== undefined) { where = d.at; sel = null; msg = ""; draw(); }
+      else if (d.hyp !== undefined) act({ op: "hyp", at: where, i: +d.hyp });
+      else if (d.refl !== undefined) act({ op: "refl", at: where, t: c.goal[1 + +d.refl] });
+      else if (d.do === "term") reflTyped();
+      else if (d.induct) act({ op: "induct", at: where, v: d.induct });
+      else if (d.dup !== undefined) act({ op: "dup", at: where, b: +d.dup });
+      else if (d.del !== undefined) act({ op: "del", at: where, b: +d.del });
+      return;
+    }
+    const t = e.target.closest(".t"), blk = e.target.closest(".block");
+    if (t && blk) { sel = { b: +blk.dataset.b, path: t.dataset.p.split(".").map(Number) }; msg = ""; drawShop(); drawOpts(); }
+  };
+  $("shop").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "term") reflTyped(); });
+  $("opts").onclick = e => {
+    const o = e.target.closest("[data-opt]");
+    if (o) return act(shown[+o.dataset.opt].step);
+    const b = e.target.closest("button[data-do=widen]");
+    if (b && sel && sel.path.length > 1) { sel = { b: sel.b, path: sel.path.slice(0, -1) }; drawShop(); drawOpts(); }
+  };
+  $("lib").onclick = e => { const b = e.target.closest("button[data-stamp]"); if (b) act({ op: "stamp", at: where, m: b.dataset.stamp }); };
+  document.addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.target.tagName !== "INPUT") { e.preventDefault(); undo(); } });
+
+  let first = Q.QUESTS.findIndex(q => q.id === save.cur);
+  if (first < 0 || !unlocked(first)) first = Math.max(0, Q.QUESTS.findIndex((q, i) => unlocked(i) && !(q.id in save.done)));
+  open(first);
+  window.addEventListener("DOMContentLoaded", () => { drawQuest(); drawOpts(); });
+})();
+</script>
+</body>
+</html>
