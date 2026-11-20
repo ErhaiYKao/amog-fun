@@ -7,3 +7,7 @@
 
 /founder.webp
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# VERTEX is bundled by Vite, which fingerprints its files: these never change under the same name.
+/vertex/assets/*
+  Cache-Control: public, max-age=31536000, immutable

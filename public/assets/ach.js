@@ -18,7 +18,7 @@
     thm: { name: "Theorem", pts: 10, color: "#ffb347", note: "hard" },
     conj: { name: "Conjecture", pts: 30, color: "#ff5a5f", note: "open problem: may need real devotion" },
   };
-  const SLUGS = ["cgt", "coefficient-game", "fermimac", "omegamac", "palinode", "alchemy", "coin-flips", "blog", "dotsandboxes", "nim", "whack-a-moni", "amog-space-program", "axis-order-incremental"];
+  const SLUGS = ["vertex", "cgt", "coefficient-game", "fermimac", "omegamac", "palinode", "alchemy", "coin-flips", "blog", "dotsandboxes", "nim", "whack-a-moni", "amog-space-program", "axis-order-incremental"];
   const GAMES = [
     ["site", "amog.fun", "/"],
     ["dab", "Dots & Boxes", "/dotsandboxes/"],

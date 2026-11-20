@@ -1,5 +1,17 @@
 [
   {
+    "slug": "vertex",
+    "title": "VERTEX",
+    "signature": "vertex : Floor → Summit",
+    "blurb": "A first-person precision platformer where the shotgun is a jump button: $8\\,\\mathrm{m/s}$ of recoil, opposite wherever it points. Kick off walls, kill drones in mid-air for dashes, and climb five stages of one very tall tower. Practice with checkpoints, or run it with none.",
+    "tags": [
+      "game",
+      "3d"
+    ],
+    "group": "clock",
+    "short": "A first-person tower climb where the shotgun is a jump button."
+  },
+  {
     "slug": "cgt",
     "title": "CGT Playground",
     "signature": "cgt : Games → {+, −, 0, ∥}",

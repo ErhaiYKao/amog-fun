@@ -1,0 +1,120 @@
+/* VERTEX. Shares amog.fun's fonts and palette; adds orange for danger. */
+:root { --cy: #4fd6e8; --or: #ff8a3c; --wh: #f4f6f8; --red: #ff5a5f; }
+html, body { height: 100%; overflow: hidden; }
+body { background: #05070b; background-image: none; user-select: none; -webkit-user-select: none; }
+#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+[hidden] { display: none !important; }
+
+.screen { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; color: var(--ink); }
+#menu { background: linear-gradient(90deg, #05070bee 0%, #05070bb0 38%, #05070b10 75%); }
+#pause, #settings, #how, #results { align-items: center; justify-content: center; background: #05070bcc; backdrop-filter: blur(6px); }
+.menu-body { padding: 4vh 6vw; max-width: 720px; margin-top: 4vh; }
+.sig { color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+.title { font-family: var(--display); font-weight: 400; font-size: clamp(72px, 13vw, 180px); line-height: .9; margin: 8px 0 0; letter-spacing: .02em;
+  background: linear-gradient(180deg, #fff 30%, var(--cy) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tag { color: var(--muted); font-style: italic; margin: 10px 0 28px; }
+.buttons { display: flex; flex-direction: column; gap: 10px; max-width: 420px; }
+.vbtn { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border: 1px solid var(--line-2); border-left: 3px solid var(--line-2);
+  background: #0c1016cc; transition: border-color .12s, background .12s, transform .12s; }
+.vbtn b { font-family: var(--mono); font-weight: 500; font-size: 16px; letter-spacing: .12em; text-transform: uppercase; }
+.vbtn span { font-size: 14px; color: var(--muted); font-style: italic; }
+.vbtn:hover, .vbtn:focus-visible { border-color: var(--cy); background: #101822; transform: translateX(4px); }
+.vbtn.primary { border-left-color: var(--or); }
+.vbtn.slim { padding: 9px 18px; }
+#best, #backend { margin-top: 18px; color: var(--muted); font-size: 12px; }
+#backend { color: var(--faint); margin-top: 6px; }
+
+.panel { width: min(460px, 92vw); max-height: 92vh; overflow: auto; padding: 26px 28px; border: 1px solid var(--line-2); border-top: 3px solid var(--cy); background: #0a0d13f2; }
+.panel.wide { width: min(760px, 94vw); }
+.panel h2 { font-family: var(--display); font-weight: 400; font-size: 44px; margin: 0 0 16px; line-height: 1; }
+.panel label { display: block; font-family: var(--mono); font-size: 13px; color: var(--muted); margin: 14px 0; letter-spacing: .04em; }
+.panel label output { float: right; color: var(--ink); }
+.panel input[type=range] { width: 100%; margin-top: 8px; accent-color: var(--cy); }
+.panel select { float: right; background: #111722; color: var(--ink); border: 1px solid var(--line-2); font-family: var(--mono); padding: 4px 8px; }
+.panel label.check { display: flex; gap: 10px; align-items: center; }
+.panel .buttons { margin-top: 18px; }
+.cols { display: grid; grid-template-columns: auto 1fr; gap: 28px; }
+@media (max-width: 700px) { .cols { grid-template-columns: 1fr; } }
+table.keys { border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+table.keys td { padding: 4px 14px 4px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.keys td:first-child { color: var(--cy); }
+table.keys td.r { text-align: right; color: var(--ink); }
+.notes p { margin: 0 0 12px; font-size: 16px; line-height: 1.45; color: #cfccc4; }
+.notes b { color: var(--wh); }
+.bigtime { font-family: var(--mono); font-size: clamp(44px, 9vw, 84px); color: var(--cy); line-height: 1.1; }
+#r-splits { margin: 14px 0 6px; width: 100%; }
+#stage-select { display: flex; gap: 6px; flex-wrap: wrap; }
+#stage-select button { all: unset; cursor: pointer; font-family: var(--mono); font-size: 12px; padding: 7px 10px; border: 1px solid var(--line-2); color: var(--muted); }
+#stage-select button:hover { border-color: var(--cy); color: var(--ink); }
+
+/* ---- HUD ---- */
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; font-family: var(--mono); color: var(--wh); text-shadow: 0 1px 2px #000a; }
+#hud .k { color: #9fb0bd; font-size: 11px; letter-spacing: .14em; }
+#vignette { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, #ff3b2fcc 130%); transition: opacity .25s; }
+#speedlines { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 55%, #4fd6e830 120%); }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; --gap: 6px; }
+#crosshair i { position: absolute; background: var(--wh); box-shadow: 0 0 2px #000; }
+#crosshair .dot { width: 2px; height: 2px; left: -1px; top: -1px; }
+#crosshair .t, #crosshair .b { width: 2px; height: 7px; left: -1px; }
+#crosshair .l, #crosshair .r { height: 2px; width: 7px; top: -1px; }
+#crosshair .t { bottom: var(--gap); } #crosshair .b { top: var(--gap); }
+#crosshair .l { right: var(--gap); } #crosshair .r { left: var(--gap); }
+#crosshair .hit { width: 22px; height: 22px; left: -11px; top: -11px; background: none; box-shadow: none; opacity: 0; transform: rotate(45deg);
+  border: 2px solid transparent; border-image: none;
+  background: linear-gradient(var(--wh), var(--wh)) 0 0 / 7px 2px no-repeat, linear-gradient(var(--wh), var(--wh)) 0 0 / 2px 7px no-repeat,
+    linear-gradient(var(--wh), var(--wh)) 100% 100% / 7px 2px no-repeat, linear-gradient(var(--wh), var(--wh)) 100% 100% / 2px 7px no-repeat,
+    linear-gradient(var(--wh), var(--wh)) 100% 0 / 7px 2px no-repeat, linear-gradient(var(--wh), var(--wh)) 100% 0 / 2px 7px no-repeat,
+    linear-gradient(var(--wh), var(--wh)) 0 100% / 7px 2px no-repeat, linear-gradient(var(--wh), var(--wh)) 0 100% / 2px 7px no-repeat; }
+#crosshair .hit.on { animation: hit .22s ease-out; }
+#crosshair .hit.kill { filter: drop-shadow(0 0 3px var(--or)) hue-rotate(0); animation: hit .4s ease-out; }
+@keyframes hit { 0% { opacity: 1; transform: rotate(45deg) scale(.7); } 100% { opacity: 0; transform: rotate(45deg) scale(1.5); } }
+#cross-charges { position: absolute; left: 50%; top: 50%; transform: translate(-50%, 22px); display: flex; gap: 5px; }
+#cross-charges i { width: 7px; height: 7px; transform: rotate(45deg); border: 1px solid #ffffff66; }
+#cross-charges i.on { background: var(--cy); border-color: var(--cy); box-shadow: 0 0 8px var(--cy); }
+
+.hud-tl { position: absolute; left: 28px; top: 22px; }
+.stage { display: flex; align-items: baseline; gap: 12px; }
+#stage-n { font-size: 40px; line-height: 1; color: var(--wh); }
+#stage-name { font-size: 13px; letter-spacing: .3em; color: var(--cy); }
+.mode { font-size: 11px; letter-spacing: .2em; color: #9fb0bd; margin-top: 4px; }
+.hud-tc { position: absolute; left: 50%; top: 20px; transform: translateX(-50%); text-align: center; }
+#timer { font-size: 30px; letter-spacing: .04em; }
+#split { font-size: 12px; color: var(--cy); min-height: 16px; letter-spacing: .08em; }
+.hud-tr { position: absolute; right: 28px; top: 22px; text-align: right; font-size: 16px; line-height: 1.5; }
+.hud-bl { position: absolute; left: 28px; bottom: 26px; }
+.health { width: 220px; height: 8px; background: #ffffff1c; transform: skewX(-20deg); overflow: hidden; }
+#health-bar { height: 100%; width: 100%; background: linear-gradient(90deg, var(--wh), var(--cy)); transition: width .15s; }
+#health-bar.low { background: var(--red); }
+.health-n { margin-top: 6px; font-size: 22px; }
+.hud-bc { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); text-align: center; }
+#charges { display: flex; gap: 14px; justify-content: center; margin-bottom: 8px; }
+#charges i { width: 22px; height: 22px; transform: rotate(45deg); border: 2px solid #ffffff55; transition: background .1s, box-shadow .2s; }
+#charges i.on { background: var(--cy); border-color: #dffaff; box-shadow: 0 0 18px var(--cy), inset 0 0 6px #fff; }
+#charges.gain i.on { animation: gain .45s ease-out; }
+#charges.deny { animation: deny .25s; }
+@keyframes gain { 0% { transform: rotate(45deg) scale(2); } 100% { transform: rotate(45deg) scale(1); } }
+@keyframes deny { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.hud-br { position: absolute; right: 28px; bottom: 26px; text-align: right; }
+#ammo { display: flex; gap: 6px; justify-content: flex-end; min-height: 22px; margin-bottom: 6px; }
+#ammo i { width: 9px; height: 22px; border: 1px solid #ffffff66; }
+#ammo i.on { background: var(--or); border-color: var(--or); box-shadow: 0 0 10px var(--or); }
+#ammo .bar { width: 120px; height: 6px; border: 0; background: #ffffff22; align-self: center; position: relative; }
+#ammo .bar b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--cy); }
+#weapon-name { font-size: 15px; letter-spacing: .16em; }
+#slots { margin-top: 5px; font-size: 11px; letter-spacing: .1em; color: #7e8c98; display: flex; gap: 12px; justify-content: flex-end; }
+#slots .on { color: var(--or); }
+#hint { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); max-width: min(720px, 86vw); text-align: center; font-size: 15px; line-height: 1.4;
+  padding: 8px 16px; background: #05070bb8; border-left: 2px solid var(--cy); border-right: 2px solid var(--cy); opacity: 0; transition: opacity .3s; }
+#hint.on { opacity: 1; }
+#toast { position: absolute; left: 50%; top: 31%; transform: translateX(-50%); font-size: 20px; letter-spacing: .22em; opacity: 0; white-space: nowrap; }
+#toast.on { animation: toast 1.4s ease-out; }
+#toast.big { font-size: 34px; color: var(--cy); }
+#toast.bad { color: var(--red); }
+@keyframes toast { 0% { opacity: 0; transform: translate(-50%, 12px); } 12% { opacity: 1; transform: translate(-50%, 0); } 75% { opacity: 1; } 100% { opacity: 0; } }
+#warn { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); color: var(--red); letter-spacing: .5em; font-size: 14px; opacity: 0; }
+#warn.on { opacity: 1; animation: blink .18s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+#fade { position: fixed; inset: 0; z-index: 15; background: #fff; opacity: 0; pointer-events: none; }
+#fade.flash { animation: flash .35s ease-out; }
+#fade.death { background: #ff3b2f; animation: flash .3s ease-out; }
+@keyframes flash { 0% { opacity: .55; } 100% { opacity: 0; } }
