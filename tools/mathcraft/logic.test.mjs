@@ -161,3 +161,43 @@ test("random play only ever makes true statements", () => {
   });
   assert.ok(checked > 10000);
 });
+
+test("bounties are provable from the finished quests", () => {
+  const done = allDone(Q.QUESTS.length);
+  for (const b of Q.BOUNTIES) {
+    const g = L.replay(b, Q.playMachines(done), b.proof);
+    assert.ok(g.root.done, b.id);
+    for (const blk of g.root.bench) assert.ok(L.holds(blk.s, { a: 3, b: 5, c: 2, d: 7 }), b.id);
+  }
+});
+
+test("owned shop machines gate what a quest can use", () => {
+  const ids = (i, owned) => Q.machinesFor(i, allDone(i), new Set(owned)).map(m => m.id);
+  assert.deepEqual(ids(1, []), ["refl0"]);
+  assert.deepEqual(ids(1, ["add0"]), ["add0", "refl0"]);
+  assert.ok(!ids(idx("zadd"), ["add0", "addS"]).includes("induct"));
+  assert.ok(ids(idx("zadd"), ["add0", "addS", "induct"]).includes("induct"));
+  assert.throws(() => L.replay(Q.QUESTS[1], Q.machinesFor(1, allDone(1), new Set()), Q.QUESTS[1].proof), /don't have/);
+});
+
+test("the economy never gets stuck, even for a player who buys every upgrade the moment it is allowed", () => {
+  const worst = q => Q.par(q) + 5;                                    // no par bonus anywhere
+  const done = {}, owned = new Set();
+  const spree = () => { for (let again = true; again;) { again = false; for (const it of Q.SHOP) if (!it.gate && !Q.canBuy(it.id, done, owned)) { owned.add(it.id); again = true; } } };
+  for (const q of Q.QUESTS) {
+    spree();
+    for (const id of q.needs || []) { assert.equal(Q.canBuy(id, done, owned), "", `${q.id} needs ${id} with ∎${Q.balance(done, owned)}`); owned.add(id); }
+    assert.ok(Q.balance(done, owned) >= 0);
+    const i = Q.QUESTS.indexOf(q);
+    assert.ok(L.replay(q, Q.machinesFor(i, new Set(Object.keys(done)), owned), q.proof).root.done, q.id + " provable with what was bought");
+    done[q.id] = worst(q);
+  }
+  spree();
+  assert.ok(Q.SHOP.every(it => owned.has(it.id)), "everything is affordable from quests alone");
+  // every gate is needed by some quest, and nothing is double-counted
+  assert.deepEqual(Q.SHOP.filter(x => x.gate).map(x => x.id).sort(), Q.QUESTS.flatMap(q => q.needs || []).sort());
+  assert.equal(Q.earned({ refl0: 1 }), 1 + Q.PAR_BONUS);
+  assert.equal(Q.earned({ refl0: 9, b11: 3, nonsense: 1 }), 1 + 1);
+  assert.match(Q.canBuy("scanner", { refl0: 1, zz: 2, sym: 2 }, new Set(["add0"])), /keep ∎5 back/);
+  assert.match(Q.canBuy("addS", {}, new Set()), /need ∎2 more/);
+});

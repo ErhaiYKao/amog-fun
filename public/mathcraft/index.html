@@ -24,22 +24,32 @@
   .mini.on { border-color: var(--g3); color: var(--g3); }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .what { font-size: 16px; color: #d3cfc5; margin: 8px 0; }
   .msg { color: var(--g2); font-family: var(--mono); font-size: 12.5px; margin: 8px 0 0; }
   .msg:empty { display: none; }
-  input.term { background: var(--bg); color: var(--ink); border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 12px; font-family: var(--mono); font-size: 13px; width: 130px; }
+  .coin { color: #f5c04a; font-family: var(--mono); }
+  .ts { display: inline-block; width: .5em; height: .74em; background: #f5c04a; border-radius: 1.5px; vertical-align: -.05em; margin: 0 .14em 0 .05em; }
+  input.term { background: var(--bg); color: var(--ink); border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 12px; font-family: var(--mono); font-size: 14px; width: 170px; }
   input.term:focus { outline: none; border-color: var(--g1); }
+  [hidden] { display: none !important; }
 
-  .quests { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 16px; }
+  .quests { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 16px; }
   .quests button { font-family: var(--mono); font-size: 12.5px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--muted); cursor: pointer; }
   .quests button.done { color: var(--g3); }
   .quests button.own { border-style: dashed; }
+  .quests button.bounty { border-color: #f5c04a55; }
   .quests button.on { border-color: var(--g1); color: var(--ink); }
   .quests button:disabled { opacity: .35; cursor: default; }
+  .quests .bal { font-family: var(--mono); font-size: 15px; color: #f5c04a; border: 1px solid #f5c04a66; border-radius: 999px; padding: 5px 14px; margin-right: 6px; }
+  .quests .sep { flex-basis: 100%; height: 0; }
 
-  .cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-  .cols > * { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
-  @media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } }
-  [hidden] { display: none !important; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+  @media (max-width: 860px) {
+    .cols { display: flex; flex-direction: column; align-items: stretch; }
+    .col { display: contents; }
+    #quest { order: 1; } #floor { order: 2; } #panel { order: 3; } #shop { order: 4; } #store { order: 5; }
+  }
 
   /* statements */
   .st { font-family: var(--serif); font-size: 22px; line-height: 1.5; white-space: nowrap; }
@@ -55,6 +65,7 @@
   #quest p.label { margin: 0 0 8px; color: var(--faint); font-size: 11.5px; }
   #quest p.meta { color: var(--muted); font-size: 12.5px; }
   #quest p.msg { color: var(--g2); font-size: 12.5px; }
+  #quest p.need { color: #f5c04a; font-size: 15.5px; }
   #quest .goal { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
   #quest .hint { margin-top: 8px; }
   #quest .qed { margin-top: 12px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--g3) 55%, var(--line)); border-radius: 10px; }
@@ -63,10 +74,12 @@
   #quest input.term { width: min(100%, 320px); }
 
   .coach { display: flex; gap: 10px; align-items: baseline; margin: 0 0 12px; padding: 9px 12px; border-radius: 10px; background: color-mix(in srgb, var(--g1) 10%, transparent); border: 1px solid color-mix(in srgb, var(--g1) 45%, var(--line)); font-size: 16px; }
-  .coach b { font-family: var(--mono); font-size: 11.5px; color: var(--g1); font-weight: 500; white-space: nowrap; }
-  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--g1) 70%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+  .coach b.k { font-family: var(--mono); font-size: 11.5px; color: var(--g1); font-weight: 500; white-space: nowrap; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--g1) 70%, transparent); } 50% { box-shadow: 0 0 0 7px transparent; } }
   .pulse { animation: pulse 1.3s ease-in-out infinite; outline: 1px solid var(--g1); }
-  @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+  @keyframes made { from { background: color-mix(in srgb, var(--g3) 35%, var(--bg)); transform: scale(1.02); } to { background: var(--bg); transform: none; } }
+  .block.flash { animation: made .6s ease-out; }
+  @media (prefers-reduced-motion: reduce) { .pulse, .block.flash { animation: none; } }
 
   .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
   .tabs button { text-align: left; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--ink); cursor: pointer; max-width: 100%; overflow: hidden; }
@@ -76,12 +89,12 @@
   #shop.workshop { border-color: color-mix(in srgb, var(--g3) 40%, var(--line)); }
   .given { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0; }
   .given .tag { font-family: var(--mono); font-size: 11px; color: #f5c04a; border: 1px solid #f5c04a55; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
-  .given + .start, .meta + .start { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
 
-  .bench { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; }
+  .bench { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 12px; }
   .block { display: flex; min-width: 0; gap: 10px; align-items: center; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 12px; }
   .block.sel { border-color: var(--g1); }
   .block.goal { border-color: var(--g3); }
+  .block.picked { border-color: #f5c04a; }
   .block .n { font-family: var(--mono); font-size: 11px; color: var(--faint); width: 14px; }
   .block .scroll { flex: 1; padding: 4px 2px; }
   .block .st { font-size: 26px; }
@@ -95,7 +108,31 @@
   .block .t.fit { outline: 1px dashed var(--g3); outline-offset: 1px; }
   .block .t.sel { background: color-mix(in srgb, var(--g1) 30%, transparent); }
   @media (max-width: 600px) { .block { gap: 6px; padding: 8px 10px; } .block .st { font-size: 20px; } .block .n { display: none; } }
-  .empty { color: var(--muted); font-style: italic; font-size: 16px; margin: 12px 0 0; }
+  .empty { color: var(--muted); font-style: italic; font-size: 16px; margin: 0; }
+
+  /* the machine floor */
+  .floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+  .card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px 8px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; color: var(--ink); cursor: pointer; text-align: center; transition: transform .12s, border-color .12s; }
+  .card:hover { transform: translateY(-2px); border-color: var(--muted); }
+  .card.on { border-color: var(--g3); box-shadow: 0 0 0 1px var(--g3); }
+  .card.locked { opacity: .62; border-style: dashed; }
+  .card .cname { font-family: var(--mono); font-size: 11.5px; line-height: 1.25; color: var(--muted); }
+  .card.on .cname { color: var(--ink); }
+  .card .price { font-family: var(--mono); font-size: 12px; color: #f5c04a; }
+
+  .mhead { display: flex; gap: 14px; align-items: center; }
+  .mhead h3 { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.1; margin: 0 0 2px; }
+  .mhead > div { flex: 1; min-width: 0; }
+  .mhead .x { background: none; border: 0; color: var(--faint); font-size: 16px; cursor: pointer; align-self: flex-start; }
+  .lever { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 0; }
+  .lever .mini { padding: 4px 12px; }
+  .lever .st.small { font-size: 16px; }
+  .keys { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+  .keys button { min-width: 38px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 14px; cursor: pointer; }
+  .keys button:hover { border-color: var(--muted); }
+  .form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .form input.term { width: 92px; padding: 4px 10px; }
+  .form label { font-family: var(--serif); font-style: italic; color: var(--g1); }
 
   .opts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .opt { display: block; width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 12px; color: var(--ink); cursor: pointer; }
@@ -106,16 +143,12 @@
   .opt .st.small { color: var(--muted); font-size: 15px; }
   .opt .res { display: block; font-size: 19px; overflow-x: auto; }
 
-  .lib { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
-  .lib li { display: flex; gap: 0 10px; align-items: center; flex-wrap: wrap; padding: 5px 8px; margin: 0 -8px; border-radius: 8px; border: 1px solid transparent; }
-  .lib li.armed { border-color: var(--g3); }
-  .lib .name { font-family: var(--mono); font-size: 12.5px; color: var(--muted); flex-basis: 100%; }
-  .lib .what { font-size: 15.5px; color: #d3cfc5; }
-  .lib .acts { margin-left: auto; display: flex; gap: 5px; }
-  .lib .form { flex-basis: 100%; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 4px 0 2px; }
-  .lib .form input.term { width: 92px; padding: 4px 10px; }
-  .lib .form label { font-family: var(--serif); font-style: italic; color: var(--g1); }
-  #lib h3 { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--faint); margin: 0 0 4px; }
+  .ups { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .ups li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; }
+  .ups b { font-family: var(--mono); font-weight: 500; font-size: 13px; }
+  .ups span.d { grid-column: 1; font-size: 15px; color: #d3cfc5; line-height: 1.4; }
+  .ups .mini { grid-row: 1 / span 2; grid-column: 2; }
+  .ups .why { grid-column: 1 / -1; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
   .foot { margin-top: 40px; }
 </style>
 </head>
@@ -125,18 +158,19 @@
   <div class="head">
     <div class="sig">mathcraft : Axioms → Theorems</div>
     <h1>Mathcraft</h1>
-    <p>Prove theorems by crafting them. Axioms are machines that rewrite parts of a block, and every theorem you craft becomes a machine for the next one. A proof of concept: addition, from Peano's axioms.</p>
+    <p>Prove theorems by crafting them. Machines make blocks and rewrite them; every theorem you craft earns <i class="ts" title="tombstones, the end-of-proof mark"></i> and becomes a machine itself. A proof of concept: addition, from Peano's axioms.</p>
   </div>
   <div class="quests" id="quests"></div>
   <div class="cols">
-    <div>
+    <div class="col">
       <section class="box" id="quest"></section>
       <section class="box" id="shop"></section>
     </div>
-    <aside>
-      <section class="box" id="opts"></section>
-      <section class="box" id="lib"></section>
-    </aside>
+    <div class="col" id="side">
+      <section class="box" id="panel"></section>
+      <section class="box" id="floor"></section>
+      <section class="box" id="store"></section>
+    </div>
   </div>
   <footer class="footer foot"><span>Mathcraft, a proof of concept. Pope Amog's idea.</span><a href="https://github.com/ErhaiYKao/amog-fun/issues/33">feedback</a></footer>
 </div>
@@ -146,11 +180,15 @@
   const L = MathcraftLogic, Q = MathcraftQuests, KEY = "amog.mathcraft.v1";
   const $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const EXAMPLES = ["a+(b+c) = b+(a+c)", "S(a)+S(b) = S(S(a+b))", "(a+b)+(c+d) = (a+c)+(b+d)"];
+  const coin = n => `<span class="coin">∎${n}</span>`;
+  /* every ∎ in generated HTML is drawn as a little tombstone (the glyph itself is tiny in these fonts) */
+  const put = (el, html) => { el.innerHTML = html.replace(/∎/g, '<i class="ts"></i>'); };
 
-  // item: the quest or lemma on the bench (null on the "your own" page); sel: { b, path } (path [] = whole block);
-  // arm: a machine picked first, waiting for a part to run on; making: the machine whose "make a block" form is open
-  let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = false, more = false, arm = null, making = null, fillVals = {};
+  // item: the quest, bounty or lemma on the bench (null on the "your own" page)
+  // openM: the machine whose interface is open ("refl", "induct", "h0", or a machine id); dir: its lever
+  // picked: blocks fed to an open rule so far; sel: { b, path } for the Scanner list (path [] = whole block)
+  let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = false, more = false;
+  let openM = null, dir = "lr", picked = [], typed = "", letter = "", fillVals = {}, flash = -1;
 
   function load() {
     let s = null;
@@ -159,25 +197,36 @@
     if (!Array.isArray(s.own)) s.own = [];
     if (!s.n) s.n = 1;
     if (Object.keys(s.done).length && !("refl0" in s.done)) s.done.refl0 = 1;   // quest 0 arrived after the first players
+    if (!Array.isArray(s.owned)) {                                               // so did the shop: keep what they had used
+      s.owned = [];
+      if ("zz" in s.done) s.owned.push("add0");
+      if ("zadd" in s.done) s.owned.push("addS", "induct");
+    }
     return s;
   }
   function store() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} }
   const doneSet = () => new Set(Object.keys(save.done));
+  const ownedSet = () => new Set(save.owned);
+  const up = id => save.owned.includes(id);
+  const bal = () => Q.balance(save.done, ownedSet());
   const unlocked = i => i === 0 || Q.QUESTS[i - 1].id in save.done;
   const ownQuest = (o, k) => ({ id: o.id, name: "Lemma " + (k + 1), goal: o.goal, own: true });
   const lemmas = () => save.own.map(ownQuest);
-  const ownMachine = q => L.machine({ id: q.id, name: q.name, stmt: q.goal });
-  /* a quest uses the quests before it; a lemma uses every finished quest plus the finished lemmas listed before it
-     (null = what a new lemma would get) */
+  const asMachine = q => L.machine({ id: q.id, name: q.name, stmt: q.goal });
+  const finished = q => q.id in save.done;
+  /* a quest uses the quests before it; a bounty every finished quest; a lemma those, the finished bounties and the
+     finished lemmas listed before it (null = what a new lemma would get). Shop machines only once bought. */
   function machinesOf(q) {
-    if (q && !q.own) return Q.machinesFor(Q.QUESTS.indexOf(q), doneSet());
+    const d = doneSet(), o = ownedSet();
+    if (q && !q.own && !q.bounty) return Q.machinesFor(Q.QUESTS.indexOf(q), d, o);
+    if (q && q.bounty) return Q.playMachines(d, o);
     const ls = lemmas(), k = q ? ls.findIndex(l => l.id === q.id) : ls.length;
-    return [...Q.playMachines(doneSet()), ...ls.slice(0, k).filter(l => l.id in save.done).map(ownMachine)];
+    return [...Q.playMachines(d, o), ...Q.BOUNTIES.filter(finished).map(asMachine), ...ls.slice(0, k).filter(finished).map(asMachine)];
   }
   /* after a lemma is deleted, later ones that leaned on it are no longer proved */
   function audit() {
     lemmas().forEach(q => {
-      if (!(q.id in save.done)) return;
+      if (!finished(q)) return;
       try { if (!L.replay(q, machinesOf(q), save.steps[q.id] || []).root.done) throw 0; }
       catch (e) { delete save.done[q.id]; save.steps[q.id] = []; }
     });
@@ -203,6 +252,38 @@
   const arrow = (a, b, o) => `<span class="st small">${tHtml(a, o)}<span class="eqs">→</span>${tHtml(b, o)}</span>`;
   const pstr = path => path.join(".");
 
+  /* ---------- machines as objects ---------- */
+  const GATES = Q.SHOP.filter(x => x.gate).map(x => x.id);
+  const COLORS = { refl: "var(--g3)", eq: "var(--g1)", rule: "#c9a7ff", induct: "var(--g2)", hyp: "#f5c04a" };
+  function icon(kind, size = 44) {
+    const c = COLORS[kind], line = `fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+    const glyph = {
+      refl: `<path d="M20 13v15M12.5 20.5h15M14.7 15.2l10.6 10.6M25.3 15.2L14.7 25.8" ${line}/>`,
+      eq: `<path d="M11 17h17l-4-4M29 24H12l4 4" ${line}/>`,
+      rule: `<path d="M12 17h16M12 24h16" ${line}/>`,
+      induct: `<path d="M10 28h7v-5h7v-5h6" ${line}/>`,
+      hyp: `<path d="M20 13v9M20 27v.5" ${line}/>`,
+    }[kind];
+    return `<svg viewBox="0 0 40 44" width="${size * 40 / 44}" height="${size}" aria-hidden="true"><rect x="27" y="1.5" width="6" height="8" rx="1.5" fill="none" stroke="${c}" stroke-width="1.5" opacity=".55"/>
+      <rect x="4" y="7" width="32" height="27" rx="6" fill="var(--bg)" stroke="${c}" stroke-width="2"/>${glyph}
+      <circle cx="12" cy="38.5" r="3.5" fill="none" stroke="${c}" stroke-width="1.5"/><circle cx="28" cy="38.5" r="3.5" fill="none" stroke="${c}" stroke-width="1.5"/></svg>`;
+  }
+  const hypName = i => (i < (item.given || []).length ? "given" : "induction hypothesis");
+  /* { id, name, kind, stmt | premises+concl, locked, hyp } for anything that can be opened */
+  function mach(id) {
+    if (id === "refl") return { id, name: "refl", kind: "refl" };
+    const h = /^h(\d+)$/.exec(id);
+    if (h) { const s = L.ctxAt(game, where).hyps[+h[1]]; return s ? { id, name: hypName(+h[1]), kind: "hyp", stmt: s, hyp: true } : null; }
+    const m = game.machines.find(x => x.id === id) || (GATES.includes(id) ? { ...(Q.AXIOMS.find(x => x.id === id) || Q.INDUCT), locked: true } : null);
+    return m ? { ...m, kind: m.id === "induct" ? "induct" : m.premises ? "rule" : "eq" } : null;
+  }
+  const BLURB = {
+    refl: "Makes the block <i>t</i> = <i>t</i> out of thin air, for any term <i>t</i> you feed it.",
+    induct: "Feed it a letter from the goal. It splits the workshop in two: craft the goal for 0, then craft it for S(<i>n</i>) while holding it for <i>n</i> as a fact.",
+    eq: "Rewrites a part of a block. Set the lever, then tap the part to feed it.",
+    hyp: "A fact about these particular numbers. It rewrites a part of a block, but only where the block says exactly the same thing.",
+  };
+
   /* ---------- workshops ---------- */
   function leaves() {
     const out = [];
@@ -211,13 +292,11 @@
   }
   const firstOpen = () => { const ls = leaves(); return (ls.find(l => !l.c.done) || ls[0]).at; };
   const shopName = at => [...at].map(ch => (ch === "b" ? "Base case" : "Step")).join(" › ");
-  const hypName = i => (i < (item.given || []).length ? "given" : "induction hypothesis");
   const and = a => (a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
-  const mName = id => (/^h\d+$/.test(id) ? "the " + hypName(+id.slice(1)) : (game.machines.find(m => m.id === id) || {}).name || id);
 
-  function reset() { sel = null; msg = ""; hint = false; more = false; arm = null; making = null; fillVals = {}; }
+  function reset() { sel = null; msg = ""; hint = false; more = false; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; fillVals = {}; flash = -1; }
   function open(id) {
-    item = [...Q.QUESTS, ...lemmas()].find(q => q.id === id) || Q.QUESTS[0];
+    item = [...Q.QUESTS, ...Q.BOUNTIES, ...lemmas()].find(q => q.id === id) || Q.QUESTS[0];
     const ms = machinesOf(item);
     try { game = L.replay(item, ms, save.steps[item.id] || []); } catch (e) { game = L.start(item, ms); save.steps[item.id] = []; }
     reset(); where = firstOpen();
@@ -225,6 +304,13 @@
     draw();
   }
   function openNew() { item = null; game = null; reset(); save.cur = "new"; store(); draw(); }
+  function openMachine(id) {
+    msg = ""; sel = null; picked = []; fillVals = {};
+    if (openM === id) openM = null; else { openM = id; dir = "lr"; }
+    draw();
+    const f = openM === "refl" ? $("rterm") : openM === "induct" ? $("iv") : null;
+    if (f && matchMedia("(hover: hover)").matches) f.focus();
+  }
   function settle(wasDone) {
     save.steps[item.id] = game.steps;
     if (game.root.done) {
@@ -240,12 +326,14 @@
   function act(step) {
     const before = leaves().find(l => l.at === where), wasDone = !!(before && before.c.done);
     try { L.step(game, step); msg = ""; } catch (e) { msg = e.message; draw(); return false; }
-    arm = null;
-    if (step.op === "induct") { where = step.at + "b"; sel = null; }
-    else if (step.op === "rule") sel = { b: step.b, path: [] };
+    const at0 = where;
+    if (step.op === "induct") { where = step.at + "b"; sel = null; openM = null; }
+    else if (step.op === "rule") sel = sel && { b: step.b, path: [] };
     else if (step.op !== "rw") sel = null;
-    if (step.op === "make") making = null;
+    flash = step.op === "rw" || step.op === "rule" ? step.b : ["refl", "hyp", "make", "stamp"].includes(step.op) ? L.ctxAt(game, step.at).bench.length - 1 : step.op === "dup" ? step.b + 1 : -1;
+    if (step.op === "refl") typed = "";
     settle(wasDone);
+    if (where !== at0) { flash = -1; if (/^h/.test(openM || "")) openM = null; }
     draw();
     return true;
   }
@@ -253,21 +341,31 @@
     if (!game.steps.length) return;
     const last = game.steps[game.steps.length - 1];
     game = L.replay(item, game.machines, game.steps.slice(0, -1));
-    sel = null; msg = ""; arm = null;
+    sel = null; msg = ""; picked = [];
     where = leaves().some(l => l.at === last.at) ? last.at : firstOpen();
+    if (openM && !mach(openM)) openM = null;
     save.steps[item.id] = game.steps; store();
     draw();
   }
   function restart() {
     game = L.start(item, game.machines);
-    where = ""; sel = null; msg = ""; arm = null;
+    where = ""; sel = null; msg = ""; picked = [];
+    if (openM && !mach(openM)) openM = null;
     save.steps[item.id] = []; store();
+    draw();
+  }
+  function buy(id) {
+    const why = Q.canBuy(id, save.done, ownedSet());
+    if (why) { msg = why; return draw(); }
+    save.owned.push(id); store();
+    if (game) game = L.replay(item, machinesOf(item), game.steps);
+    msg = "";
     draw();
   }
   function achievements() {
     if (!window.AmogAch) return;
     AmogAch.unlock("mc.first");
-    if (Q.QUESTS.every(q => q.id in save.done)) {
+    if (Q.QUESTS.every(finished)) {
       AmogAch.unlock("mc.addition");
       if (Q.QUESTS.every(q => save.done[q.id] <= Q.par(q))) AmogAch.unlock("mc.par");
     }
@@ -293,154 +391,192 @@
   }
 
   /* ---------- the tutorial pointer: while the player is still on Amog's proof, say what comes next ---------- */
-  let shown = [];
   function coach() {
     if (!item || !item.guide || game.root.done) return null;
     const n = game.steps.length, p = item.proof;
     if (n >= p.length) return null;
     const bench = g => g.root.bench.map(b => L.show(b.s)).join("|");
-    try { if (bench(L.replay(item, game.machines, p.slice(0, n))) !== bench(game)) return null; } catch (e) { return null; }
+    try { if (bench(L.replay(item, Q.machinesFor(Q.QUESTS.indexOf(item), doneSet()), p.slice(0, n))) !== bench(game)) return null; } catch (e) { return null; }
     const s = p[n];
     if (s.op === "refl") {
-      const t = L.term(s.t), c = game.root, k = [c.goal[1], c.goal[2]].findIndex(x => L.same(x, t));
-      return { text: `Run the refl machine: tap the button that makes ${st(L.eq(t, t), {}, "small")}.`, at: `[data-refl="${k}"]` };
+      if (openM !== "refl") return { text: n ? "Start with a block. Open <b>refl</b>." : "This is your first machine. Open <b>refl</b>.", at: `[data-m="refl"]` };
+      return { text: `Feed it a term: type <b>${esc(L.show(L.term(s.t)))}</b> and run it.`, at: typed.replace(/\s/g, "") === L.show(L.term(s.t)) ? `[data-do="refl"]` : "#rterm" };
     }
     if (s.op === "rw") {
-      if (!sel || sel.b !== s.b || pstr(sel.path) !== pstr(s.path))
-        return { text: `Now pick what to change: tap the glowing part of your block.`, at: `.block[data-b="${s.b}"] .t[data-p="${pstr(s.path)}"]` };
-      const k = shown.findIndex(o => o.step.m === s.m && o.step.dir === s.dir);
-      return k < 0 ? null : { text: `Every machine that fits that part is listed. Run <i>${esc(mName(s.m))}</i>.`, at: `[data-opt="${k}"]` };
+      const m = mach(s.m), name = `<i>${esc(m.name)}</i>`;
+      if (openM !== s.m) return { text: m.locked ? `You need a new machine. Open ${name}.` : `Open ${name === "<i>given</i>" ? "the given fact" : name}.`, at: `[data-m="${s.m}"]` };
+      if (m.locked) return { text: `Buy it with the ∎ you earned.`, at: `[data-buy]` };
+      if (dir !== s.dir) return { text: `Set the lever to the other direction.`, at: `[data-dir="${s.dir}"]` };
+      return { text: `Now feed it: tap the glowing part of your block.`, at: `.block[data-b="${s.b}"] .t[data-p="${pstr(s.path)}"]` };
     }
     return null;
   }
 
   /* ---------- drawing ---------- */
   function drawQuests() {
-    const chip = (id, label, cls, off) => `<button data-id="${id}" class="${cls} ${item && item.id === id ? "on" : ""} ${id in save.done ? "done" : ""}" ${off ? "disabled" : ""}>${esc(label)}${id in save.done ? " ✓" : ""}</button>`;
-    $("quests").innerHTML = Q.QUESTS.map((q, i) => chip(q.id, `${i}. ${q.name}`, "", !unlocked(i))).join("") +
-      lemmas().map(q => chip(q.id, q.name, "own")).join("") +
-      `<button data-id="new" class="own ${item ? "" : "on"}">+ your own</button>`;
+    const chip = (id, label, cls, off) => `<button data-id="${id}" class="${cls} ${item && item.id === id ? "on" : ""} ${id in save.done ? "done" : ""}" ${off ? "disabled" : ""}>${label}${id in save.done ? " ✓" : ""}</button>`;
+    put($("quests"), `<span class="bal" title="tombstones: earned by finishing crafts, spent on machines and upgrades">∎ ${bal()}</span>` +
+      Q.QUESTS.map((q, i) => chip(q.id, `${i}. ${esc(q.name)}`, "", !unlocked(i))).join("") + `<span class="sep"></span><span class="meta">bounties</span>` +
+      Q.BOUNTIES.map(q => chip(q.id, `${esc(q.name)}${finished(q) ? "" : ` <span class="coin">∎${q.pay}</span>`}`, "bounty")).join("") + `<span class="sep"></span><span class="meta">playground</span>` +
+      lemmas().map(q => chip(q.id, esc(q.name), "own")).join("") +
+      `<button data-id="new" class="own ${item ? "" : "on"}">+ your own</button>`);
+  }
+  function keypad(names) {
+    return `<div class="keys">` + ["0", "S(", ")", "+", ...names, "⌫"].map(k => `<button data-key="${k}" aria-label="${k === "⌫" ? "delete" : k}">${k}</button>`).join("") + `</div>`;
   }
   function drawNew() {
-    $("quest").innerHTML = `<p class="label">Playground</p><h2>Your own conjecture</h2>
-      <p>Type an equation you think is true for all numbers. You get a workshop for it, with every machine you have crafted so far. If you can craft it, it becomes a machine for the lemmas you add after it: that is how a long proof gets split into steps.</p>
+    put($("quest"), `<p class="label">Playground</p><h2>Your own conjecture</h2>
+      <p>Type an equation you think is true for all numbers. You get a workshop for it, with every machine you have. If you can craft it, it becomes a machine for the lemmas you add after it: that is how a long proof gets split into steps.</p>
       <div class="row hint"><input class="term" id="conj" placeholder="a+(b+c) = b+(a+c)" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="your conjecture"><button class="mini" data-do="add">open a workshop</button></div>
-      <div class="row hint"><span class="meta">or try</span>${EXAMPLES.map(e => `<button class="mini tiny" data-eg="${esc(e)}">${esc(e)}</button>`).join("")}</div>
-      <p class="meta">Letters are numbers, S(a) is the number after a, and 2 is short for S(S(0)). Lemmas stay in the playground: quests only use the machines before them.</p>
-      <p class="msg">${esc(msg)}</p>`;
+      <p class="meta">Letters are numbers, S(a) is the number after a, and 2 is short for S(S(0)). Your own lemmas pay no ∎ (0 = 0, 1 = 1, … would print money) and stay out of the quests. The bounties above do pay.</p>
+      <p class="msg">${esc(msg)}</p>`);
   }
   function drawQuest() {
-    const q = item, names = [...game.names], n = L.count(game.steps), best = save.done[q.id], qi = Q.QUESTS.indexOf(q);
+    const q = item, names = [...game.names], n = L.count(game.steps), best = save.done[q.id], qi = Q.QUESTS.indexOf(q), quest = qi >= 0;
     const forAny = q.given ? "" : names.length ? `for any number${names.length > 1 ? "s" : ""} ${and(names.map(v => `<i>${v}</i>`))}` : "";
     const steps = `${n} step${n === 1 ? "" : "s"}`;
-    let h = `<p class="label">${q.own ? "Playground" : `Quest ${qi} of ${Q.QUESTS.length - 1}`}</p><h2>${esc(q.name)}</h2>
+    const text = q.own ? "Your own conjecture. If it is true and you can craft it, it becomes a machine for your later lemmas."
+      : q.bounty ? `A bounty: an optional theorem that pays ${coin(q.pay)} the first time you craft it, and becomes a machine in the playground.` : q.intro;
+    const pays = quest ? ` · pays ∎${q.pay}, +${Q.PAR_BONUS} in ${Q.par(q)} steps or fewer` : "";
+    let h = `<p class="label">${q.own ? "Playground" : q.bounty ? "Bounty" : `Quest ${qi} of ${Q.QUESTS.length - 1}`}</p><h2>${esc(q.name)}</h2>
       <div class="goal"><span class="meta">craft</span><span class="scroll">${st(game.root.goal)}</span><span class="meta">${forAny}</span></div>
-      <p>${q.own ? "Your own conjecture. If it is true and you can craft it, it becomes a machine for your later lemmas." : q.intro}</p>
-      <div class="row hint">${q.own ? "" : `<button class="mini" data-do="hint">${hint ? "hide hint" : "hint"}</button>`}
+      <p>${text}</p>`;
+    const missing = (q.needs || []).filter(id => !up(id));
+    if (missing.length && !game.root.done) h += `<p class="need">This one needs ${and(missing.map(id => `<i>${esc(mach(id).name)}</i> (∎${Q.price(id)})`))}. Open ${missing.length > 1 ? "them" : "it"} on the machine floor to buy.</p>`;
+    h += `<div class="row hint">${quest ? `<button class="mini" data-do="hint">${hint ? "hide hint" : "hint"}</button>` : ""}
         <button class="mini" data-do="undo" ${game.steps.length ? "" : "disabled"}>undo</button>
         <button class="mini" data-do="restart" ${game.steps.length ? "" : "disabled"}>start over</button>
         ${q.own ? `<button class="mini" data-do="remove">delete</button>` : ""}
-        <span class="meta">${steps}${q.own ? "" : ` · Amog needs ${Q.par(q)}`}${best ? ` · your best ${best}` : ""}</span></div>`;
-    if (hint && !q.own) h += `<p>${q.hint}</p>`;
+        <span class="meta">${steps}${best ? ` · your best ${best}` : ""}${pays}</span></div>`;
+    if (hint && quest) h += `<p>${q.hint}</p>`;
     if (game.root.done) {
-      const par = q.own ? 0 : Q.par(q);
-      const verdict = q.own ? "" : n < par ? "Shorter than Amog's proof. He would like a word." : n === par ? "As short as Amog's proof." : `Amog does it in ${par}.`;
-      const after = q.own ? `<button class="mini" data-do="new">another conjecture</button>`
+      const par = quest ? Q.par(q) : 0, bonus = quest && best <= par;
+      const verdict = !quest ? "" : n < par ? "Shorter than Amog's proof. He would like a word." : n === par ? "As short as Amog's proof." : `Amog does it in ${par}.`;
+      const paid = q.own ? "" : ` You earned ${coin(q.pay + (bonus ? Q.PAR_BONUS : 0))}${quest && !bonus ? ` (${coin(Q.PAR_BONUS)} more for doing it in ${par})` : ""}.`;
+      const after = !quest ? `<button class="mini" data-do="new">a conjecture of your own</button>`
         : qi + 1 < Q.QUESTS.length ? `<button class="mini" data-do="next">next quest →</button>`
-        : `<span class="meta">That's all of addition.</span><button class="mini" data-do="new">prove something of your own</button>`;
-      h += `<div class="qed"><b>Q.E.D.</b> ${st(game.root.goal, { slot: true }, "small")} is now a machine${q.own ? " for your later lemmas" : " in your library"}. ${steps}. ${verdict}<div class="row">${after}</div></div>`;
+        : `<span class="meta">That's all of addition. The bounties and the playground are still open.</span>`;
+      h += `<div class="qed"><b>Q.E.D.</b> ${st(game.root.goal, { slot: true }, "small")} is now a machine${quest ? "" : " in the playground"}. ${steps}. ${verdict}${paid}<div class="row">${after}</div></div>`;
     }
-    $("quest").innerHTML = h;
+    put($("quest"), h);
     if (window.amogMath) amogMath($("quest"));
   }
+  /* parts of the bench the open equality machine would take, with its lever as it is (Scanner only) */
+  function fitMap(c) {
+    const fit = {}, m = openM && mach(openM);
+    if (!m || m.locked || !up("scanner") || (m.kind !== "eq" && m.kind !== "hyp")) return fit;
+    c.bench.forEach((blk, b) => {
+      for (const path of L.paths(blk.s)) if (L.options(game, where, b, path).some(o => o.step.m === openM && o.step.dir === dir)) (fit[b] = fit[b] || new Set()).add(pstr(path));
+    });
+    return fit;
+  }
   function drawShop(tip) {
-    const ls = leaves(), cur = ls.find(l => l.at === where) || ls[0], c = cur.c, el = $("shop");
+    const ls = leaves(), cur = ls.find(l => l.at === where) || ls[0], c = cur.c, el = $("shop"), fit = fitMap(c);
     el.classList.toggle("workshop", !!where);
-    const fit = {};
-    if (arm) for (const f of L.fits(game, where, arm)) (fit[f.b] = fit[f.b] || new Set()).add(pstr(f.path));
-    let h = tip ? `<div class="coach"><b>next</b><span>${tip.text}</span></div>` : "";
+    let h = tip ? `<div class="coach"><b class="k">next</b><span>${tip.text}</span></div>` : "";
     if (ls.length > 1) h += `<div class="tabs">` + ls.map(l =>
       `<button data-at="${l.at}" class="${l.at === where ? "on" : ""} ${l.c.done ? "done" : ""}"><span class="meta">${shopName(l.at)}${l.c.done ? " ✓" : ""}</span><span class="st small">${tHtml(l.c.goal)}</span></button>`).join("") + `</div>`;
     h += `<p class="label">${where ? "Induction workshop · " + shopName(where) : "Workbench"}</p>`;
     if (where) h += `<div class="given"><span class="meta">craft</span><span class="scroll">${st(c.goal, {}, "small")}</span></div>`;
     c.hyps.forEach((s, i) => {
       h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span>
-        <button class="mini tiny ${arm === "h" + i ? "on" : ""}" data-arm="h${i}">use</button><button class="mini tiny" data-hyp="${i}">put on bench</button></div>`;
+        <button class="mini tiny ${openM === "h" + i ? "on" : ""}" data-m="h${i}">open</button></div>`;
     });
-    if (c.hyps.length > (item.given || []).length) h += `<p class="meta">The hypothesis is a fact about this one number. It only fits where the block says exactly the same thing.</p>`;
-    const sides = L.same(c.goal[1], c.goal[2]) ? [c.goal[1]] : [c.goal[1], c.goal[2]];
-    h += `<div class="start"><div class="row"><span class="meta">refl machine</span>` +
-      sides.map((t, i) => `<button class="mini" data-refl="${i}"><span class="st small" style="font-size:15px">${tHtml(L.eq(t, t))}</span></button>`).join("") +
-      `<input class="term" id="term" placeholder="any term" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="a term for refl"><button class="mini" data-do="term">t = t</button></div>`;
-    const canInduct = game.machines.some(m => m.id === "induct") ? [...L.vars(c.goal)].filter(v => !c.hyps.some(s => L.vars(s).has(v))) : [];
-    if (canInduct.length) h += `<div class="row" style="margin-top:8px"><span class="meta">induction machine</span>` + canInduct.map(v => `<button class="mini" data-induct="${v}">on <i>${v}</i></button>`).join("") + `</div>`;
-    h += `</div><div class="bench">`;
+    if (c.hyps.length > (item.given || []).length) h += `<p class="meta">The hypothesis is a fact about this one number, so it is a machine without slots.</p>`;
+    h += `<div class="bench">`;
     if (!c.bench.length) h += `<p class="empty">The bench is empty. A machine has to make the first block.</p>`;
     c.bench.forEach((b, i) => {
       const on = sel && sel.b === i, goal = L.same(b.s, c.goal);
-      h += `<div class="block ${on ? "sel" : ""} ${goal ? "goal" : ""}" data-b="${i}"><span class="n">${i + 1}</span>
+      h += `<div class="block ${on ? "sel" : ""} ${goal ? "goal" : ""} ${picked.includes(i) ? "picked" : ""} ${flash === i ? "flash" : ""}" data-b="${i}"><span class="n">${i + 1}</span>
         <span class="scroll">${st(b.s, { live: true, sel: on ? pstr(sel.path) : null, fit: fit[i] })}</span>
         ${goal ? `<span class="ok" title="this block is the goal">✓</span>` : b.deps.length ? `<span class="dot" title="Made with the ${hypName(b.deps[b.deps.length - 1])}: only true inside this workshop."></span>` : ""}
         <button class="x" data-dup="${i}" title="duplicate">⧉</button><button class="x" data-del="${i}" title="throw away">✕</button></div>`;
     });
-    el.innerHTML = h + `</div>`;
+    put(el, h + `</div>`);
+    flash = -1;
   }
+  let shown = [];
   function optHtml(o, i) {
     const name = o.hyp ? hypName(+o.step.m.slice(1)) : o.name;
     const how = o.rule ? (o.others.length ? `<span class="meta">with block ${o.others[0] + 1}</span>` : "") : arrow(o.from, o.to, { slot: !o.hyp });
     return `<button class="opt ${o.hyp ? "hyp" : ""}" data-opt="${i}"><span class="top"><span class="name">${esc(name)}</span>${how}</span>
       <span class="st res">${tHtml(o.result, { hi: o.rule ? null : pstr(sel.path) })}</span></button>`;
   }
-  function listOpts() {
-    shown = [];
-    if (!sel) return;
-    const all = L.options(game, where, sel.b, sel.path), mine = arm ? all.filter(o => o.step.m === arm) : [];
-    shown = mine.length ? mine : all;
+  function scanHtml() {
+    const b = L.ctxAt(game, where).bench[sel.b], whole = !sel.path.length;
+    shown = L.options(game, where, sel.b, sel.path);
+    const pairs = shown.map((o, i) => [o, i]), tight = pairs.filter(x => !x[0].loose), loose = pairs.filter(x => x[0].loose);
+    let h = `<p class="label">Scanner</p><div class="row" style="margin-bottom:10px"><span class="meta">selected</span>${whole ? `<span class="meta">the whole of block ${sel.b + 1}</span>` : st(L.at(b.s, sel.path), {}, "small")}
+      <button class="mini tiny" data-do="widen" ${whole ? "disabled" : ""}>widen</button></div><div class="opts">`;
+    if (!tight.length) h += `<p class="empty">${whole ? "No rule does anything to this block." : "Nothing fits this part exactly."}</p>`;
+    h += tight.map(x => optHtml(x[0], x[1])).join("");
+    if (loose.length) h += `<button class="mini tiny" data-do="more" style="justify-self:start">${more ? "hide" : "show"} ${loose.length} that fit anything</button>` + (more ? loose.map(x => optHtml(x[0], x[1])).join("") : "");
+    return h + `</div>`;
   }
-  function drawOpts() {
-    const el = $("opts");
-    let h = `<p class="label">${arm ? "Where " + esc(mName(arm)) + " fits" : "Machines that fit"}</p>`;
-    if (!sel) h += arm ? `<p class="empty" style="margin:0">Tap one of the outlined parts on the bench.</p>`
-      : `<p class="empty" style="margin:0">Tap a part of a block (a number, a sum, an S(…)) to see the machines that fit it, or tap its = for the rules that take a whole block. Or pick a machine below and see where it fits.</p>`;
-    else {
-      const b = L.ctxAt(game, where).bench[sel.b], whole = !sel.path.length;
-      const pairs = shown.map((o, i) => [o, i]), tight = pairs.filter(x => !x[0].loose), loose = pairs.filter(x => x[0].loose);
-      h += `<div class="row" style="margin-bottom:10px"><span class="meta">selected</span>${whole ? `<span class="meta">the whole of block ${sel.b + 1}</span>` : st(L.at(b.s, sel.path), {}, "small")}
-        <button class="mini tiny" data-do="widen" ${whole ? "disabled" : ""}>widen</button></div><div class="opts">`;
-      if (!tight.length) h += `<p class="empty" style="margin:0">${whole ? (game.machines.some(m => m.premises) ? "No rule does anything to this block." : "No rules yet. They act on whole blocks, and the first one is Symmetry.") : "Nothing fits this part exactly."}</p>`;
-      h += tight.map(x => optHtml(x[0], x[1])).join("");
-      if (loose.length) h += `<button class="mini tiny" data-do="more" style="justify-self:start">${more ? "hide" : "show"} ${loose.length} that fit anything</button>` + (more ? loose.map(x => optHtml(x[0], x[1])).join("") : "");
-      h += `</div>`;
+  function drawPanel() {
+    const el = $("panel"), m = openM && mach(openM);
+    let h;
+    if (!m) {
+      openM = null;
+      h = sel && up("scanner") ? scanHtml() : `<p class="label">Machine</p><p class="empty">No machine is open. Pick one from the floor${up("scanner") ? ", or tap a part of a block to scan for what fits" : ""}.</p>`;
+    } else {
+      const c = L.ctxAt(game, where), names = [...game.names];
+      const stmt = m.stmt ? `<div class="scroll">${st(m.stmt, { slot: !m.hyp }, "small")}</div>`
+        : m.premises ? `<div class="scroll"><span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span></div>`
+        : `<div class="meta">${m.kind === "refl" ? "in: a term t · out: the block t = t" : "in: a letter · out: two workshops"}</div>`;
+      h = `<div class="mhead">${icon(m.kind, 60)}<div><h3>${esc(m.name)}</h3>${stmt}</div><button class="x" data-do="close" title="close">✕</button></div>`;
+      if (m.locked) {
+        const why = Q.canBuy(m.id, save.done, ownedSet());
+        h += `<p class="what">${BLURB[m.kind]}</p><div class="row"><button class="mini" data-buy="${m.id}" ${why ? "disabled" : ""}>buy for ∎${Q.price(m.id)}</button><span class="meta">${why ? esc(why) : `you have ∎${bal()}`}</span></div>`;
+      } else if (m.kind === "refl") {
+        h += `<p class="what">${BLURB.refl}</p><div class="row"><input class="term" id="rterm" value="${esc(typed)}" placeholder="a term, like S(0)+0" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the term to feed refl"><button class="mini" data-do="refl">run</button></div>` + keypad(names);
+        if (up("autofill")) {
+          const sides = L.same(c.goal[1], c.goal[2]) ? [c.goal[1]] : [c.goal[1], c.goal[2]];
+          h += `<div class="row" style="margin-top:10px"><span class="meta">autofill</span>` + sides.map((t, i) => `<button class="mini" data-refl="${i}"><span class="st small" style="font-size:15px">${tHtml(t)}</span></button>`).join("") + `</div>`;
+        }
+      } else if (m.kind === "induct") {
+        const ok = [...L.vars(c.goal)].filter(v => !c.hyps.some(s => L.vars(s).has(v)));
+        h += `<p class="what">${BLURB.induct}</p><div class="row"><input class="term" id="iv" maxlength="1" value="${esc(letter)}" placeholder="letter" style="width:84px" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the letter to induct on"><button class="mini" data-do="induct">run</button>` +
+          (up("autofill") ? `<span class="meta">autofill</span>` + ok.map(v => `<button class="mini" data-induct="${v}"><i>${v}</i></button>`).join("") : "") + `</div>`;
+      } else if (m.kind === "rule") {
+        const n = m.premises.length;
+        h += `<p class="what">Takes ${n === 1 ? "a whole block" : n + " whole blocks, in order"}. Tap the = of ${n === 1 ? "a block" : "each"} on the bench.</p>` +
+          (picked.length ? `<p class="meta">block ${picked.map(i => i + 1).join(", ")} is in; ${n - picked.length} to go</p>` : "");
+      } else {
+        const o = { slot: !m.hyp };
+        h += `<p class="what">${BLURB[m.kind]}</p><div class="lever"><span class="meta" style="align-self:center">lever</span>
+          <button class="mini ${dir === "lr" ? "on" : ""}" data-dir="lr">${arrow(m.stmt[1], m.stmt[2], o)}</button>
+          <button class="mini ${dir === "rl" ? "on" : ""}" data-dir="rl">${arrow(m.stmt[2], m.stmt[1], o)}</button></div>`;
+        if (m.hyp) h += `<div class="form"><button class="mini tiny" data-hyp="${m.id.slice(1)}">put it on the bench as a block</button></div>`;
+        else if (up("press")) {
+          const slots = [...L.vars(m.stmt)].sort();
+          h += `<div class="form"><span class="meta">block press</span>` + slots.map(v =>
+            `<label>${v}</label><input class="term" data-slot="${v}" value="${esc(fillVals[v] != null ? fillVals[v] : game.names.has(v) ? v : "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="term for ${v}">`).join("") + `<button class="mini tiny" data-mk="${m.id}">stamp a block</button></div>`;
+        }
+      }
     }
-    el.innerHTML = h + `<p class="msg">${esc(msg)}</p>`;
+    put(el, h + `<p class="msg">${esc(msg)}</p>`);
   }
-  function drawLib() {
-    const ms = game ? game.machines : machinesOf(null), live = !!game;
-    const ax = new Set(Q.AXIOMS.map(m => m.id)), quests = new Set(Q.QUESTS.map(q => q.id));
-    const row = m => {
-      const acts = live ? `<span class="acts"><button class="mini tiny ${arm === m.id ? "on" : ""}" data-arm="${m.id}">use</button>${m.stmt ? `<button class="mini tiny" data-make="${m.id}">make a block</button>` : ""}</span>` : "";
-      let body, form = "";
-      if (m.stmt) {
-        body = `<span class="scroll">${st(m.stmt, { slot: true }, "small")}</span>`;
-        if (live && making === m.id) form = `<span class="form">` + [...L.vars(m.stmt)].sort().map(v =>
-          `<label>${v}</label><input class="term" data-slot="${v}" value="${esc(fillVals[v] != null ? fillVals[v] : game.names.has(v) ? v : "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="term for ${v}">`).join("") + `<button class="mini tiny" data-mk="${m.id}">make</button></span>`;
-      } else body = `<span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span>`;
-      return `<li class="${arm === m.id ? "armed" : ""}"><span class="name">${esc(m.name)}</span>${body}${acts}${form}</li>`;
-    };
-    const group = (title, list) => (list.length ? `<h3>${title}</h3><ul class="lib">${list.map(row).join("")}</ul>` : "");
-    let h = `<p class="label">Your machines</p><h3>built in</h3><ul class="lib"><li><span class="name">refl</span><span class="what">in: any term <i>t</i> · out: the block <i>t</i> = <i>t</i></span></li>`;
-    if (ms.some(m => m.id === "induct")) h += `<li><span class="name">Induction</span><span class="what">in: a goal about <i>a</i> · out: a workshop for 0 and one for S(<i>a</i>)</span></li>`;
-    h += `</ul>` + group("axioms", ms.filter(m => ax.has(m.id))) + group("theorems", ms.filter(m => quests.has(m.id))) + group("your lemmas", ms.filter(m => /^u\d+$/.test(m.id)));
-    h += `<p class="meta" style="margin:0">A <span class="st small" style="font-size:14px"><i class="slot">blue</i></span> letter is a slot: it fits any term. Equalities run in both directions on any part of a block; rules take a whole block.</p>`;
-    $("lib").innerHTML = h;
+  function drawFloor() {
+    const ids = ["refl", ...GATES, ...game.machines.map(m => m.id).filter(id => !GATES.includes(id))];
+    put($("floor"), `<p class="label">Machine floor</p><div class="floor">` + ids.map(id => {
+      const m = mach(id);
+      return `<button class="card ${m.locked ? "locked" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${m.stmt ? esc(L.show(m.stmt)) : ""}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">∎${Q.price(id)}</span>` : ""}</button>`;
+    }).join("") + `</div>`);
+  }
+  function drawStore() {
+    put($("store"), `<p class="label">Upgrades</p><ul class="ups">` + Q.SHOP.filter(x => !x.gate).map(x => {
+      const why = up(x.id) ? "" : Q.canBuy(x.id, save.done, ownedSet());
+      return `<li><b>${esc(x.name)}</b><span class="d">${esc(x.text)}</span>${up(x.id) ? `<span class="mini tiny on" style="grid-row:1/span 2;grid-column:2;cursor:default">owned</span>` : `<button class="mini" data-buy="${x.id}" ${why ? "disabled" : ""}>∎${x.price}</button>`}${why ? `<span class="why">${esc(why)}</span>` : ""}</li>`;
+    }).join("") + `</ul>`);
   }
   function draw() {
     drawQuests();
-    $("shop").hidden = $("opts").hidden = !game;
-    if (!game) { drawNew(); drawLib(); return; }
-    listOpts();
+    $("shop").hidden = $("side").hidden = !game;
+    if (!game) return drawNew();
+    drawPanel();                       // first: it settles openM
     const tip = coach();
-    drawQuest(); drawShop(tip); drawOpts(); drawLib();
+    drawQuest(); drawShop(tip); drawFloor(); drawStore();
     const target = tip && document.querySelector(tip.at);
     if (target) target.classList.add("pulse");
   }
@@ -450,8 +586,7 @@
   $("quest").onclick = e => {
     const b = e.target.closest("button"); if (!b) return;
     const d = b.dataset.do;
-    if (b.dataset.eg) addLemma(b.dataset.eg);
-    else if (d === "add") addLemma($("conj").value);
+    if (d === "add") addLemma($("conj").value);
     else if (d === "hint") { hint = !hint; draw(); }
     else if (d === "undo") undo();
     else if (d === "restart") restart();
@@ -460,80 +595,93 @@
     else if (d === "next") open(Q.QUESTS[Q.QUESTS.indexOf(item) + 1].id);
   };
   $("quest").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "conj") addLemma(e.target.value); });
-  function reflTyped() {
-    const v = $("term").value.trim();
-    if (!v) { msg = "type a term first, like S(0)+0"; return draw(); }
-    act({ op: "refl", at: where, t: v });
+  $("floor").onclick = e => { const b = e.target.closest("[data-m]"); if (b) openMachine(b.dataset.m); };
+  $("store").onclick = e => { const b = e.target.closest("[data-buy]"); if (b) buy(b.dataset.buy); };
+
+  function runRefl() {
+    if (!typed.trim()) { msg = "feed it a term first, like S(0)+0"; return draw(); }
+    act({ op: "refl", at: where, t: typed.trim() });
   }
-  function setArm(id) {
-    sel = null; msg = "";
-    if (arm === id) arm = null;
-    else if (!L.fits(game, where, id).length) { arm = null; msg = "Nothing on the bench fits " + mName(id) + " yet."; }
-    else arm = id;
-    draw();
+  function runInduct(v) {
+    if (!v) { msg = "which letter? Type one from the goal"; return draw(); }
+    act({ op: "induct", at: where, v });
   }
+  function stamp(id) {
+    document.querySelectorAll("#panel [data-slot]").forEach(i => { fillVals[i.dataset.slot] = i.value.trim(); });
+    const fill = {};
+    for (const v of L.vars(mach(id).stmt)) fill[v] = fillVals[v] != null ? fillVals[v] : "";
+    if (act({ op: "make", at: where, m: id, fill })) fillVals = {};
+  }
+  $("panel").addEventListener("input", e => {
+    if (e.target.id === "rterm") { typed = e.target.value; const t = coach(); if (t && t.at === `[data-do="refl"]`) draw(), $("rterm").focus(), $("rterm").setSelectionRange(typed.length, typed.length); }
+    else if (e.target.id === "iv") letter = e.target.value.trim();
+  });
+  $("panel").addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    if (e.target.id === "rterm") runRefl();
+    else if (e.target.id === "iv") runInduct(letter);
+    else if (e.target.dataset.slot) stamp(openM);
+  });
+  $("panel").onclick = e => {
+    const o = e.target.closest("[data-opt]");
+    if (o) { act(shown[+o.dataset.opt].step); return; }
+    const b = e.target.closest("button"); if (!b) return;
+    const d = b.dataset, c = L.ctxAt(game, where);
+    if (d.key) { typed = d.key === "⌫" ? typed.slice(0, -1) : typed + d.key; msg = ""; draw(); }
+    else if (d.do === "close") openMachine(openM);
+    else if (d.do === "refl") runRefl();
+    else if (d.refl !== undefined) act({ op: "refl", at: where, t: (L.same(c.goal[1], c.goal[2]) ? [c.goal[1]] : [c.goal[1], c.goal[2]])[+d.refl] });
+    else if (d.do === "induct") runInduct(letter);
+    else if (d.induct) runInduct(d.induct);
+    else if (d.dir) { dir = d.dir; msg = ""; draw(); }
+    else if (d.buy) buy(d.buy);
+    else if (d.hyp !== undefined) act({ op: "hyp", at: where, i: +d.hyp });
+    else if (d.mk) stamp(d.mk);
+    else if (d.do === "more") { more = !more; draw(); }
+    else if (d.do === "widen" && sel && sel.path.length) { sel = { b: sel.b, path: sel.path.slice(0, -1) }; draw(); }
+  };
   $("shop").onclick = e => {
-    const c = L.ctxAt(game, where), b = e.target.closest("button");
+    const b = e.target.closest("button");
     if (b) {
       const d = b.dataset;
-      if (d.at !== undefined) { where = d.at; sel = null; msg = ""; arm = null; draw(); }
-      else if (d.arm) setArm(d.arm);
-      else if (d.hyp !== undefined) act({ op: "hyp", at: where, i: +d.hyp });
-      else if (d.refl !== undefined) act({ op: "refl", at: where, t: c.goal[1 + +d.refl] });
-      else if (d.do === "term") reflTyped();
-      else if (d.induct) act({ op: "induct", at: where, v: d.induct });
+      if (d.at !== undefined) { where = d.at; sel = null; msg = ""; picked = []; if (/^h/.test(openM || "")) openM = null; draw(); }
+      else if (d.m) openMachine(d.m);
       else if (d.dup !== undefined) act({ op: "dup", at: where, b: +d.dup });
-      else if (d.del !== undefined) act({ op: "del", at: where, b: +d.del });
+      else if (d.del !== undefined) { picked = []; act({ op: "del", at: where, b: +d.del }); }
       return;
     }
     const t = e.target.closest(".t"), blk = e.target.closest(".block");
     if (!t || !blk) return;
     const pick = { b: +blk.dataset.b, path: t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number) };
-    if (arm) {       // machine first: if there is one way to run it here, run it
-      const mine = L.options(game, where, pick.b, pick.path).filter(o => o.step.m === arm && !o.loose);
-      if (mine.length === 1) { sel = pick; act(mine[0].step); return; }
-      if (!mine.length) arm = null;
+    const m = openM && mach(openM);
+    if (m && !m.locked && (m.kind === "eq" || m.kind === "hyp")) {       // feed the part to the open machine
+      if (!pick.path.length) { msg = "Feed it a part of one side: a number, a sum or an S(…)."; return draw(); }
+      if (!act({ op: "rw", at: where, b: pick.b, path: pick.path, m: openM, dir }) && /doesn't fit/.test(msg)) {
+        msg = "That part isn't shaped like " + L.show(dir === "lr" ? m.stmt[1] : m.stmt[2]) + ".";
+        draw();
+      }
+      return;
     }
-    sel = pick; msg = ""; more = false;
+    if (m && !m.locked && m.kind === "rule") {                            // feed whole blocks to the open rule
+      if (!picked.includes(pick.b)) picked.push(pick.b);
+      if (picked.length < m.premises.length) { msg = ""; return draw(); }
+      const p = picked; picked = [];
+      act({ op: "rule", at: where, b: p[0], m: openM, others: p.slice(1) });
+      return;
+    }
+    if (up("scanner")) { openM = null; sel = pick; msg = ""; more = false; return draw(); }
+    msg = m && m.locked ? "That machine isn't yours yet." : "Open a machine that rewrites first, then tap the part to feed it.";
     draw();
   };
-  $("shop").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "term") reflTyped(); });
-  $("opts").onclick = e => {
-    const o = e.target.closest("[data-opt]");
-    if (o) { act(shown[+o.dataset.opt].step); return; }
-    const b = e.target.closest("button[data-do]"); if (!b) return;
-    if (b.dataset.do === "more") { more = !more; draw(); }
-    else if (b.dataset.do === "widen" && sel && sel.path.length) { sel = { b: sel.b, path: sel.path.slice(0, -1) }; draw(); }
-  };
-  function make(id) {
-    document.querySelectorAll("#lib [data-slot]").forEach(i => { fillVals[i.dataset.slot] = i.value.trim(); });
-    const m = game.machines.find(x => x.id === id), fill = {};
-    for (const v of L.vars(m.stmt)) fill[v] = fillVals[v] != null ? fillVals[v] : "";
-    if (act({ op: "make", at: where, m: id, fill })) fillVals = {};
-  }
-  $("lib").onclick = e => {
-    const b = e.target.closest("button"); if (!b || !game) return;
-    const d = b.dataset;
-    if (d.arm) setArm(d.arm);
-    else if (d.mk) make(d.mk);
-    else if (d.make) {
-      const m = game.machines.find(x => x.id === d.make);
-      if (!L.vars(m.stmt).size) { act({ op: "make", at: where, m: m.id, fill: {} }); return; }
-      making = making === m.id ? null : m.id; fillVals = {}; msg = "";
-      draw();
-      const first = document.querySelector("#lib [data-slot]"); if (first) first.select();
-    }
-  };
-  $("lib").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.dataset.slot && making) make(making); });
   document.addEventListener("keydown", e => { if (game && (e.metaKey || e.ctrlKey) && e.key === "z" && e.target.tagName !== "INPUT") { e.preventDefault(); undo(); } });
 
   if (save.cur === "new") openNew();
   else {
-    const known = [...Q.QUESTS.filter((q, i) => unlocked(i)), ...lemmas()];
-    const next = Q.QUESTS.find((q, i) => unlocked(i) && !(q.id in save.done)) || Q.QUESTS[Q.QUESTS.length - 1];
+    const known = [...Q.QUESTS.filter((q, i) => unlocked(i)), ...Q.BOUNTIES, ...lemmas()];
+    const next = Q.QUESTS.find((q, i) => unlocked(i) && !finished(q)) || Q.QUESTS[Q.QUESTS.length - 1];
     open((known.find(q => q.id === save.cur) || next).id);
   }
-  window.addEventListener("DOMContentLoaded", draw);   // math.js is deferred: typeset the quest text once it's there
+  window.addEventListener("DOMContentLoaded", () => { if (game) drawQuest(); });   // math.js is deferred: typeset the quest text once it's there
 })();
 </script>
 </body>
