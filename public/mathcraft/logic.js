@@ -16,9 +16,11 @@
  * "b" / "s" the base and step workshops of its induction, "sb" the base inside the step, and so on.
  *   { op: "refl", at, t }                 new block t = t (t: term or string)
  *   { op: "hyp", at, i }                  copy hypothesis i onto the bench (tagged as depending on it)
- *   { op: "stamp", at, m }                copy a slotless equality machine onto the bench
+ *   { op: "make", at, m, fill }           put equality machine m's statement on the bench, its slots filled from
+ *                                         fill = { a: term, ... } ("stamp" is the old name for the slotless case)
  *   { op: "rw", at, b, path, m, dir }     rewrite block b at path with machine m ("h0" = hypothesis 0), dir "lr" | "rl"
  *   { op: "rule", at, b, m, others }      apply rule m to block b (+ other blocks); b becomes the conclusion
+ *                                         (in the page: tap the = of a block to select the whole block)
  *   { op: "induct", at, v }               split the workshop's goal by induction on v
  *   { op: "dup" | "del", at, b }          housekeeping, not counted as steps
  * A workshop is done when a block on its bench equals its goal, or both halves of its induction are done.
@@ -182,6 +184,20 @@
         if (vars(e.l).size || vars(e.r).size) throw new Error("that machine needs inputs");
         return () => c.bench.push({ s: eq(e.l, e.r), deps: [] });
       }
+      case "make": {
+        const e = equation(game, c, st.m);
+        if (!e.slots) throw new Error("a given fact goes on the bench as it is");
+        const fill = {};
+        for (const v of new Set([...vars(e.l), ...vars(e.r)])) {
+          const raw = st.fill && st.fill[v];
+          if (raw == null || raw === "") throw new Error("give a term for " + v);
+          const t = term(raw);
+          if (isStmt(t)) throw new Error("give a term for " + v + ", not an equation");
+          for (const x of vars(t)) if (!game.names.has(x)) throw new Error("there is no number called " + x + " here");
+          fill[v] = t;
+        }
+        return () => c.bench.push({ s: eq(subst(e.l, fill), subst(e.r, fill)), deps: [] });
+      }
       case "rw": {
         const b = block(st.b), e = equation(game, c, st.m);
         if (!st.path || !st.path.length) throw new Error("pick a part of one side");
@@ -230,10 +246,13 @@
     for (const st of steps) step(g, st);
     return g;
   }
-  const COUNTED = new Set(["refl", "hyp", "stamp", "rw", "rule", "induct"]);
+  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct"]);
   const count = steps => steps.filter(s => COUNTED.has(s.op)).length;
 
-  /* every move available on the selected part of block b: [{ step, result, from, to, name, hyp }] */
+  /* every move available on the selection in block b: a part (path non-empty) offers the equality machines that
+   * fit there, the whole block (path []) offers the rules. Each is { step, result, name, from, to, hyp, loose } or
+   * { step, result, name, rule, others }. `loose` marks rewrites whose pattern is a bare slot (a → a+0): they fit
+   * everywhere, so they sort last and the page keeps them behind "more". */
   function options(game, where, b, path) {
     const c = ctxAt(game, where), blk = c.bench[b], out = [], seen = new Set();
     if (!blk) return out;
@@ -250,18 +269,28 @@
       const eqs = [...c.hyps.map((h, i) => ({ id: "h" + i, name: "given", stmt: h, hyp: true })), ...game.machines.filter(m => m.stmt)];
       for (const m of eqs) for (const dir of ["lr", "rl"]) {
         const [from, to] = dir === "lr" ? [m.stmt[1], m.stmt[2]] : [m.stmt[2], m.stmt[1]];
-        add({ op: "rw", at: where || "", b, path, m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp });
+        add({ op: "rw", at: where || "", b, path, m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) });
       }
-    }
-    for (const m of game.machines.filter(x => x.premises)) {
+    } else for (const m of game.machines.filter(x => x.premises)) {
       const n = m.premises.length;
       const rest = c.bench.map((_, i) => i).filter(i => i !== b);
       const picks = n === 1 ? [[]] : n === 2 ? rest.map(i => [i]) : [];
       for (const others of picks) add({ op: "rule", at: where || "", b, m: m.id, others }, { name: m.name, rule: m, others });
     }
-    // moves that fit anything (a → a+0) go last: they are always there and rarely the one you want
-    const loose = o => (o.from && isVar(o.from) && !o.hyp ? 1 : 0);
-    return out.sort((x, y) => loose(x) - loose(y));
+    return out.sort((x, y) => (x.loose ? 1 : 0) - (y.loose ? 1 : 0));
+  }
+  function paths(t, p = [], out = []) {
+    if (p.length) out.push(p);
+    kids(t).forEach((k, i) => paths(k, [...p, i], out));
+    return out;
+  }
+  /* where machine m does something on this workshop's bench: [{ b, path }] (path [] for a rule; loose fits left out) */
+  function fits(game, where, m) {
+    const c = ctxAt(game, where), out = [];
+    c.bench.forEach((blk, b) => {
+      for (const path of [[], ...paths(blk.s)]) if (options(game, where, b, path).some(o => o.step.m === m && !o.loose)) out.push({ b, path });
+    });
+    return out;
   }
 
   /* number of a ground-ish term under an assignment of its variables (tests use this to check every block is true) */
@@ -278,6 +307,6 @@
 
   root.MathcraftLogic = {
     Z, S, plus, V, eq, same, vars, at, put, subst, match, show, parse, term, machine, questMachine,
-    start, ctxAt, step, replay, count, options, value, holds,
+    start, ctxAt, step, replay, count, options, fits, paths, value, holds,
   };
 })(typeof window !== "undefined" ? window : globalThis);

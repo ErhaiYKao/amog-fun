@@ -110,7 +110,7 @@
     { id: "pal.all", tier: "thm", name: "Palinode", desc: "Find all five endings." },
     // Mathcraft
     { id: "mc.first", tier: "lemma", name: "Reflexive", desc: "Craft your first theorem in Mathcraft." },
-    { id: "mc.addition", tier: "prop", name: "Commutative Monoid", desc: "Craft all seven theorems about addition.", math: "$(\\N, +, 0)$ is a commutative monoid: associative, commutative, with identity $0$. All of it follows from two axioms and induction." },
+    { id: "mc.addition", tier: "prop", name: "Commutative Monoid", desc: "Craft every theorem about addition.", math: "$(\\N, +, 0)$ is a commutative monoid: associative, commutative, with identity $0$. All of it follows from two axioms and induction." },
     { id: "mc.par", tier: "thm", name: "Proof from the Book", desc: "Craft every theorem in no more steps than Amog." },
   ];
   const BY = Object.fromEntries(LIST.map(a => [a.id, a]));

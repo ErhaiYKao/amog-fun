@@ -21,7 +21,7 @@ test("every quest's reference proof replays to done, using only earlier quests",
   Q.QUESTS.forEach((q, i) => {
     const g = L.replay(q, Q.machinesFor(i, allDone(i)), q.proof);
     assert.ok(g.root.done, q.id);
-    assert.ok(Q.par(q) >= 2 && Q.par(q) <= 12, q.id + " par");
+    assert.ok(Q.par(q) >= 1 && Q.par(q) <= 12, q.id + " par");
     for (let k = 0; k < q.proof.length; k++) assert.ok(!L.replay(q, Q.machinesFor(i, allDone(i)), q.proof.slice(0, k)).root.done, q.id + " done early");
   });
 });
@@ -89,8 +89,41 @@ test("symmetry and transitivity work as rules once crafted", () => {
   assert.equal(L.show(g.root.bench[0].s), "0+0 = 0+0");
   assert.throws(() => L.step(g, { op: "rule", at: "", b: 0, m: "trans", others: [0] }));
   assert.equal(L.count(g.steps), 4, "dup is free");
-  assert.ok(L.options(g, "", 0, [1]).every(o => !(o.rule && o.rule.id === "sym")), "sym on t = t changes nothing, so it isn't offered");
-  assert.ok(L.options(g, "", 1, [1]).some(o => o.rule && o.rule.id === "sym"));
+  assert.ok(L.options(g, "", 0, []).every(o => o.rule && o.rule.id !== "sym"), "sym on t = t changes nothing, so it isn't offered");
+  assert.ok(L.options(g, "", 1, []).some(o => o.rule.id === "sym"), "rules are offered on the whole block");
+  assert.ok(L.options(g, "", 1, [1]).every(o => !o.rule), "and not on a part");
+  assert.deepEqual(L.fits(g, "", "sym"), [{ b: 1, path: [] }]);
+});
+
+test("make puts a machine's statement on the bench with its slots filled", () => {
+  const i = idx("comm"), g = fresh(i);
+  L.step(g, { op: "make", at: "", m: "zadd", fill: { a: "S(b)+a" } });
+  assert.equal(L.show(g.root.bench[0].s), "0+(S(b)+a) = S(b)+a");
+  L.step(g, { op: "make", at: "", m: "addS", fill: { a: "b", b: "a" } });       // simultaneous, not one after the other
+  assert.equal(L.show(g.root.bench[1].s), "b+S(a) = S(b+a)");
+  assert.throws(() => L.step(g, { op: "make", at: "", m: "addS", fill: { a: "b" } }), /give a term for b/);
+  assert.throws(() => L.step(g, { op: "make", at: "", m: "zadd", fill: { a: "z" } }), /no number called z/);
+  assert.throws(() => L.step(g, { op: "make", at: "", m: "sym", fill: {} }), /rule/);
+  assert.throws(() => L.step(g, { op: "make", at: "", m: "comm", fill: { a: "a", b: "b" } }), /don't have/);
+  L.step(g, { op: "induct", at: "", v: "b" });
+  assert.throws(() => L.step(g, { op: "make", at: "s", m: "h0", fill: {} }), /as it is/);
+  assert.equal(L.count(g.steps), 3);
+});
+
+test("fits finds where a machine does something, leaving out fits-anywhere moves", () => {
+  const g = fresh(idx("zz"));
+  L.step(g, { op: "refl", at: "", t: "0+0" });
+  assert.deepEqual(L.fits(g, "", "add0"), [{ b: 0, path: [0] }, { b: 0, path: [1] }]);
+  assert.deepEqual(L.fits(g, "", "addS"), []);
+  const o = L.options(g, "", 0, [1]);
+  assert.deepEqual(o.map(x => !!x.loose), [false, true]);
+});
+
+test("playground machines follow progress", () => {
+  const ids = d => Q.playMachines(new Set(d)).map(m => m.id);
+  assert.deepEqual(ids([]), ["add0", "addS"]);
+  assert.deepEqual(ids(["refl0", "zz", "sym"]), ["add0", "addS", "refl0", "zz", "sym"]);
+  assert.ok(ids(["refl0", "zz", "sym", "trans"]).includes("induct"));
 });
 
 test("random play only ever makes true statements", () => {
@@ -114,7 +147,7 @@ test("random play only ever makes true statements", () => {
           else {
             const b = rnd(c.bench.length);
             if (size(c.bench[b].s) > 40) { L.step(g, { op: "del", at, b }); continue; }
-            const ps = paths(c.bench[b].s), o = L.options(g, at, b, ps[rnd(ps.length)]);
+            const ps = [[], ...paths(c.bench[b].s)], o = L.options(g, at, b, ps[rnd(ps.length)]);
             if (o.length) L.step(g, o[rnd(o.length)].step);
           }
         } catch (e) { /* refused moves are fine; unsound ones are what we're hunting */ }

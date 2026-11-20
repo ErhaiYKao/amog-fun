@@ -1,7 +1,8 @@
 /* Mathcraft quests (#33): the axioms, the quest chain and Amog's reference proof of each quest.
  * Needs logic.js first. Pure (page and Node).
  *
- * A quest: { id, name, goal, given?, intro, hint, proof }. Finishing it adds its theorem to the library as a
+ * A quest: { id, name, goal, given?, intro, hint, proof, guide? } (guide: the page points at each next step of
+ * the reference proof while the player is still on it). Finishing it adds its theorem to the library as a
  * machine (an equality machine, or a rule if it has `given` premises); a quest may only use the axioms and the
  * quests before it (machinesFor), so nothing is ever circular. `proof` is a list of engine steps (see logic.js);
  * its length is the par shown to the player, and the tests replay it, so every quest is known to be provable.
@@ -22,20 +23,26 @@
 
   const QUESTS = [
     {
-      id: "zz", name: "Zero plus zero", goal: "0+0=0",
-      intro: "Every proof here starts from a block that is obviously true: <b>refl</b> makes $t = t$ for any term $t$. Then machines rewrite parts of it. Tap a part of a block to see which machines fit.",
+      id: "refl0", name: "Something from nothing", goal: "0=0", guide: true,
+      intro: "You own one machine so far: <b>refl</b>. Feed it any term $t$ and it makes the block $t = t$ out of thin air. That is already enough for a theorem, if not a deep one.",
+      hint: "Feed $0$ to refl.",
+      proof: [refl("", "0")],
+    },
+    {
+      id: "zz", name: "Zero plus zero", goal: "0+0=0", guide: true,
+      intro: "Two more machines, the axioms of addition. An equality machine rewrites a part of a block: wherever its left side fits it can put its right side, and the other way round. Start from a refl block, then tap a part of it to see which machines fit.",
       hint: "Make $0+0 = 0+0$, then tap the right-hand $0+0$ and let <i>Adding zero</i> turn it into $0$.",
       proof: [refl("", "0+0"), rw("", [1], "add0")],
     },
     {
-      id: "sym", name: "Symmetry", given: ["a=b"], goal: "b=a",
+      id: "sym", name: "Symmetry", given: ["a=b"], goal: "b=a", guide: true,
       intro: "This time you are <i>given</i> a fact: $a = b$, for two numbers you know nothing else about. A given fact is a machine too, but it only speaks about this $a$ and this $b$.",
       hint: "Start from $b = b$ and use the given fact backwards on one side.",
       proof: [refl("", "b"), rw("", [1], "h0", "rl")],
     },
     {
       id: "trans", name: "Transitivity", given: ["a=b", "b=c"], goal: "a=c",
-      intro: "Two given facts. Once this is crafted, <i>Symmetry</i> and <i>Transitivity</i> become rules: they act on whole blocks instead of parts.",
+      intro: "Two given facts. Once this is crafted, <i>Symmetry</i> and <i>Transitivity</i> are rules: they act on a whole block, so tap its $=$ sign to use them.",
       hint: "Start from $a = a$ and walk the right side along: $a$ to $b$, then $b$ to $c$.",
       proof: [refl("", "a"), rw("", [1], "h0"), rw("", [1], "h1")],
     },
@@ -78,7 +85,14 @@
     QUESTS.slice(0, i).forEach(q => { if (done.has(q.id)) ms.push(L.questMachine(q)); });
     return ms;
   }
+  /* machines for the playground: everything finished so far, and induction once its first quest is open */
+  function playMachines(done) {
+    const ms = AXIOMS.slice(), k = QUESTS.findIndex(q => q.induct);
+    if (k <= 0 || done.has(QUESTS[k - 1].id)) ms.push(INDUCT);
+    QUESTS.forEach(q => { if (done.has(q.id)) ms.push(L.questMachine(q)); });
+    return ms;
+  }
   const par = q => L.count(q.proof);
 
-  root.MathcraftQuests = { AXIOMS, INDUCT, QUESTS, machinesFor, par };
+  root.MathcraftQuests = { AXIOMS, INDUCT, QUESTS, machinesFor, playMachines, par };
 })(typeof window !== "undefined" ? window : globalThis);
