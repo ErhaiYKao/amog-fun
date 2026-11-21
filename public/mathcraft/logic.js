@@ -1,7 +1,8 @@
 /* Mathcraft proof engine (#33). Pure: no DOM, runs in the page and in Node.
  *
  * Terms are arrays. Numbers: ["0"], ["S", t], ["+", a, b], ["*", a, b], ["v", "a"] (lowercase letter).
- * Statements: ["=", l, r] between numbers, ["→", A, B] between statements, ["v", "P"] (capital letter).
+ * Statements: ["=", l, r] between numbers; ["→", A, B], ["∧", A, B], ["∨", A, B] between statements; ["⊥"] (false),
+ * ["⊤"] (true); ["v", "P"] (capital letter). "not A" is A → ⊥ and has no node of its own.
  * A path is a list of child indexes (0-based), so [1, 0] in an equation is the first child of the right side.
  *
  * A variable means two different things depending on where it sits:
@@ -12,7 +13,9 @@
  *
  * Machines: { id, name, stmt } states a theorem. If it is an equation it rewrites numbers in either direction on
  *             any subterm; any stmt can be put on the bench with its slots filled (`make`).
- *           { id, name, premises: [stmt], concl } is a rule: blocks matching the premises give the conclusion.
+ *           { id, name, premises: [stmt], concl } is a rule: blocks matching the premises, in order, are used up
+ *             and the conclusion takes the first one's place. A proved implication A → (B → C) becomes the rule
+ *             A, B gives C (questMachine), and keeps `stmt` so the implication itself can still be made as a block.
  *           { id: "induct" } and { id: "assume" } open workshops.
  *
  * A proof is a list of steps replayed by `replay`, each aimed at a workshop `at`: "" is the quest itself, "b" / "s"
@@ -24,7 +27,9 @@
  *   { op: "rw", at, b, path, m, dir, fill }   rewrite block b at path with equality m ("h0" = hypothesis 0),
  *                                             dir "lr" | "rl"; fill gives the slots that direction leaves open
  *                                             (0 → a·0 needs an a)
- *   { op: "rule", at, b, m, others }          apply rule m to block b (+ other blocks); b becomes the conclusion
+ *   { op: "rule", at, b, m, others, fill }    apply rule m to block b (+ other blocks, in premise order): they are
+ *                                             used up and the conclusion replaces b; fill gives slots of the
+ *                                             conclusion that the premises don't fix (⊥ gives P, for any P)
  *   { op: "induct", at, v }                   split the goal by induction on the number v: workshops for 0 and S(v)
  *   { op: "assume", at }                      for a goal A → B: a workshop that holds A and has goal B
  *   { op: "dup" | "del", at, b }              housekeeping, not counted as steps
@@ -41,7 +46,8 @@
   const isVar = t => t[0] === "v";
   const upper = n => n >= "A" && n <= "Z";
   /* statements (as opposed to numbers) */
-  const isForm = t => t[0] === "=" || t[0] === "→" || (isVar(t) && upper(t[1]));
+  const CONNECTIVES = "→∧∨";
+  const isForm = t => t[0] === "=" || CONNECTIVES.includes(t[0]) || t[0] === "⊥" || t[0] === "⊤" || (isVar(t) && upper(t[1]));
   const kids = t => (isVar(t) || t[0] === "0" ? [] : t.slice(1));
 
   function same(a, b) {
@@ -94,11 +100,15 @@
       case "*": return wrap(t[1], "+*") + "·" + wrap(t[2], "+*");
       case "=": return show(t[1]) + " = " + show(t[2]);
       case "→": return wrap(t[1], "→") + " → " + wrap(t[2], "→");
+      case "∧": return wrap(t[1], CONNECTIVES) + " ∧ " + wrap(t[2], CONNECTIVES);
+      case "∨": return wrap(t[1], CONNECTIVES) + " ∨ " + wrap(t[2], CONNECTIVES);
+      case "⊥": case "⊤": return t[0];
     }
     throw new Error("bad term");
   }
   function parse(src) {
-    const s = String(src).replace(/\s+/g, "").replace(/->|⇒|=>/g, "→").replace(/[·×]/g, "*");
+    const s = String(src).replace(/\band\b/gi, "∧").replace(/\bor\b/gi, "∨").replace(/\bnot\b/gi, "¬").replace(/\bfalse\b/gi, "⊥").replace(/\btrue\b/gi, "⊤")
+      .replace(/\s+/g, "").replace(/->|⇒|=>/g, "→").replace(/[·×]/g, "*").replace(/&+|\/\\/g, "∧").replace(/\|+|\\\//g, "∨").replace(/[~!]/g, "¬");
     let i = 0;
     const fail = msg => { throw new Error(msg); };
     const num = (t, what) => { if (isForm(t)) fail(what + " takes numbers, not statements"); return t; };
@@ -119,14 +129,22 @@
         let t = Z; for (let k = 0; k < n; k++) t = S(t);
         return t;
       }
+      if (c === "⊥" || c === "⊤") { i++; return [c]; }
+      if (c === "¬") { i++; const e = atom(); if (!isForm(e)) fail("not takes a statement"); return ["→", e, ["⊥"]]; }
       if (/[a-zA-Z]/.test(c)) { i++; return V(c); }
       fail("I can't read “" + c + "”");
     }
     function prod() { let t = atom(); while (s[i] === "*") { i++; t = ["*", num(t, "·"), num(atom(), "·")]; } return t; }
     function sum() { let t = prod(); while (s[i] === "+") { i++; t = plus(num(t, "+"), num(prod(), "+")); } return t; }
     function cmp() { const t = sum(); if (s[i] !== "=") return t; i++; return eq(num(t, "="), num(sum(), "=")); }
+    const join = (next, op, word) => function level() {
+      let t = next();
+      while (s[i] === op) { i++; const r = next(); if (!isForm(t) || !isForm(r)) fail(word + " joins statements, not numbers"); t = [op, t, r]; }
+      return t;
+    };
+    const conj = join(cmp, "∧", "and"), disj = join(conj, "∨", "or");
     function imp() {
-      const t = cmp();
+      const t = disj();
       if (s[i] !== "→") return t;
       i++;
       const r = imp();
@@ -146,8 +164,15 @@
     else m.stmt = term(def.stmt || def.concl);
     return m;
   }
-  /* the theorem a finished quest turns into */
-  const questMachine = q => machine({ id: q.id, name: q.name, premises: q.given || [], concl: q.goal });
+  /* The theorem a finished quest turns into. An implication becomes a rule that takes its hypotheses as blocks and
+     gives the consequent (so nothing has to go through modus ponens), and keeps the whole statement as `stmt`. */
+  function questMachine(q) {
+    const given = (q.given || []).map(term), goal = term(q.goal), premises = given.slice();
+    let concl = goal;
+    while (concl[0] === "→") { premises.push(concl[1]); concl = concl[2]; }
+    if (!premises.length) return { id: q.id, name: q.name, stmt: goal };
+    return { id: q.id, name: q.name, premises, concl, ...(given.length ? {} : { stmt: goal }) };
+  }
 
   /* ---------- workshops ---------- */
   const newCtx = (goal, hyps) => ({ goal, hyps, bench: [], kids: null, done: false });
@@ -185,6 +210,7 @@
     const m = game.machines.find(x => x.id === id);
     if (!m) throw new Error("you don't have that machine");
     if (!m.stmt) throw new Error(m.name + (m.premises ? " is a rule, not an equality" : " doesn't state anything"));
+    if (m.premises && m.stmt[0] === "=") throw new Error(m.name + " is a rule, not an equality");
     return { s: m.stmt, slots: true, dep: [], name: m.name };
   }
   /* ... as an equation { l, r, slots, dep } */
@@ -255,9 +281,12 @@
         let bind = {}, deps = [];
         idx.forEach((i, k) => { const b = block(i); bind = bind && match(m.premises[k], b.s, bind, true); deps = union(deps, b.deps); });
         if (!bind) throw new Error("those blocks don't fit " + m.name);
-        for (const v of vars(m.concl)) if (!(v in bind)) throw new Error("that rule needs a term for " + v);
-        const s = subst(m.concl, bind);
-        return () => { c.bench[st.b] = { s, deps }; };
+        for (const v of vars(m.concl)) if (!(v in bind)) {
+          if (!st.fill || st.fill[v] == null || st.fill[v] === "") throw new Error(m.name + " needs to be told what " + v + " is");
+          bind = { ...bind, [v]: supplied(game, v, st.fill[v]) };
+        }
+        const s = subst(m.concl, bind), used = idx.slice(1);
+        return () => { c.bench = c.bench.map((x, i) => (i === st.b ? { s, deps } : x)).filter((x, i) => !used.includes(i)); };
       }
       case "induct": {
         if (!have("induct")) throw new Error("you don't have the induction machine yet");
@@ -304,7 +333,10 @@
     const add = (st, info) => {
       let apply;
       try { apply = plan(game, st); } catch (e) { return; }
-      const keep = c.bench[b]; apply(); const result = c.bench[b].s; c.bench[b] = keep;
+      const before = c.bench;
+      c.bench = before.slice(); apply();
+      const result = c.bench[st.op === "rule" ? b - st.others.filter(o => o < b).length : b].s;
+      c.bench = before;
       const key = show(result);
       if (same(result, blk.s) || seen.has(key)) return;
       seen.add(key);
@@ -322,7 +354,7 @@
     } else for (const m of game.machines.filter(x => x.premises)) {
       const n = m.premises.length;
       const rest = c.bench.map((_, i) => i).filter(i => i !== b);
-      const picks = n === 1 ? [[]] : n === 2 ? rest.map(i => [i]) : [];
+      const picks = n === 1 ? [[]] : n === 2 ? rest.map(i => [i]) : n === 3 ? rest.flatMap(i => rest.filter(j => j !== i).map(j => [i, j])) : [];
       for (const others of picks) add({ op: "rule", at: where || "", b, m: m.id, others }, { name: m.name, rule: m, others });
     }
     return out.sort((x, y) => (x.loose ? 1 : 0) - (y.loose ? 1 : 0));
@@ -362,6 +394,10 @@
   function holds(s, env) {
     if (s[0] === "=") return value(s[1], env) === value(s[2], env);
     if (s[0] === "→") return !holds(s[1], env) || holds(s[2], env);
+    if (s[0] === "∧") return holds(s[1], env) && holds(s[2], env);
+    if (s[0] === "∨") return holds(s[1], env) || holds(s[2], env);
+    if (s[0] === "⊥") return false;
+    if (s[0] === "⊤") return true;
     if (isVar(s) && upper(s[1])) return !!env[s[1]];
     throw new Error("not a statement");
   }

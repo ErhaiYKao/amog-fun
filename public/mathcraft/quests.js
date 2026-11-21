@@ -8,8 +8,10 @@
  * is known to be provable. A quest opens when every quest in `after` is finished (default: the one before it in its
  * world), `needs` lists the shop machines its proof uses, and `guide` makes the page point at each next step.
  *
- * Worlds branch (Pope Amog's choice): addition is the trunk; propositions open after Transitivity and
- * multiplication after Associativity, each started by buying its machines.
+ * Worlds branch (Pope Amog's choice): addition is the trunk; implication opens after Transitivity, logic (and, or,
+ * false, true) after the third implication quest, multiplication after Associativity, each started by buying its
+ * machines. A world only sees machines from the worlds in SEES (logic sees implication, multiplication sees
+ * addition); bounties and the playground see everything.
  *
  * Economy: finishing a quest pays `pay` ∎ (tombstones), plus PAR_BONUS if the best proof is no longer than Amog's;
  * BOUNTIES are optional theorems that pay once. ∎ buys the SHOP: `gate` machines (axioms, Induction, Assume, Modus
@@ -23,24 +25,38 @@
   "use strict";
   const L = root.MathcraftLogic;
 
-  /* the machines the shop sells, in floor order */
+  /* the machines the shop sells, in floor order; `w` is the world each belongs to */
+  const thm = (id, name, goal) => L.questMachine({ id, name, goal });
   const GATES = [
-    L.machine({ id: "add0", name: "Adding zero", stmt: "a+0=a" }),
-    L.machine({ id: "addS", name: "Adding a successor", stmt: "a+S(b)=S(a+b)" }),
-    { id: "induct", name: "Induction" },
-    { id: "assume", name: "Assume" },
-    L.machine({ id: "mp", name: "Modus ponens", premises: ["P->Q", "P"], concl: "Q" }),
-    L.machine({ id: "mul0", name: "Times zero", stmt: "a*0=0" }),
-    L.machine({ id: "mulS", name: "Times a successor", stmt: "a*S(b)=a*b+a" }),
-  ];
-  const WORLDS = [["add", "Addition"], ["prop", "Propositions"], ["mul", "Multiplication"]];
+    ["add", L.machine({ id: "add0", name: "Adding zero", stmt: "a+0=a" })],
+    ["add", L.machine({ id: "addS", name: "Adding a successor", stmt: "a+S(b)=S(a+b)" })],
+    ["add", { id: "induct", name: "Induction" }],
+    ["prop", { id: "assume", name: "Assume" }],
+    ["prop", L.machine({ id: "mp", name: "Modus ponens", premises: ["P->Q", "P"], concl: "Q" })],
+    ["logic", thm("andI", "And: make", "P->(Q->P&Q)")],
+    ["logic", thm("andL", "And: left", "P&Q->P")],
+    ["logic", thm("andR", "And: right", "P&Q->Q")],
+    ["logic", thm("orL", "Or: from the left", "P->P|Q")],
+    ["logic", thm("orR", "Or: from the right", "Q->P|Q")],
+    ["logic", thm("orE", "Or: by cases", "(P->R)->((Q->R)->(P|Q->R))")],
+    ["logic", thm("top", "True", "P->true")],
+    ["logic", thm("efq", "From false, anything", "false->P")],
+    ["mul", L.machine({ id: "mul0", name: "Times zero", stmt: "a*0=0" })],
+    ["mul", L.machine({ id: "mulS", name: "Times a successor", stmt: "a*S(b)=a*b+a" })],
+  ].map(([w, m]) => ({ ...m, w }));
+  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["logic", "Logic"], ["mul", "Multiplication"]];
+  const SEES = { add: ["add"], prop: ["prop"], logic: ["prop", "logic"], mul: ["add", "mul"] };
+  /* does a quest in `world` see things from world w? (no world = bounties and the playground: everything) */
+  const sees = (world, w) => !world || SEES[world].includes(w);
 
   const rw = (at, path, m, dir = "lr", fill) => ({ op: "rw", at, b: 0, path, m, dir, ...(fill ? { fill } : {}) });
   const refl = (at, t) => ({ op: "refl", at, t });
   const induct = v => ({ op: "induct", at: "", v });
   const assume = at => ({ op: "assume", at });
   const hyp = (at, i) => ({ op: "hyp", at, i });
-  const mp = (at, b, other) => ({ op: "rule", at, b, m: "mp", others: [other] });
+  const rule = (at, b, m, others = [], fill) => ({ op: "rule", at, b, m, others, ...(fill ? { fill } : {}) });
+  const mp = (at, b, other) => rule(at, b, "mp", [other]);
+  const make = (at, m, fill) => ({ op: "make", at, m, fill });
 
   const QUESTS = [
     {
@@ -113,7 +129,7 @@
     },
     {
       id: "pmp", world: "prop", name: "Using an implication", pay: 3, needs: ["mp"], goal: "P->((P->Q)->Q)",
-      intro: "Holding $P \\to Q$ and $P$ should give $Q$. That is a machine to buy: <b>Modus ponens</b>, a rule. Feed it the implication first, then the block that matches its left side.",
+      intro: "Holding $P \\to Q$ and $P$ should give $Q$. That is a machine to buy: <b>Modus ponens</b>, a rule. Feed it the implication first, then the block that matches its left side; it uses up both. Every implication you craft from now on becomes a rule of its own: it takes its hypotheses as blocks and gives what they imply.",
       hint: "Assume twice, put both assumptions on the bench, then open Modus ponens and tap the $\\to$ of $P \\to Q$, then $P$.",
       proof: [assume(""), assume("a"), hyp("aa", 1), hyp("aa", 0), mp("aa", 0, 1)],
     },
@@ -121,19 +137,69 @@
       id: "pchain", world: "prop", name: "Chain", pay: 4, goal: "(P->Q)->((Q->R)->(P->R))",
       intro: "Implications compose, like transitivity for $=$.",
       hint: "Assume three times. Get $Q$ from $P \\to Q$ and $P$, then $R$ from $Q \\to R$ and $Q$.",
-      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 2, 0)],
+      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 1, 0)],
     },
     {
       id: "pswap", world: "prop", name: "Swapping assumptions", pay: 4, goal: "(P->(Q->R))->(Q->(P->R))",
       intro: "The order in which you assume things does not matter.",
       hint: "Assume three times. Modus ponens twice: first with $P$, then with $Q$.",
-      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 0, 2)],
+      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 0, 1)],
     },
     {
       id: "pdist", world: "prop", name: "Distributing an assumption", pay: 5, goal: "(P->(Q->R))->((P->Q)->(P->R))",
-      intro: "The last one for implication: $P$ gets used twice.",
+      intro: "The last one for implication: $P$ gets used twice, and a rule uses up what it is fed, so it has to go on the bench twice.",
       hint: "Assume three times. Use $P$ on both implications, then combine what comes out.",
-      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 2, 1), mp("aaa", 0, 2)],
+      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), hyp("aaa", 2), mp("aaa", 1, 2), mp("aaa", 0, 1)],
+    },
+
+    /* ---- logic: and, or, false, true; "not P" is P → ⊥ ---- */
+    {
+      id: "la", world: "logic", after: ["pmp"], name: "And commutes", pay: 3, needs: ["andI", "andL", "andR"], goal: "P&Q->Q&P",
+      intro: "$P \\land Q$ is a block that holds both. Three machines to buy: one builds it from $P$ and $Q$, two take it apart. Each uses up what it is fed, so to get both halves, put the block on the bench twice.",
+      hint: "Assume, put the assumption on the bench twice, take $Q$ from one copy and $P$ from the other, then build $Q \\land P$.",
+      proof: [assume(""), hyp("a", 0), hyp("a", 0), rule("a", 0, "andR"), rule("a", 1, "andL"), rule("a", 0, "andI", [1])],
+    },
+    {
+      id: "lc", world: "logic", name: "Currying", pay: 3, goal: "(P&Q->R)->(P->(Q->R))",
+      intro: "A machine that wants $P \\land Q$ can be fed $P$ and $Q$ one at a time.",
+      hint: "Assume three times. Build $P \\land Q$, then modus ponens.",
+      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 1), hyp("aaa", 2), rule("aaa", 0, "andI", [1]), hyp("aaa", 0), mp("aaa", 1, 0)],
+    },
+    {
+      id: "lu", world: "logic", name: "Uncurrying", pay: 4, goal: "(P->(Q->R))->(P&Q->R)",
+      intro: "And the other way round.",
+      hint: "Assume twice. Take $P \\land Q$ apart (you need it twice), then modus ponens twice.",
+      proof: [assume(""), assume("a"), hyp("aa", 1), hyp("aa", 1), rule("aa", 0, "andL"), rule("aa", 1, "andR"), hyp("aa", 0), mp("aa", 2, 0), mp("aa", 1, 0)],
+    },
+    {
+      id: "lo", world: "logic", name: "Or commutes", pay: 4, needs: ["orL", "orR", "orE"], goal: "P|Q->Q|P",
+      intro: "$P \\lor Q$ holds one of the two, without saying which. Two machines make it. To use it, <i>Or: by cases</i> wants a way out of each case: the blocks $P \\to R$ and $Q \\to R$. A machine that came from an implication can still stamp that implication as a block, with its slots filled in.",
+      hint: "Stamp $P \\to Q \\lor P$ from <i>Or: from the right</i> and $Q \\to Q \\lor P$ from <i>Or: from the left</i> (swap the letters in their slots), put the assumption on the bench, and feed all three to <i>Or: by cases</i>.",
+      proof: [assume(""), make("a", "orR", { P: "Q", Q: "P" }), make("a", "orL", { P: "Q", Q: "P" }), hyp("a", 0), rule("a", 0, "orE", [1, 2])],
+    },
+    {
+      id: "lt", world: "logic", name: "True can be dropped", pay: 2, needs: ["top"], goal: "(true->P)->P",
+      intro: "$\\top$ is the statement that is simply true. Its machine turns any block into $\\top$.",
+      hint: "Assume. Turn one copy of the assumption into $\\top$, then feed it to another copy.",
+      proof: [assume(""), hyp("a", 0), rule("a", 0, "top"), hyp("a", 0), mp("a", 1, 0)],
+    },
+    {
+      id: "ln", world: "logic", name: "Double negation", pay: 3, goal: "P->((P->false)->false)",
+      intro: "$\\bot$ is the statement that is simply false, and \"not $P$\" is written $P \\to \\bot$: assuming $P$ leads to falsehood. No new machine is needed for this one.",
+      hint: "Assume twice. You hold $P$ and $P \\to \\bot$.",
+      proof: [assume(""), assume("a"), hyp("aa", 1), hyp("aa", 0), mp("aa", 0, 1)],
+    },
+    {
+      id: "lk", world: "logic", name: "Contrapositive", pay: 4, goal: "(P->Q)->((Q->false)->(P->false))",
+      intro: "If $P$ implies $Q$, then not $Q$ implies not $P$. If you crafted <i>Chain</i>, it is a rule now, and it can beat Amog's step count here.",
+      hint: "Assume three times: you hold $P \\to Q$, $Q \\to \\bot$ and $P$.",
+      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 1, 0)],
+    },
+    {
+      id: "le", world: "logic", name: "Explosion", pay: 3, needs: ["efq"], goal: "P->((P->false)->Q)",
+      intro: "From a contradiction, anything follows. The last machine: it turns $\\bot$ into whatever statement you name.",
+      hint: "Assume twice, get $\\bot$, then feed it to <i>From false, anything</i> and tell it you want $Q$.",
+      proof: [assume(""), assume("a"), hyp("aa", 1), hyp("aa", 0), mp("aa", 0, 1), rule("aa", 0, "efq", [], { P: "Q" })],
     },
 
     /* ---- multiplication: two more axioms, on top of all of addition ---- */
@@ -200,6 +266,14 @@
     { id: "induct", gate: true, price: 3, after: ["trans"] },
     { id: "assume", gate: true, price: 3, after: ["trans"] },
     { id: "mp", gate: true, price: 3, after: ["pk"] },
+    { id: "andI", gate: true, price: 2, after: ["pmp"] },
+    { id: "andL", gate: true, price: 1, after: ["pmp"] },
+    { id: "andR", gate: true, price: 1, after: ["pmp"] },
+    { id: "orL", gate: true, price: 1, after: ["lu"] },
+    { id: "orR", gate: true, price: 1, after: ["lu"] },
+    { id: "orE", gate: true, price: 3, after: ["lu"] },
+    { id: "top", gate: true, price: 1, after: ["lo"] },
+    { id: "efq", gate: true, price: 2, after: ["lk"] },
     { id: "mul0", gate: true, price: 2, after: ["assoc"] },
     { id: "mulS", gate: true, price: 3, after: ["assoc"] },
     { id: "autofill", name: "Autofill", price: 2, text: "refl offers the two sides of the goal, and Induction offers the letters, so you type less." },
@@ -265,15 +339,17 @@
     return "";
   }
 
-  const mine = owned => GATES.filter(m => !owned || owned.has(m.id));
-  /* machines quest number i may use: the shop machines owned, and the finished quests listed before it */
+  const mine = (owned, world) => GATES.filter(m => (!owned || owned.has(m.id)) && sees(world, m.w));
+  /* machines quest number i may use: the shop machines owned and the finished quests listed before it, from the
+     worlds its world sees */
   function machinesFor(i, done, owned) {
-    return [...mine(owned), ...QUESTS.slice(0, i).filter(q => done.has(q.id)).map(L.questMachine)];
+    const w = QUESTS[i].world;
+    return [...mine(owned, w), ...QUESTS.slice(0, i).filter(q => done.has(q.id) && sees(w, q.world)).map(L.questMachine)];
   }
   /* machines for bounties and the playground: the shop machines owned and every finished quest */
   function playMachines(done, owned) {
     return [...mine(owned), ...QUESTS.filter(q => done.has(q.id)).map(L.questMachine)];
   }
 
-  root.MathcraftQuests = { GATES, WORLDS, QUESTS, BOUNTIES, SHOP, PAR_BONUS, gate, machinesFor, playMachines, par, price, isOpen, onSale, missing, earned, balance, canBuy };
+  root.MathcraftQuests = { GATES, WORLDS, SEES, sees, QUESTS, BOUNTIES, SHOP, PAR_BONUS, gate, machinesFor, playMachines, par, price, isOpen, onSale, missing, earned, balance, canBuy };
 })(typeof window !== "undefined" ? window : globalThis);

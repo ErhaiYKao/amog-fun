@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=4"></script>
-<script src="/mathcraft/quests.js?v=4"></script>
+<script src="/mathcraft/logic.js?v=5"></script>
+<script src="/mathcraft/quests.js?v=5"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -112,6 +112,8 @@
 
   /* the machine floor */
   .floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+  #floor .sub { font-family: var(--mono); font-size: 11px; color: var(--faint); margin: 12px 0 6px; }
+  #floor .label + .sub { margin-top: 0; }
   .card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px 8px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; color: var(--ink); cursor: pointer; text-align: center; transition: transform .12s, border-color .12s; }
   .card:hover { transform: translateY(-2px); border-color: var(--muted); }
   .card.on { border-color: var(--g3); box-shadow: 0 0 0 1px var(--g3); }
@@ -247,11 +249,13 @@
     else if (t[0] === "+") inner = kid(0, "+") + " + " + kid(1, "+");
     else if (t[0] === "*") inner = kid(0, "+*") + "·" + kid(1, "+*");
     else if (t[0] === "=") inner = kid(0, "") + sign("=") + kid(1, "");
-    else inner = kid(0, "→") + sign("→") + kid(1, "→");
+    else if (t[0] === "→") inner = kid(0, "→") + sign("→") + kid(1, "→");
+    else if (t[0] === "∧" || t[0] === "∨") inner = kid(0, "→∧∨") + sign(t[0]) + kid(1, "→∧∨");
+    else inner = t[0];                                                   // ⊥, ⊤
     if (paren) inner = "(" + inner + ")";
     if (o.hi === p && !top) inner = "<mark>" + inner + "</mark>";
     if (!o.live) return inner;
-    if (top) return t[0] === "v" ? `<span class="${cls("")}" data-p="">${inner}</span>` : inner;
+    if (top) return t.length < 3 && t[0] !== "S" ? `<span class="${cls("")}" data-p="">${inner}</span>` : inner;
     return `<span class="${cls(p)}" data-p="${p}">${inner}</span>`;
   }
   const st = (t, o, cls = "") => `<span class="st ${cls}">${tHtml(t, o)}</span>`;
@@ -295,7 +299,7 @@
     hyp: "A fact about these particular numbers. It rewrites a part of a block, but only where the block says exactly the same thing.",
     held: "A fact you hold in this workshop. It is about these particular statements, so it has no slots.",
     assume: "For a goal of the form <i>A</i> → <i>B</i>. It opens a workshop where <i>A</i> is a fact you hold, and the goal is <i>B</i>.",
-    rule: "A rule. It takes whole blocks that match what is left of “gives”, and turns the first one into what is right of it.",
+    rule: "A rule. It takes whole blocks that match what is left of “gives”, uses them up, and puts what is right of it in their place.",
     fact: "A statement you have proved, with slots. Fill them in and it puts the block on the bench.",
   };
 
@@ -341,9 +345,9 @@
     try { L.step(game, step); msg = ""; } catch (e) { msg = e.message; draw(); return false; }
     const at0 = where;
     if (step.op === "induct" || step.op === "assume") { where = step.at + (step.op === "induct" ? "b" : "a"); sel = null; openM = null; }
-    else if (step.op === "rule") sel = sel && { b: step.b, path: [] };
+    else if (step.op === "rule") sel = null;
     else if (step.op !== "rw") sel = null;
-    flash = step.op === "rw" || step.op === "rule" ? step.b : ["refl", "hyp", "make", "stamp"].includes(step.op) ? L.ctxAt(game, step.at).bench.length - 1 : step.op === "dup" ? step.b + 1 : -1;
+    flash = step.op === "rule" ? step.b - step.others.filter(o => o < step.b).length : step.op === "rw" ? step.b : ["refl", "hyp", "make", "stamp"].includes(step.op) ? L.ctxAt(game, step.at).bench.length - 1 : step.op === "dup" ? step.b + 1 : -1;
     if (step.op === "refl") typed = "";
     settle(wasDone);
     if (where !== at0) { flash = -1; if (/^h/.test(openM || "")) openM = null; }
@@ -439,6 +443,8 @@
   }
   /* slots the open machine's current direction can't work out from the part it is fed (0 → a·0 needs an a) */
   const openSlots = m => { const [from, to] = dir === "lr" ? [m.stmt[1], m.stmt[2]] : [m.stmt[2], m.stmt[1]]; return [...L.vars(to)].filter(v => !L.vars(from).has(v)).sort(); };
+  /* slots of a rule's conclusion that its premises don't fix (⊥ gives P: which P?) */
+  const ruleSlots = m => { const seen = new Set(); m.premises.forEach(p => L.vars(p, seen)); return [...L.vars(m.concl)].filter(v => !seen.has(v)).sort(); };
   function keypad(names) {
     const times = game.machines.some(m => m.id === "mul0" || m.id === "mulS") ? ["·"] : [];
     return `<div class="keys">` + ["0", "S(", ")", "+", ...times, ...names.filter(v => !L.upper(v)), "⌫"].map(k => `<button data-key="${k}" aria-label="${k === "⌫" ? "delete" : k}">${k}</button>`).join("") + `</div>`;
@@ -447,7 +453,7 @@
     put($("quest"), `<p class="label">Playground</p><h2>Your own conjecture</h2>
       <p>Type a statement you think is always true: an equation between numbers, or capital letters joined by → (type -&gt;). You get a workshop for it, with every machine you have. If you can craft it, it becomes a machine for the lemmas you add after it: that is how a long proof gets split into steps.</p>
       <div class="row hint"><input class="term" id="conj" placeholder="a+(b+c) = b+(a+c)" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="your conjecture"><button class="mini" data-do="add">open a workshop</button></div>
-      <p class="meta">Small letters are numbers, capitals are statements, S(a) is the number after a, a*b is a·b, and 2 is short for S(S(0)). Your own lemmas pay no ∎ (0 = 0, 1 = 1, … would print money) and stay out of the quests. The bounties above do pay.</p>
+      <p class="meta">Small letters are numbers, capitals are statements, S(a) is the number after a, a*b is a·b, and 2 is short for S(S(0)). Statements also take and, or, not, false and true (not P is P → ⊥). Your own lemmas pay no ∎ (0 = 0, 1 = 1, … would print money) and stay out of the quests. The bounties above do pay.</p>
       <p class="msg">${esc(msg)}</p>`);
   }
   function drawQuest() {
@@ -520,7 +526,7 @@
   let shown = [];
   function optHtml(o, i) {
     const name = o.hyp ? hypName(+o.step.m.slice(1)) : o.name;
-    const how = o.rule ? (o.others.length ? `<span class="meta">with block ${o.others[0] + 1}</span>` : "") : arrow(o.from, o.to, { slot: !o.hyp });
+    const how = o.rule ? (o.others.length ? `<span class="meta">with block ${o.others.map(i => i + 1).join(" and ")}</span>` : "") : arrow(o.from, o.to, { slot: !o.hyp });
     return `<button class="opt ${o.hyp ? "hyp" : ""}" data-opt="${i}"><span class="top"><span class="name">${esc(name)}</span>${how}</span>
       <span class="st res">${tHtml(o.result, { hi: o.rule ? null : pstr(sel.path) })}</span></button>`;
   }
@@ -543,8 +549,8 @@
       h = sel && up("scanner") ? scanHtml() : `<p class="label">Machine</p><p class="empty">No machine is open. Pick one from the floor${up("scanner") ? ", or tap a part of a block to scan for what fits" : ""}.</p>`;
     } else {
       const c = L.ctxAt(game, where), names = [...game.names];
-      const stmt = m.stmt ? `<div class="scroll">${st(m.stmt, { slot: !m.hyp }, "small")}</div>`
-        : m.premises ? `<div class="scroll"><span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span></div>`
+      const stmt = m.premises ? `<div class="scroll"><span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span></div>`
+        : m.stmt ? `<div class="scroll">${st(m.stmt, { slot: !m.hyp }, "small")}</div>`
         : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop" }[m.kind]}</div>`;
       h = `<div class="mhead">${icon(m.kind, 60)}<div><h3>${esc(m.name)}</h3>${stmt}</div><button class="x" data-do="close" title="close">✕</button></div>`;
       if (m.locked) {
@@ -569,8 +575,13 @@
           `<label>${v}</label><input class="term" data-slot="${v}" value="${esc(fillVals[v] != null ? fillVals[v] : game.names.has(v) ? v : "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="what to put for ${v}">`).join("") + `<button class="mini tiny" data-mk="${m.id}">make the block</button></div>`;
       } else if (m.kind === "rule") {
         const n = m.premises.length;
-        h += `<p class="what">Takes ${n === 1 ? "a whole block" : n + " whole blocks, in order"}. Tap ${n === 1 ? "a block" : "each block"} on the bench (its = or → sign stands for all of it).</p>` +
-          (picked.length ? `<p class="meta">block ${picked.map(i => i + 1).join(", ")} is in; ${n - picked.length} to go</p>` : "");
+        const open = ruleSlots(m);
+        h += `<p class="what">Takes ${n === 1 ? "a whole block" : n + " whole blocks, in this order"}, and uses ${n === 1 ? "it" : "them"} up. Tap ${n === 1 ? "a block" : "each block"} on the bench.</p>`;
+        if (open.length) h += `<div class="form"><span class="meta">tell it</span>` + open.map(v =>
+          `<label>${v} =</label><input class="term" data-need="${v}" value="${esc(needVals[v] || "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="what ${v} is">`).join("") + `</div>`;
+        if (picked.length) h += `<p class="meta">block ${picked.map(i => i + 1).join(", ")} is in; ${n - picked.length} to go</p>`;
+        if (m.stmt) h += `<div class="form"><span class="meta">or stamp ${st(m.stmt, { slot: true }, "small")} with</span>` + [...L.vars(m.stmt)].sort().map(v =>
+          `<label>${v}</label><input class="term" data-slot="${v}" value="${esc(fillVals[v] != null ? fillVals[v] : game.names.has(v) ? v : "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="what to put for ${v}">`).join("") + `<button class="mini tiny" data-mk="${m.id}">make the block</button></div>`;
       } else {
         const o = { slot: !m.hyp };
         h += `<p class="what">${BLURB[m.kind]}</p><div class="lever"><span class="meta" style="align-self:center">lever</span>
@@ -590,11 +601,16 @@
     put(el, h + `<p class="msg">${esc(msg)}</p>`);
   }
   function drawFloor() {
-    const ids = ["refl", ...GATES.filter(id => up(id) || Q.onSale(id, save.done)), ...game.machines.map(m => m.id).filter(id => !GATES.includes(id))];
-    put($("floor"), `<p class="label">Machine floor</p><div class="floor">` + ids.map(id => {
+    const world = item.world, quests = new Set(Q.QUESTS.map(q => q.id)), mine = game.machines.map(m => m.id);
+    const numbers = !world || Q.sees(world, "add");                      // refl makes equations: no use among pure statements
+    const card = id => {
       const m = mach(id);
-      return `<button class="card ${m.locked ? "locked" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${m.stmt ? esc(L.show(m.stmt)) : ""}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">∎${Q.price(id)}</span>` : ""}</button>`;
-    }).join("") + `</div>`);
+      return `<button class="card ${m.locked ? "locked" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${esc(m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : m.stmt ? L.show(m.stmt) : "")}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">∎${Q.price(id)}</span>` : ""}</button>`;
+    };
+    const group = (title, ids) => (ids.length ? `<p class="sub">${title}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
+    const axioms = [...(numbers ? ["refl"] : []), ...GATES.filter(id => (up(id) || Q.onSale(id, save.done)) && Q.sees(world, Q.gate(id).w))];
+    put($("floor"), `<p class="label">Machine floor${world ? " · " + Q.WORLDS.find(w => w[0] === world)[1].toLowerCase() : ""}</p>` +
+      group("axioms", axioms) + group("theorems", mine.filter(id => quests.has(id))) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))));
   }
   function drawStore() {
     put($("store"), `<p class="label">Upgrades</p><ul class="ups">` + Q.SHOP.filter(x => !x.gate).map(x => {
@@ -701,7 +717,8 @@
       if (!picked.includes(pick.b)) picked.push(pick.b);
       if (picked.length < m.premises.length) { msg = ""; return draw(); }
       const p = picked; picked = [];
-      act({ op: "rule", at: where, b: p[0], m: openM, others: p.slice(1) });
+      const need = ruleSlots(m);
+      act({ op: "rule", at: where, b: p[0], m: openM, others: p.slice(1), ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, needVals[v] || ""])) } : {}) });
       return;
     }
     if (up("scanner")) { openM = null; sel = pick; msg = ""; more = false; return draw(); }

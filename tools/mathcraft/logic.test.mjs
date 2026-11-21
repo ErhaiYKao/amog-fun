@@ -10,6 +10,8 @@ const allDone = i => new Set(Q.QUESTS.slice(0, i).map(q => q.id));
 const fresh = i => L.start(Q.QUESTS[i], Q.machinesFor(i, allDone(i)));
 const idx = id => Q.QUESTS.findIndex(q => q.id === id);
 const rw = (g, path, m, dir = "lr", at = "", b = 0) => L.step(g, { op: "rw", at, b, path, m, dir });
+const everything = () => Q.playMachines(allDone(Q.QUESTS.length));
+const bench = (g, at = "") => L.ctxAt(g, at).bench.map(b => L.show(b.s));
 
 test("parse and show round-trip", () => {
   for (const s of ["0", "S(0)", "a+b", "(a+b)+c", "a+(b+c)", "S(a+S(b))+0", "(a+b)+c = a+(b+c)", "a·b+c", "a·(b+c)", "(a·b)·c", "a·(b·c)", "(a+b)·c = a·c+b·c",
@@ -79,7 +81,7 @@ test("induction is refused where it would be unsound", () => {
   L.step(g, { op: "induct", at: "b", v: "a" });
   assert.equal(L.show(L.ctxAt(g, "bs").goal), "S(a)+0 = 0+S(a)");
   assert.equal(L.show(L.ctxAt(g, "bs").hyps[0]), "a+0 = 0+a");
-  assert.throws(() => L.step(fresh(idx("pid")), { op: "induct", at: "", v: "P" }), /small letter/);
+  assert.throws(() => L.step(L.start({ goal: "P->P" }, everything()), { op: "induct", at: "", v: "P" }), /small letter/);
 });
 
 test("other refusals", () => {
@@ -102,14 +104,15 @@ test("symmetry and transitivity work as rules once crafted", () => {
   L.step(g, { op: "dup", at: "", b: 0 });
   L.step(g, { op: "rule", at: "", b: 1, m: "sym" });                             // 0 = 0+0
   assert.equal(L.show(g.root.bench[1].s), "0 = 0+0");
-  L.step(g, { op: "rule", at: "", b: 0, m: "trans", others: [1] });              // 0+0 = 0+0
-  assert.equal(L.show(g.root.bench[0].s), "0+0 = 0+0");
+  L.step(g, { op: "rule", at: "", b: 0, m: "trans", others: [1] });              // 0+0 = 0+0, and both inputs are used up
+  assert.deepEqual(bench(g), ["0+0 = 0+0"]);
   assert.throws(() => L.step(g, { op: "rule", at: "", b: 0, m: "trans", others: [0] }));
   assert.equal(L.count(g.steps), 4, "dup is free");
-  assert.ok(L.options(g, "", 0, []).every(o => o.rule && o.rule.id !== "sym"), "sym on t = t changes nothing, so it isn't offered");
-  assert.ok(L.options(g, "", 1, []).some(o => o.rule.id === "sym"), "rules are offered on the whole block");
-  assert.ok(L.options(g, "", 1, [1]).every(o => !o.rule), "and not on a part");
-  assert.deepEqual(L.fits(g, "", "sym"), [{ b: 1, path: [] }]);
+  assert.ok(L.options(g, "", 0, []).every(o => o.rule.id !== "sym"), "sym on t = t changes nothing, so it isn't offered");
+  rw(g, [1], "add0");
+  assert.ok(L.options(g, "", 0, []).some(o => o.rule.id === "sym"), "rules are offered on the whole block");
+  assert.ok(L.options(g, "", 0, [1]).every(o => !o.rule), "and not on a part");
+  assert.deepEqual(L.fits(g, "", "sym"), [{ b: 0, path: [] }]);
 });
 
 test("make puts a machine's statement on the bench with its slots filled", () => {
@@ -152,7 +155,8 @@ test("propositions: Assume, Modus ponens and their limits", () => {
   const all = allDone(Q.QUESTS.length);
   const g = L.start({ goal: "(P->Q)->(P->Q)" }, Q.playMachines(all));
   assert.throws(() => L.step(L.start({ goal: "P->P" }, Q.playMachines(all, new Set(["add0"]))), { op: "assume", at: "" }), /don't have/);
-  assert.throws(() => L.step(fresh(idx("comm")), { op: "assume", at: "" }), /A → B/);
+  assert.throws(() => L.step(L.start({ goal: "a+b=b+a" }, everything()), { op: "assume", at: "" }), /A → B/);
+  assert.throws(() => L.step(fresh(idx("comm")), { op: "assume", at: "" }), /don't have/, "addition doesn't see Assume");
   L.step(g, { op: "assume", at: "" });
   assert.throws(() => L.step(g, { op: "assume", at: "" }), /already split/);
   assert.equal(L.show(L.ctxAt(g, "a").goal), "P → Q");
@@ -167,8 +171,8 @@ test("propositions: Assume, Modus ponens and their limits", () => {
   assert.throws(() => L.step(g, { op: "rw", at: "aa", b: 1, path: [0], m: "add0", dir: "rl" }), /rewrite numbers/);
   assert.deepEqual(L.options(g, "aa", 1, [0]), []);
   L.step(g, { op: "rule", at: "aa", b: 1, m: "mp", others: [0] });
-  assert.equal(L.show(L.ctxAt(g, "aa").bench[1].s), "Q");
-  assert.deepEqual(L.ctxAt(g, "aa").bench[1].deps, [0, 1]);
+  assert.deepEqual(bench(g, "aa"), ["Q"], "modus ponens uses up both inputs");
+  assert.deepEqual(L.ctxAt(g, "aa").bench[0].deps, [0, 1]);
   assert.ok(g.root.done);
   // a block from inside a workshop never reaches the outer bench
   assert.deepEqual(g.root.bench, []);
@@ -181,6 +185,66 @@ test("propositions: Assume, Modus ponens and their limits", () => {
   // equalities still rewrite numbers inside a statement
   L.step(h, { op: "rw", at: "", b: 0, path: [0, 0], m: "comm", dir: "lr" });
   assert.equal(L.show(h.root.bench[0].s), "b+a = b+a → (a = a → a+b = b+a)");
+});
+
+test("a proved implication is a rule: hypotheses in, consequent out", () => {
+  const show = m => (m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : L.show(m.stmt));
+  const by = id => Q.playMachines(allDone(Q.QUESTS.length)).find(m => m.id === id);
+  assert.equal(show(by("pchain")), "P → Q, Q → R, P gives R");
+  assert.equal(show(by("pk")), "P, Q gives P");
+  assert.equal(show(by("sym")), "a = b gives b = a");
+  assert.equal(show(by("comm")), "a+b = b+a", "equations stay equality machines");
+  assert.equal(L.show(by("pchain").stmt), "(P → Q) → ((Q → R) → (P → R))", "and the implication can still be stamped whole");
+  assert.equal(by("sym").stmt, undefined);
+  // contrapositive in one rule application instead of two rounds of modus ponens
+  const g = L.start({ goal: "(P->Q)->((Q->false)->(P->false))" }, everything());
+  for (const at of ["", "a", "aa"]) L.step(g, { op: "assume", at });
+  for (const i of [0, 1, 2]) L.step(g, { op: "hyp", at: "aaa", i });
+  assert.equal(L.options(g, "aaa", 0, []).filter(o => o.rule.id === "pchain").length, 1, "three-block rules are offered too");
+  L.step(g, { op: "rule", at: "aaa", b: 0, m: "pchain", others: [1, 2] });
+  assert.deepEqual(bench(g, "aaa"), ["⊥"]);
+  assert.ok(g.root.done);
+  assert.ok(L.count(g.steps) < Q.par(Q.QUESTS[idx("lk")]), "which beats the reference proof");
+});
+
+test("and, or, false, true", () => {
+  const g = L.start({ goal: "P&Q->(Q|R)&P" }, everything());
+  L.step(g, { op: "assume", at: "" });
+  L.step(g, { op: "hyp", at: "a", i: 0 });
+  L.step(g, { op: "hyp", at: "a", i: 0 });
+  L.step(g, { op: "rule", at: "a", b: 0, m: "andR" });                           // Q, P ∧ Q
+  assert.throws(() => L.step(g, { op: "rule", at: "a", b: 0, m: "orL" }), /told what Q is/);
+  assert.throws(() => L.step(g, { op: "rule", at: "a", b: 0, m: "orL", fill: { Q: "a" } }), /nothing called a|stands for a statement/);
+  L.step(g, { op: "rule", at: "a", b: 0, m: "orL", fill: { Q: "R" } });          // Q ∨ R, P ∧ Q
+  L.step(g, { op: "rule", at: "a", b: 1, m: "andL" });                           // Q ∨ R, P
+  assert.throws(() => L.step(g, { op: "rule", at: "a", b: 0, m: "andL" }), /don't fit/);
+  L.step(g, { op: "rule", at: "a", b: 0, m: "andI", others: [1] });
+  assert.deepEqual(bench(g, "a"), ["(Q ∨ R) ∧ P"]);
+  assert.ok(g.root.done);
+  // ⊥ gives anything you name, but only from an actual ⊥
+  const h = L.start({ goal: "false->(P->Q)" }, everything());
+  L.step(h, { op: "assume", at: "" });
+  L.step(h, { op: "hyp", at: "a", i: 0 });
+  L.step(h, { op: "rule", at: "a", b: 0, m: "efq", fill: { P: "P->Q" } });
+  assert.ok(h.root.done);
+  const k = L.start({ goal: "P->Q" }, everything());
+  L.step(k, { op: "assume", at: "" });
+  L.step(k, { op: "hyp", at: "a", i: 0 });
+  assert.throws(() => L.step(k, { op: "rule", at: "a", b: 0, m: "efq", fill: { P: "Q" } }), /don't fit/);
+  L.step(k, { op: "rule", at: "a", b: 0, m: "top" });
+  assert.deepEqual(bench(k, "a"), ["⊤"]);
+  assert.ok(!k.root.done);
+  assert.ok(!L.holds(L.parse("P->Q"), { P: true, Q: false }) && L.holds(L.parse("(P|Q)&~false"), { P: false, Q: true }));
+});
+
+test("a world only sees the machines of the worlds it builds on", () => {
+  const all = allDone(Q.QUESTS.length), ids = id => Q.machinesFor(idx(id), all).map(m => m.id);
+  assert.ok(ids("massoc").includes("comm") && ids("massoc").includes("mul0") && !ids("massoc").includes("assume") && !ids("massoc").includes("pid"));
+  assert.ok(ids("pdist").includes("mp") && !ids("pdist").includes("add0") && !ids("pdist").includes("andI"));
+  assert.ok(ids("le").includes("mp") && ids("le").includes("pchain") && ids("le").includes("andI") && !ids("le").includes("comm"));
+  assert.ok(!ids("assoc").includes("mul0") && !ids("assoc").includes("mp"));
+  assert.equal(everything().length, Q.GATES.length + Q.QUESTS.length);
+  for (const q of Q.QUESTS) for (const id of q.needs || []) assert.ok(Q.sees(q.world, Q.gate(id).w), `${q.id} needs ${id} from a world it can't see`);
 });
 
 test("bounties are provable from the finished quests", () => {
@@ -209,6 +273,7 @@ test("quests open in branches and machines go on sale when a quest needs them", 
   assert.deepEqual(open(done(["refl0", "zz", "sym"])), ["trans"]);
   assert.deepEqual(open(done(["refl0", "zz", "sym", "trans"])), ["zadd", "pid"], "the fork: induction or propositions");
   assert.deepEqual(open(done(Q.QUESTS.filter(q => q.world === "add").map(q => q.id))), ["pid", "mz"]);
+  assert.deepEqual(open(done(["refl0", "zz", "sym", "trans", "pid", "pk", "pmp"])), ["zadd", "pchain", "la"], "three ways on");
   const sale = d => Q.SHOP.filter(x => x.gate && Q.onSale(x.id, d)).map(x => x.id);
   assert.deepEqual(sale({}), []);
   assert.deepEqual(sale(done(["refl0"])), ["add0"]);
@@ -216,6 +281,7 @@ test("quests open in branches and machines go on sale when a quest needs them", 
   assert.match(Q.canBuy("mul0", done(["refl0", "zz", "sym", "trans"]), new Set(["add0"])), /not on sale/);
   assert.deepEqual(Q.SHOP.filter(x => x.gate).map(x => x.id).sort(), Q.QUESTS.flatMap(q => q.needs || []).sort(), "every machine sold is needed by exactly one quest's `needs`");
   assert.deepEqual(Q.SHOP.filter(x => x.gate).map(x => x.id), Q.GATES.map(m => m.id));
+  for (const w of Q.WORLDS) { const at = Q.QUESTS.map((q, i) => (q.world === w[0] ? i : -1)).filter(i => i >= 0); assert.equal(at[at.length - 1] - at[0] + 1, at.length, w[0] + " is contiguous in QUESTS"); }
 });
 
 test("payouts", () => {
@@ -267,7 +333,7 @@ test("random play only ever makes true statements", () => {
   const size = t => (t[0] === "v" || t[0] === "0" ? 1 : 1 + t.slice(1).reduce((a, k) => a + size(k), 0));
   const sides = t => (t[0] === "=" ? [t[1], t[2]] : t[0] === "→" ? [...sides(t[1]), ...sides(t[2])] : []);
   let checked = 0, conditional = 0;
-  const items = [...Q.QUESTS.map((q, i) => [q, Q.machinesFor(i, allDone(i))]), [{ id: "mix", goal: "(a+b=b+a)->((P->Q)->(a*b=b*a))" }, Q.playMachines(allDone(Q.QUESTS.length))]];
+  const items = [...Q.QUESTS.map((q, i) => [q, Q.machinesFor(i, allDone(i))]), [{ id: "mix", goal: "(a+b=b+a)->((P->Q)->(a*b=b*a))" }, everything()], [{ id: "mix2", goal: "(P&Q->R)->((P|Q)->((Q->P)->(R|false)))" }, everything()]];
   for (const [q, machines] of items) {
     for (let run = 0; run < 30; run++) {
       const g = L.start(q, machines), names = [...g.names], nums = names.filter(n => !L.upper(n));
