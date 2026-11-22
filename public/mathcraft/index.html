@@ -24,8 +24,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=9"></script>
-<script src="/mathcraft/quests.js?v=9"></script>
+<script src="/mathcraft/logic.js?v=10"></script>
+<script src="/mathcraft/quests.js?v=10"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -80,7 +80,11 @@
   #quest p.label { margin: 0 0 8px; color: var(--faint); font-size: 11.5px; }
   #quest p.meta { color: var(--muted); font-size: 12.5px; }
   #quest p.msg { color: var(--g2); font-size: 12.5px; }
-  #quest p.need { color: #f5c04a; font-size: 15.5px; }
+  #quest .need { margin-top: 10px; padding: 9px 12px; border: 1px solid #f5c04a66; border-radius: 10px; background: #f5c04a12; display: grid; gap: 8px; color: #f5c04a; font-size: 15.5px; }
+  #quest .need .mini:not(:disabled) { border-color: #f5c04a; color: #f5c04a; }
+  #quest .btw { margin-top: 10px; padding: 8px 12px; border: 1px dashed var(--line-2); border-radius: 10px; display: flex; gap: 10px; align-items: baseline; font-size: 15.5px; color: #d3cfc5; }
+  #quest .btw span { flex: 1; }
+  #quest .btw a { color: var(--g1); }
   #quest .goal { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
   #quest .hint { margin-top: 8px; }
   #quest .qed { margin-top: 12px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--g3) 55%, var(--line)); border-radius: 10px; }
@@ -89,6 +93,7 @@
   #quest input.term { width: min(100%, 320px); }
 
   .coach { display: flex; gap: 10px; align-items: baseline; margin: 0 0 12px; padding: 9px 12px; border-radius: 10px; background: color-mix(in srgb, var(--g1) 10%, transparent); border: 1px solid color-mix(in srgb, var(--g1) 45%, var(--line)); font-size: 16px; }
+  .coach .st.small { font-size: 16.5px; }
   .coach b.k { font-family: var(--mono); font-size: 11.5px; color: var(--g1); font-weight: 500; white-space: nowrap; }
   @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--g1) 70%, transparent); } 50% { box-shadow: 0 0 0 7px transparent; } }
   .pulse { animation: pulse 1.3s ease-in-out infinite; outline: 1px solid var(--g1); }
@@ -133,6 +138,7 @@
   .card:hover { transform: translateY(-2px); border-color: var(--muted); }
   .card.on { border-color: var(--g3); box-shadow: 0 0 0 1px var(--g3); }
   .card.locked { opacity: .62; border-style: dashed; }
+  .card.locked.want { opacity: 1; border-color: #f5c04a; }
   .card .cname { font-family: var(--mono); font-size: 11.5px; line-height: 1.25; color: var(--muted); }
   .card.on .cname { color: var(--ink); }
   .card .price { font-family: var(--mono); font-size: 12px; color: #f5c04a; }
@@ -167,8 +173,8 @@
   .goalline > .meta:first-child { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--g3); }
   .goalline .st.goalst { font-size: 24px; }
   .goalline.done { opacity: .7; }
-  .block .use { flex: none; font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--g3); background: color-mix(in srgb, var(--g3) 16%, transparent); color: var(--g3); cursor: pointer; white-space: nowrap; }
-  .block .use:hover { background: color-mix(in srgb, var(--g3) 28%, transparent); }
+  .use { flex: none; font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--g3); background: color-mix(in srgb, var(--g3) 16%, transparent); color: var(--g3); cursor: pointer; white-space: nowrap; }
+  .use:hover { background: color-mix(in srgb, var(--g3) 28%, transparent); }
   .st .neg { padding: 2px 1px; }
   details.curious { margin-top: 10px; font-size: 15.5px; color: #d3cfc5; }
   details.curious summary { cursor: pointer; font-family: var(--mono); font-size: 12px; color: var(--g1); }
@@ -226,10 +232,19 @@
   /* every ∎ in generated HTML is drawn as a little tombstone (the glyph itself is tiny in these fonts) */
   const put = (el, html) => { el.innerHTML = html.replace(/∎/g, '<i class="ts"></i>'); };
 
+  const TIPS = [
+    ["undo", () => game.steps.length >= 4 && !game.root.done, "<b>undo</b> takes back one step at a time (so does Ctrl or ⌘ + Z), and ✕ on a block throws it away for free."],
+    ["shop", () => "zz" in save.done && !Q.SHOP.some(x => !x.gate && up(x.id)), `∎ also buys conveniences. See <a href="#store">Upgrades</a> at the bottom of the page: Autofill types for you, and the Scanner lists every machine that fits a part you tap.`],
+    ["worlds", () => "zz" in save.done && !("pid" in save.done), "the quest list at the top has more than one world. Implication is open next to Addition: switch whenever you like. Each world needs machines of its own."],
+    ["bounty", () => Q.BOUNTIES.some(b => !finished(b) && openB(b)), "a <b>bounty</b> has opened at the end of the quest list. Bounties are optional theorems that pay ∎ once."],
+    ["drag", () => has("mp") && L.ctxAt(game, where).bench.length > 1, "with Modus ponens you can also drag a block by its ⠿ handle onto another block, instead of opening the machine."],
+    ["own", () => "comm" in save.done || "pdist" in save.done, "<b>+ your own</b> at the end of the quest list is a playground: type any conjecture and craft it. What you prove there becomes a machine for your later lemmas."],
+  ];
+
   // item: the quest, bounty or lemma on the bench (null on the "your own" page)
   // openM: the machine whose interface is open ("refl", "induct", "h0", or a machine id); dir: its lever
   // picked: blocks fed to an open rule so far; sel: { b, path } for the Scanner list (path [] = whole block)
-  let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = false;
+  let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = 0;   // hint: 1 = the idea, 2 = also point at the next step
   let openM = null, dir = "lr", picked = [], typed = "", letter = "", fillVals = {}, needVals = {}, flash = -1, lemmaText = "", applied = [];
 
   function load() {
@@ -244,7 +259,20 @@
       if ("zz" in s.done) s.owned.push("add0");
       if ("zadd" in s.done) s.owned.push("addS", "induct");
     }
+    if (!s.tips) s.tips = Object.keys(s.done).length > 6 ? Object.fromEntries(TIPS.map(t => [t[0], 1])) : {};   // "by the way" notes are for new players
     return s;
+  }
+  /* Symmetry and Transitivity used to be "given a = b" quests; now they are implications (#33). Put the Assume
+     steps in front of a saved proof: its blocks move along by the assumptions that are now on the bench. */
+  function migrateEq() {
+    if (save.eq) return;
+    for (const [id, n] of [["sym", 1], ["trans", 2]]) {
+      if (id in save.done) save.done[id] = save.done[id] <= 2 ? Q.par(Q.QUESTS.find(q => q.id === id)) : save.done[id] + n;   // par was 2: par stays par
+      const steps = save.steps[id], pre = "a".repeat(n);
+      if (steps && steps.length) save.steps[id] = [...Array.from({ length: n }, (_, k) => ({ op: "assume", at: "a".repeat(k) })),
+        ...steps.map(st => ({ ...st, at: pre + st.at, ...(typeof st.b === "number" ? { b: st.b + n } : {}), ...(st.others ? { others: st.others.map(o => o + n) } : {}) }))];
+    }
+    save.eq = 1; store();
   }
   /* saves from before qed (#33): workshops used to finish by themselves, so put the qed steps in once */
   function migrate() {
@@ -263,6 +291,7 @@
   const canApply = () => has("apply");
   const bal = () => Q.balance(save.done, ownedSet());
   const unlocked = q => q.id in save.done || Q.isOpen(q, save.done);
+  const openB = b => b.id in save.done || Q.bountyOpen(b, save.done, ownedSet());
   const ownQuest = (o, k) => ({ id: o.id, name: "Lemma " + (k + 1), goal: o.goal, own: true });
   const lemmas = () => save.own.map(ownQuest);
   const asMachine = q => L.machine({ id: q.id, name: q.name, stmt: q.goal });
@@ -375,7 +404,7 @@
   const reflSides = c => (c.goal[0] !== "=" ? [] : L.same(c.goal[1], c.goal[2]) ? [c.goal[1]] : [c.goal[1], c.goal[2]]);
   const and = a => (a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
 
-  function reset() { sel = null; msg = ""; hint = false; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; fillVals = {}; flash = -1; lemmaText = ""; }
+  function reset() { sel = null; msg = ""; hint = 0; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; fillVals = {}; flash = -1; lemmaText = ""; }
   function open(id) {
     item = [...Q.QUESTS, ...Q.BOUNTIES, ...lemmas()].find(q => q.id === id) || Q.QUESTS[0];
     const ms = machinesOf(item);
@@ -414,6 +443,7 @@
     flash = step.op === "rule" ? step.b - step.others.filter(o => o < step.b).length : step.op === "rw" ? step.b : ["refl", "hyp", "make", "stamp"].includes(step.op) ? L.ctxAt(game, step.at).bench.length - 1 : step.op === "dup" ? step.b + 1 : step.op === "unfold" ? step.b : -1;
     if (step.op === "refl") typed = "";
     if (step.op === "have") lemmaText = "";
+    if (hint === 2) hint = 1;                                             // the next step was asked for once: ask again for another
     settle(wasDone);
     if (where !== at0) { flash = -1; if (/^h/.test(openM || "")) openM = null; }
     draw();
@@ -473,37 +503,130 @@
     openNew();
   }
 
-  /* ---------- the tutorial pointer: while the player is still on Amog's proof, say what comes next ---------- */
-  function coach() {
-    if (!item || !item.guide || game.root.done) return null;
-    const n = game.steps.length, p = item.proof;
-    if (n >= p.length) return null;
-    const bench = g => g.root.bench.map(b => L.show(b.s)).join("|");
-    try { if (bench(L.replay(item, Q.machinesFor(Q.QUESTS.indexOf(item), doneSet()), p.slice(0, n))) !== bench(game)) return null; } catch (e) { return null; }
-    const s = p[n];
-    if (s.op === "qed") return { text: "That block is the goal. Tap <b>✓ use it</b> to finish.", at: `[data-qed="${s.b}"]` };
-    if (s.op === "refl") {
-      if (openM !== "refl") return { text: n ? "Start with a block. Open <b>refl</b>." : "This is your first machine. Open <b>refl</b>.", at: `[data-m="refl"]` };
-      return { text: `Feed it a term: type <b>${esc(L.show(L.term(s.t)))}</b> and run it.`, at: typed.replace(/\s/g, "") === L.show(L.term(s.t)) ? `[data-do="refl"]` : "#rterm" };
+  /* ---------- hints (#33): what to do next, from where the player stands ----------
+     advice() describes one step in words and says what to tap next (`at`, a selector that gets the pulse). It follows
+     Amog's proof workshop by workshop (L.follow), so a detour or extra blocks don't lose it; off his route it falls
+     back to what the goal's shape suggests. `guide` quests show it unasked while the player is on the route. */
+  const ALL = new Set(Q.QUESTS.map(q => q.id));
+  const refMachines = () => (item.bounty ? Q.playMachines(ALL, undefined, item.worlds) : Q.machinesFor(Q.QUESTS.indexOf(item), ALL));
+  const sm = t => st(t, {}, "small");
+  const mref = id => { const h = /^h(\d+)$/.exec(id); if (h) return "the " + hypName(+h[1]); const m = mach(id); return `<i>${esc(m ? m.name : id)}</i>`; };
+  const isTerm = (text, t) => { try { return L.same(L.term(text), t); } catch (e) { return false; } };
+  const keyed = t => { const a = L.show(t), b = a.replace(/¬/g, "not ").replace(/⊥/g, "false").replace(/⊤/g, "true").replace(/→/g, "->").replace(/∧/g, "and").replace(/∨/g, "or"); return a === b ? "" : ` (type <b>${esc(b)}</b>)`; };
+  function buyTip(id) {
+    const why = Q.canBuy(id, save.done, ownedSet()), name = `<i>${esc(Q.gate(id).name)}</i>`;
+    return { route: true, text: `The next step takes a machine you don't own yet: ${name}. Machines are bought with ∎. ` + (why ? `It costs ∎${Q.price(id)}, and right now ${esc(why)}.` : `Buy it for ∎${Q.price(id)}.`),
+      at: `#quest [data-buy="${id}"], #panel [data-buy="${id}"], #floor [data-m="${id}"]` };
+  }
+  function say(s, c) {
+    const id = Q.TACTICS.includes(s.op) ? s.op : s.m;
+    if (id && !/^h\d+$/.test(id) && !has(id)) {
+      if (Q.gate(id)) return buyTip(id);
+      const q = Q.QUESTS.find(x => x.id === id);
+      return { text: `Amog's next step uses <i>${esc(q ? q.name : id)}</i>, a theorem you haven't crafted yet${q ? " (it is in " + Q.WORLDS.find(w => w[0] === q.world)[1] + ")" : ""}. Without it, go by the hint above.` };
     }
-    if (s.op === "rw") {
-      const m = mach(s.m), name = `<i>${esc(m.name)}</i>`;
-      if (openM !== s.m) return { text: m.locked ? `You need a new machine. Open ${name}.` : `Open ${name === "<i>given</i>" ? "the given fact" : name}.`, at: `[data-m="${s.m}"]` };
-      if (m.locked) return { text: `Buy it with the ∎ you earned.`, at: `[data-buy]` };
-      if (dir !== s.dir) return { text: `Set the lever to the other direction.`, at: `[data-dir="${s.dir}"]` };
-      return { text: `Now feed it: tap the glowing part of your block.`, at: `.block[data-b="${s.b}"] .t[data-p="${pstr(s.path)}"]` };
+    const tip = (text, at) => ({ route: true, text, at });
+    const card = openM !== id ? `#floor [data-m="${id}"]` : null;
+    const fills = () => { const need = Object.keys(s.fill || {}); return [need, need.find(v => !isTerm(needVals[v] || "", L.term(s.fill[v])))]; };
+    const typeIt = need => `type ${and(need.map(v => `<b>${esc(L.show(L.term(s.fill[v])))}</b> for <i>${v}</i>`))} in its box first`;
+    switch (s.op) {
+      case "qed": return tip(`Block ${s.b + 1} is the goal. Tap <b>✓ use it</b> on it to finish${where ? " this workshop" : ""}.`, `[data-qed="${s.b}"]`);
+      case "refl": {
+        const t = L.term(s.t), g = c.goal, side = g[0] !== "=" ? -1 : L.same(t, g[1]) ? 0 : L.same(t, g[2]) ? 1 : -1;
+        const why = side < 0 ? "" : L.same(g[1], g[2]) ? " That block is the goal itself."
+          : ` That is the ${side ? "right" : "left"} side of the goal. The block ${sm(L.eq(t, t))} is true but not the goal yet: next you rewrite its ${side ? "left" : "right"} side until it reads ${sm(g[2 - side])}.`;
+        const ih = /s$/.test(where) ? " (The induction hypothesis is not the block to work on. It is a machine, and its turn comes later.)" : "";
+        const auto = up("autofill") ? reflSides(c).findIndex(x => L.same(x, t)) : -1;
+        return tip(`Make a block to work on: open <b>refl</b>, feed it <b>${esc(L.show(t))}</b> and run it.${why}${ih}`,
+          openM !== "refl" ? `#floor [data-m="refl"]` : auto >= 0 ? `[data-refl="${auto}"]` : isTerm(typed, t) ? `[data-do="refl"]` : "#rterm");
+      }
+      case "rw": {
+        const m = mach(s.m), blk = c.bench[s.b], part = L.at(blk.s, s.path), [from, to] = s.dir === "rl" ? [m.stmt[2], m.stmt[1]] : [m.stmt[1], m.stmt[2]];
+        const [need, miss] = fills();
+        let res = ""; try { res = ` The block becomes ${sm(L.preview(game, s))}.`; } catch (e) {}
+        const side = blk.s[0] === "=" ? ` on the ${s.path[0] ? "right" : "left"} side` : "";
+        return tip(`Open ${mref(s.m)}${m.hyp ? " (the <b>open</b> button next to it)" : ""}, set its lever to ${arrow(from, to, { slot: !m.hyp })}${s.dir === "rl" ? ", the machine run backwards" : ""}, then tap ${sm(part)}${side} of block ${s.b + 1}.` +
+          (need.length ? ` That direction leaves ${and(need.map(v => `<i>${v}</i>`))} open: ${typeIt(need)}.` : "") + res,
+          openM !== s.m ? `[data-m="${s.m}"]` : dir !== s.dir ? `[data-dir="${s.dir}"]` : miss ? `[data-need="${miss}"]` : `.block[data-b="${s.b}"] .t[data-p="${pstr(s.path)}"]`);
+      }
+      case "rule": {
+        const idx = [s.b, ...s.others], [need, miss] = fills(), fed = picked.every((b, k) => b === idx[k]);
+        let res = ""; try { res = ` ${idx.length > 1 ? "They are" : "It is"} used up, and you get ${sm(L.preview(game, s))}.`; } catch (e) {}
+        return tip(`Open ${mref(s.m)} and feed it ${idx.length > 1 ? "whole blocks, in this order: " : "a whole block: "}${idx.map(i => `block ${i + 1}, ${sm(c.bench[i].s)}`).join("; then ")}. Tap a block's statement to feed it.` +
+          (need.length ? ` It can't work out ${and(need.map(v => `<i>${v}</i>`))} by itself: ${typeIt(need)}.` : "") + res + (card || fed ? "" : " (It has been fed something else: close it and open it again.)"),
+          card || (!fed ? `#panel [data-do="close"]` : miss ? `[data-need="${miss}"]` : `.block[data-b="${idx[picked.length]}"]`));
+      }
+      case "make": {
+        const m = mach(s.m), fill = Object.fromEntries(Object.entries(s.fill || {}).map(([v, t]) => [v, L.term(t)])), vs = Object.keys(fill).sort();
+        const typedIn = v => { const el = document.querySelector(`#panel [data-slot="${v}"]`); return el ? el.value : ""; };
+        const miss = card ? null : vs.find(v => !isTerm(typedIn(v), fill[v]));
+        return tip(`Open ${mref(s.m)} and stamp its statement, ${sm(m.stmt)}, as a block: put ${and(vs.map(v => `${sm(fill[v])}${keyed(fill[v])} for <i>${v}</i>`))}, then press <b>make the block</b>. You get ${sm(L.subst(m.stmt, fill))}.`,
+          card || (miss ? `#panel [data-slot="${miss}"]` : `[data-mk="${s.m}"]`));
+      }
+      case "hyp": return tip(`Put ${mref("h" + s.i)}, ${sm(c.hyps[s.i])}, on the bench as a block: press <b>open</b> next to it, then <b>put it on the bench as a block</b>.`, openM !== "h" + s.i ? `[data-m="h${s.i}"]` : `[data-hyp="${s.i}"]`);
+      case "induct": return tip(`No machine fits while <i>${s.v}</i> could be any number. Split the job: open <b>Induction</b> and feed it the letter <b>${s.v}</b>. You get two workshops: the goal for 0, then the goal for S(${s.v}) while holding it for ${s.v}.`,
+        card || (up("autofill") ? `[data-induct="${s.v}"]` : letter === s.v ? `[data-do="induct"]` : "#iv"));
+      case "assume": {
+        const def = L.unfold(c.goal), g = def || c.goal, quick = up("quick");
+        return tip(`${def ? `The goal ${sm(c.goal)} is short for ${sm(g)}, an implication` : "The goal is an implication"}. ${quick ? "Tap <b>assume</b> on the goal (or open <b>Assume</b> and run it)" : "Open <b>Assume</b> and run it"}: you get a workshop that holds ${sm(g[1])}, already on its bench, and the goal there is what is left, ${sm(g[2])}.`,
+          quick ? `[data-do="gassume"]` : card || `[data-do="assume"]`);
+      }
+      case "dup": return tip(`Block ${s.b + 1}, ${sm(c.bench[s.b].s)}, is needed twice, and a rule uses up what it is fed. Copy it first: ⧉ on the block.`, `[data-dup="${s.b}"]`);
+      case "apply": {
+        let goals = []; try { goals = L.applyGoals(game, s); } catch (e) {}
+        const to = goals.map(sm).join(" and ");
+        if (s.b != null) return tip(`Work backwards from the goal. Block ${s.b + 1}, ${sm(c.bench[s.b].s)}, ends in the goal, so it is enough to craft what it starts from. Open <b>Apply</b> and tap that block (or drag it onto the goal): the goal becomes ${to}.`, card || `.block[data-b="${s.b}"]`);
+        return tip(`Work backwards from the goal. ${mref(s.m)} ends in something shaped like the goal, so it is enough to craft what it starts from. Open <b>Apply</b> and pick ${mref(s.m)} from its list: the goal becomes ${to}.`, card || `[data-ap="${applied.findIndex(o => o.step.m === s.m)}"]`);
+      }
     }
     return null;
   }
+  /* off Amog's route: what the shape of the goal suggests */
+  function generic(c) {
+    const g = c.goal, lost = "This isn't the way Amog went, so there is no single next step to point at";
+    if (g[0] === "=" && L.same(g[1], g[2])) return say({ op: "refl", at: where, t: g[1] }, c);
+    if ((L.unfold(g) || g)[0] === "→") return say({ op: "assume", at: where }, c);
+    if (g[0] === "=") {
+      const k = c.bench.findIndex(b => b.s[0] === "=" && (L.same(b.s[1], g[1]) || L.same(b.s[2], g[2])));
+      if (k < 0) return say({ op: "refl", at: where, t: g[1] }, c);
+      const b = c.bench[k].s, left = L.same(b[1], g[1]);
+      return { text: `${lost}. But block ${k + 1} already has the goal's ${left ? "left" : "right"} side: keep rewriting its other side, ${sm(left ? b[2] : b[1])}, until it reads ${sm(left ? g[2] : g[1])}. Open a machine, set its lever, and tap the part it should change.` +
+        (up("scanner") ? " With no machine open, tapping a part lists everything that fits it." : "") + (has("induct") && !c.hyps.length && [...L.vars(g)].some(v => !L.upper(v)) ? " If nothing fits because a letter could be any number, that is what Induction is for." : "") };
+    }
+    return { text: `${lost}. The idea in the hint still holds, and <b>undo</b> takes you back one step at a time.` };
+  }
+  function advice() {
+    if (!item || !game || game.root.done) return null;
+    const c = L.ctxAt(game, where);
+    if (c.done || c.kids) { const next = firstOpen(); return { route: true, text: `This workshop is done. Go on to <b>${shopName(next) || "the workbench"}</b>.`, at: `[data-at="${next}"]` }; }
+    const use = c.bench.findIndex(b => L.sameDef(b.s, c.goal));
+    if (use >= 0) return say({ op: "qed", at: where, b: use }, c);
+    let s = null;
+    if (item.proof) try { s = L.follow(game, where, item.proof, refMachines()); } catch (e) {}
+    return (s && say(s, c)) || generic(c);
+  }
+  /* the strip above the workbench: asked for (hint 2), or unasked in a `guide` quest while the player is on the route */
+  function coach() {
+    const tip = advice();
+    return tip && (hint === 2 || (item.guide && tip.route)) ? tip : null;
+  }
+  function point(tip) {
+    document.querySelectorAll(".pulse").forEach(x => x.classList.remove("pulse"));
+    const el = tip && tip.at && document.querySelector(tip.at);
+    if (el) el.classList.add("pulse");
+  }
+  /* "by the way" notes (#33): things a new player might not notice, one at a time, each shown until dismissed */
+  const btw = () => (item && game ? TIPS.find(([id, when]) => !save.tips[id] && when()) : null);
 
   /* ---------- drawing ---------- */
   function drawQuests() {
-    const chip = (id, label, cls, off) => `<button data-id="${id}" class="${cls} ${item && item.id === id ? "on" : ""} ${id in save.done ? "done" : ""}" ${off ? "disabled" : ""}>${label}${id in save.done ? " ✓" : ""}</button>`;
+    const chip = (id, label, cls, off, why = "") => `<button data-id="${id}" class="${cls} ${item && item.id === id ? "on" : ""} ${id in save.done ? "done" : ""}" ${off ? `disabled title="${esc(why)}"` : ""}>${label}${id in save.done ? " ✓" : ""}</button>`;
+    const tool = id => (Q.gate(id) || Q.QUESTS.find(q => q.id === id)).name;
     put($("quests"), `<span class="bal" title="tombstones: earned by finishing crafts, spent on machines and upgrades">∎ ${bal()}</span><span class="meta">to spend</span>` +
       Q.WORLDS.map(([w, name]) => `<span class="sep"></span><span class="meta">${name.toLowerCase()}</span>` +
         Q.QUESTS.filter(q => q.world === w).map((q, k) => chip(q.id, `${w === "add" ? k : k + 1}. ${esc(q.name)}`, "", !unlocked(q))).join("")).join("") +
       `<span class="sep"></span><span class="meta">bounties</span>` +
-      Q.BOUNTIES.map(q => chip(q.id, `${esc(q.name)}${finished(q) ? "" : ` <span class="coin">∎${q.pay}</span>`}`, "bounty")).join("") + `<span class="sep"></span><span class="meta">playground</span>` +
+      Q.BOUNTIES.map(q => chip(q.id, `${esc(q.name)}${finished(q) ? "" : ` <span class="coin">∎${q.pay}</span>`}`, "bounty", !openB(q), "opens once you have " + and(q.tools.map(tool)))).join("") + `<span class="sep"></span><span class="meta">playground</span>` +
       lemmas().map(q => chip(q.id, esc(q.name), "own")).join("") +
       `<button data-id="new" class="own ${item ? "" : "on"}">+ your own</button>`);
   }
@@ -536,13 +659,20 @@
       <div class="goal"><span class="meta">craft</span><span class="scroll">${st(L.term(q.goal))}</span><span class="meta">${forAny}</span></div>
       <p>${text}</p>${q.curious ? `<details class="curious"><summary>for the curious</summary><p>${q.curious}</p></details>` : ""}`;
     const missing = (q.needs || []).filter(id => !up(id));
-    if (missing.length && !game.root.done) h += `<p class="need">This one needs ${and(missing.map(id => `<i>${esc(Q.gate(id).name)}</i> (∎${Q.price(id)})`))}. Open ${missing.length > 1 ? "them" : "it"} on the machine floor to buy.</p>`;
+    if (missing.length && !game.root.done) {                             // new players miss that machines are bought (#33)
+      const whys = missing.map(id => Q.canBuy(id, save.done, ownedSet()));
+      h += `<div class="need"><span>This quest needs ${missing.length > 1 ? "machines" : "a machine"} you don't own yet. Machines are bought with the ∎ you earn:</span><span class="row">` +
+        missing.map((id, i) => `<button class="mini" data-buy="${id}" ${whys[i] ? "disabled" : ""}>buy ${esc(Q.gate(id).name)} · ∎${Q.price(id)}</button>`).join("") +
+        (whys.some(Boolean) ? `<span class="meta">${esc(whys.find(Boolean))}</span>` : "") + `</span></div>`;
+    }
     h += `<div class="row hint">${quest ? `<button class="mini" data-do="hint">${hint ? "hide hint" : "hint"}</button>` : ""}
         <button class="mini" data-do="undo" ${game.steps.length ? "" : "disabled"}>undo</button>
         <button class="mini" data-do="restart" ${game.steps.length ? "" : "disabled"}>start over</button>
         ${q.own ? `<button class="mini" data-do="remove">delete</button>` : ""}
         <span class="meta">${steps}${best ? ` · your best ${best}` : ""}${pays}</span></div>`;
-    if (hint && quest) h += `<p>${q.hint}</p>`;
+    if (hint && quest) h += `<p>${q.hint}</p>` + (game.root.done ? "" : `<div class="row hint"><button class="mini ${hint === 2 ? "on" : ""}" data-do="step">${hint === 2 ? "stop pointing" : "what do I do next?"}</button><span class="meta">points at the next step from where you are, one step at a time</span></div>`);
+    const note = btw();
+    if (note) h += `<div class="btw"><span><b>By the way:</b> ${note[2]}</span><button class="mini tiny" data-tip="${note[0]}">got it</button></div>`;
     if (game.root.done) {
       const par = quest ? Q.par(q) : 0, bonus = quest && best <= par;
       const verdict = !quest ? "" : n < par ? "Shorter than Amog's proof. He would like a word." : n === par ? "As short as Amog's proof." : `Amog does it in ${par}.`;
@@ -573,7 +703,12 @@
     h += `<p class="label">${where ? "Workshop · " + shopName(where) : "Workbench"}<button class="mini tiny widen" data-do="wide">${save.wide ? "narrower" : "wider"}</button></p>`;
     const om = openM && mach(openM), gLive = up("goalrw") && om && !om.locked && (om.kind === "eq" || om.kind === "hyp");
     const gTip = om && om.kind === "unfold" ? "tap a part to translate the goal" : gLive ? "tap a part to rewrite the goal" : "";
-    h += `<div class="given goalline ${c.done ? "done" : ""}" data-goal title="the goal${canApply() ? ": drop a block P → (this goal) here to apply it, or the goal itself to use it" : ""}"><span class="meta">${c.done ? "done ✓" : "goal"}</span><span class="scroll">${st(c.goal, { live: true, sel: sel && sel.b === "g" ? pstr(sel.path) : null }, "goalst")}</span>${gTip ? `<span class="meta">${gTip}</span>` : ""}</div>`;
+    // the goal is only tappable once something can be done to it: translating (logic) or the Goal lever (#33)
+    const tappable = !c.done && (hasTranslator() || up("goalrw"));
+    // Goal buttons (upgrade): refl on a goal t = t, assume on an implication
+    const quick = c.done || !up("quick") ? "" : c.goal[0] === "=" && L.same(c.goal[1], c.goal[2]) ? `<button class="use" data-do="grefl" title="make this block with refl and use it (one step)">refl ✓</button>`
+      : (L.unfold(c.goal) || c.goal)[0] === "→" && has("assume") ? `<button class="use" data-do="gassume" title="run Assume on this goal">assume</button>` : "";
+    h += `<div class="given goalline ${c.done ? "done" : ""}" data-goal title="the goal${canApply() ? ": drop a block P → (this goal) here to apply it, or the goal itself to use it" : ""}"><span class="meta">${c.done ? "done ✓" : "goal"}</span><span class="scroll">${st(c.goal, tappable ? { live: true, sel: sel && sel.b === "g" ? pstr(sel.path) : null } : {}, "goalst")}</span>${quick}${gTip ? `<span class="meta">${gTip}</span>` : ""}</div>`;
     c.hyps.forEach((s, i) => {
       h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span>
         <button class="mini tiny ${openM === "h" + i ? "on" : ""}" data-m="h${i}">open</button></div>`;
@@ -695,19 +830,25 @@
     }
     put(el, h + `<p class="msg">${esc(msg)}</p>`);
   }
+  /* what the goal of a bounty or lemma is about: statements (logic), numbers (num) */
+  function goalKind() {
+    const goal = L.term(item.goal), text = L.show(goal);
+    return { logic: /[→∧∨⊥⊤]/.test(text) || [...L.vars(goal)].some(L.upper), num: text.includes("=") };
+  }
+  /* is the Translator on this floor? */
+  const hasTranslator = () => (item.world ? Q.sees(item.world, "logic") : goalKind().logic && (!item.worlds || item.worlds.includes("logic")));
   function drawFloor() {
     const world = item.world, quests = new Set(Q.QUESTS.map(q => q.id)), mine = game.machines.map(m => m.id);
     // bounties and the playground: by default only the worlds the goal is about (airetho)
-    const goal = L.term(item.goal), text = L.show(goal);
-    const logicGoal = /[→∧∨⊥⊤]/.test(text) || [...L.vars(goal)].some(L.upper), numGoal = text.includes("=");
-    const rel = item.worlds || (world || save.allw ? null : [...(numGoal ? ["add", "mul"] : []), ...(logicGoal ? ["prop", "logic"] : [])]);
+    const { logic: logicGoal, num: numGoal } = goalKind();
+    const rel = item.worlds || (world || save.allw ? null : [...(numGoal ? ["add", "mul", "eq"] : []), ...(logicGoal ? ["prop", "logic"] : [])]);
     const wOf = id => { const g = Q.gate(id); if (g) return g.w; const q = Q.QUESTS.find(x => x.id === id); return q ? q.world : null; };
     const shown = id => !rel || !wOf(id) || wOf(id) === "any" || rel.includes(wOf(id));
-    const numbers = world ? Q.sees(world, "add") : numGoal;              // refl makes equations: no use among pure statements
-    const translator = world ? Q.sees(world, "logic") : logicGoal && (!item.worlds || item.worlds.includes("logic"));
+    const numbers = world ? Q.numeric(world) : numGoal;                  // refl makes equations: no use among pure statements
+    const translator = hasTranslator(), wanted = game.root.done ? [] : item.needs || [];
     const card = id => {
       const m = mach(id);
-      return `<button class="card ${m.locked ? "locked" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${esc(m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : m.stmt ? L.show(m.stmt) : "")}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">∎${Q.price(id)}</span>` : ""}</button>`;
+      return `<button class="card ${m.locked ? "locked" : ""} ${m.locked && wanted.includes(id) ? "want" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${esc(m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : m.stmt ? L.show(m.stmt) : "")}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">∎${Q.price(id)}</span>` : ""}</button>`;
     };
     const group = (title, ids) => (ids.length ? `<p class="sub">${title}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
     const gates = GATES.filter(id => (up(id) || Q.onSale(id, save.done)) && Q.sees(world, Q.gate(id).w) && shown(id));
@@ -731,8 +872,7 @@
     drawPanel();                       // first: it settles openM
     const tip = coach();
     drawQuest(); drawShop(tip); drawFloor(); drawStore();
-    const target = tip && document.querySelector(tip.at);
-    if (target) target.classList.add("pulse");
+    point(tip);
   }
 
   /* ---------- input ---------- */
@@ -741,12 +881,15 @@
     const b = e.target.closest("button"); if (!b) return;
     const d = b.dataset.do;
     if (d === "add") addLemma($("conj").value);
-    else if (d === "hint") { hint = !hint; draw(); }
+    else if (d === "hint") { hint = hint ? 0 : 1; draw(); }
+    else if (d === "step") { hint = hint === 2 ? 1 : 2; draw(); }
+    else if (b.dataset.tip) { save.tips[b.dataset.tip] = 1; store(); draw(); }
+    else if (b.dataset.buy) buy(b.dataset.buy);
     else if (d === "undo") undo();
     else if (d === "restart") restart();
     else if (d === "remove") removeLemma();
     else if (d === "new") openNew();
-    else if (d === "next") open(Q.QUESTS[Q.QUESTS.indexOf(item) + 1].id);   // same world: worlds are contiguous in QUESTS
+    else if (d === "next") { const chain = Q.QUESTS.filter(x => x.world === item.world); open(chain[chain.indexOf(item) + 1].id); }
   };
   $("quest").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "conj") addLemma(e.target.value); });
   $("floor").onclick = e => {
@@ -770,9 +913,10 @@
     if (act({ op: "make", at: where, m: id, fill })) fillVals = {};
   }
   $("panel").addEventListener("input", e => {
-    if (e.target.id === "rterm") { typed = e.target.value; const t = coach(); if (t && t.at === `[data-do="refl"]`) draw(), $("rterm").focus(), $("rterm").setSelectionRange(typed.length, typed.length); }
-    else if (e.target.id === "iv") letter = e.target.value.trim();
-    else if (e.target.dataset.need) needVals[e.target.dataset.need] = e.target.value.trim();
+    if (e.target.id === "rterm") { typed = e.target.value; point(coach()); }
+    else if (e.target.id === "iv") { letter = e.target.value.trim(); point(coach()); }
+    else if (e.target.dataset.need) { needVals[e.target.dataset.need] = e.target.value.trim(); point(coach()); }
+    else if (e.target.dataset.slot) point(coach());
     else if (e.target.id === "lemma") lemmaText = e.target.value;
     else if (e.target.dataset.afill) {
       const card = e.target.closest("[data-apc]"), x = applied[+card.dataset.apc], res = card.querySelector(".res");
@@ -826,6 +970,8 @@
       else if (d.at !== undefined) { where = d.at; sel = null; msg = ""; picked = []; if (/^h/.test(openM || "")) openM = null; draw(); }
       else if (d.m) openMachine(d.m);
       else if (d.qed !== undefined) act({ op: "qed", at: where, b: +d.qed });
+      else if (d.do === "gassume") act({ op: "assume", at: where });
+      else if (d.do === "grefl") { const at = where; if (act({ op: "refl", at, t: L.ctxAt(game, at).goal[1] })) act({ op: "qed", at, b: L.ctxAt(game, at).bench.length - 1 }); }
       else if (d.dup !== undefined) act({ op: "dup", at: where, b: +d.dup });
       else if (d.del !== undefined) { picked = []; act({ op: "del", at: where, b: +d.del }); }
       return;
@@ -849,7 +995,7 @@
         return;
       }
       if (up("scanner")) { openM = null; sel = { b: "g", path }; msg = ""; return draw(); }
-      msg = "Open the Translator to unfold the goal" + (up("goalrw") ? ", or an equality machine to rewrite it." : ".");
+      msg = hasTranslator() ? "Open the Translator to unfold the goal" + (up("goalrw") ? ", or an equality machine to rewrite it." : ".") : "Open an equality machine, then tap the part of the goal to rewrite.";
       return draw();
     }
     const t = e.target.closest(".t"), blk = e.target.closest(".block");
@@ -929,11 +1075,12 @@
   $("shop").addEventListener("pointercancel", e => { if (drag) dragEnd(e, true); });
   document.addEventListener("keydown", e => { if (game && (e.metaKey || e.ctrlKey) && e.key === "z" && e.target.tagName !== "INPUT") { e.preventDefault(); undo(); } });
 
+  migrateEq();
   migrate();
   document.body.classList.toggle("wide", !!save.wide);
   if (save.cur === "new") openNew();
   else {
-    const known = [...Q.QUESTS.filter(unlocked), ...Q.BOUNTIES, ...lemmas()];
+    const known = [...Q.QUESTS.filter(unlocked), ...Q.BOUNTIES.filter(openB), ...lemmas()];
     const next = Q.QUESTS.find(q => unlocked(q) && !finished(q)) || Q.QUESTS[0];
     open((known.find(q => q.id === save.cur) || next).id);
   }

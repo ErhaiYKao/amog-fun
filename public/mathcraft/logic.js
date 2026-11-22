@@ -59,6 +59,7 @@
  *   { op: "dup", at, b }                      a copy of block b next to it (a step: rules use blocks up)
  *   { op: "del", at, b }                      throw block b away, not counted as a step
  * A workshop is done once a qed step closes it, or when its sub-workshops are all done.
+ * `follow` finds where a player stands on a reference proof, one workshop at a time (the page's hints).
  */
 (function (root) {
   "use strict";
@@ -569,6 +570,39 @@
     return out;
   }
 
+  /* Where the player stands on a reference proof, one workshop at a time (the page's hints, #33): the next step
+     `proof` takes in workshop `where`, with its block numbers moved to the player's bench, or null if that
+     workshop isn't on the proof's route (another goal, other hypotheses, or its blocks aren't there). The player
+     may hold extra blocks: the furthest point of the proof whose blocks are all on the bench is where they stand.
+     `machines` must hold everything the proof uses, whether or not the player has it yet. */
+  function follow(game, where, proof, machines) {
+    let me;
+    try { me = ctxAt(game, where); } catch (e) { return null; }
+    if (me.kids || me.closed) return null;
+    const key = c => show(c.goal) + "|" + c.hyps.map(show).join("|");
+    const mine = me.bench.map(b => show(b.s)), ref = start(game.quest, machines);
+    let best = null;
+    for (const st of proof) {
+      if (st.at === where) {
+        let c = null;
+        try { c = ctxAt(ref, where); } catch (e) {}
+        if (c && !c.kids && key(c) === key(me)) {
+          const used = new Set(), map = [];
+          for (let i = 0; i < c.bench.length; i++) {
+            const s = show(c.bench[i].s), j = mine[i] === s && !used.has(i) ? i : mine.findIndex((x, k) => x === s && !used.has(k));
+            if (j < 0) break;
+            used.add(j); map.push(j);
+          }
+          if (map.length === c.bench.length) best = { st, map };
+        }
+      }
+      try { step(ref, st); } catch (e) { return null; }
+    }
+    if (!best) return null;
+    const { st, map } = best;
+    return { ...st, ...(st.b != null ? { b: map[st.b] } : {}), ...(st.others ? { others: st.others.map(o => map[o]) } : {}) };
+  }
+
   /* numbers and truth under an assignment (numbers for small letters, booleans for capitals): the tests use this
      to check that every block is true whenever its workshop's hypotheses are */
   function value(t, env) {
@@ -594,6 +628,6 @@
 
   root.MathcraftLogic = {
     Z, S, plus, V, eq, same, vars, at, put, subst, match, show, parse, term, isForm, upper, neg, machine, questMachine,
-    start, ctxAt, subs, shops, step, replay, count, closeAll, withQed, options, preview, guess, applies, applyGoals, unfold, folds, expand, sameDef, fits, paths, value, holds,
+    start, ctxAt, subs, shops, step, replay, count, closeAll, withQed, follow, options, preview, guess, applies, applyGoals, unfold, folds, expand, sameDef, fits, paths, value, holds,
   };
 })(typeof window !== "undefined" ? window : globalThis);

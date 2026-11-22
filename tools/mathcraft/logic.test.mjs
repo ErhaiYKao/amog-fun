@@ -12,6 +12,9 @@ const idx = id => Q.QUESTS.findIndex(q => q.id === id);
 const rw = (g, path, m, dir = "lr", at = "", b = 0) => L.step(g, { op: "rw", at, b, path, m, dir });
 const everything = () => Q.playMachines(allDone(Q.QUESTS.length));
 const bench = (g, at = "") => L.ctxAt(g, at).bench.map(b => L.show(b.s));
+// the quests that must be finished before q opens, all the way back
+const prev = q => q.after || (() => { const ch = Q.QUESTS.filter(x => x.world === q.world), k = ch.indexOf(q); return k > 0 ? [ch[k - 1].id] : []; })();
+const before = (q, out = new Set()) => { for (const id of prev(q)) if (!out.has(id)) { out.add(id); before(Q.QUESTS[idx(id)], out); } return out; };
 
 test("parse and show round-trip", () => {
   for (const s of ["0", "S(0)", "a+b", "(a+b)+c", "a+(b+c)", "S(a+S(b))+0", "(a+b)+c = a+(b+c)", "a·b+c", "a·(b+c)", "(a·b)·c", "a·(b·c)", "(a+b)·c = a·c+b·c",
@@ -25,19 +28,21 @@ test("parse and show round-trip", () => {
 });
 
 test("every quest's reference proof replays to done, using only earlier quests and the machines it says it needs", () => {
-  const owned = new Set();
   Q.QUESTS.forEach((q, i) => {
     const g = L.replay(q, Q.machinesFor(i, allDone(i)), q.proof);
     assert.ok(L.closeAll(g).root.done, q.id);
     assert.ok(Q.par(q) >= 1 && Q.par(q) <= 16, q.id + " par");
     for (let k = 0; k < q.proof.length; k++) assert.ok(!L.replay(q, Q.machinesFor(i, allDone(i)), q.proof.slice(0, k)).root.done, q.id + " done early");
-    // `needs` is exactly the shop machines the proof uses that no earlier quest of its world asked for
-    for (const id of q.needs || []) owned.add(id);
+    // `needs` is exactly the shop machines the proof uses that no quest on the way here asked for
+    const pre = [...before(q)].map(id => Q.QUESTS[idx(id)]), owned = new Set([...pre, q].flatMap(x => x.needs || []));
     const used = new Set(q.proof.flatMap(s => [Q.TACTICS.includes(s.op) ? s.op : null, s.m]).filter(m => m && Q.gate(m)));
-    for (const m of used) assert.ok(owned.has(m), `${q.id} uses ${m}, which no quest so far lists in needs`);
+    for (const m of used) assert.ok(owned.has(m), `${q.id} uses ${m}, which no quest on the way to it lists in needs`);
     for (const id of q.needs || []) assert.ok(used.has(id), `${q.id} lists ${id} but doesn't use it`);
+    // it only uses theorems that are finished by the time it opens, unless it says so (Amog's shortcuts in logic)
+    for (const m of new Set(q.proof.map(s => s.m).filter(m => m && idx(m) >= 0))) assert.ok(idx(m) < i, `${q.id} uses ${m}, listed after it`);
     // and whatever it needs is on sale by the time it opens
-    const done = Object.fromEntries([...allDone(Q.QUESTS.length)].filter(d => (q.after || [Q.QUESTS[i - 1] && Q.QUESTS[i - 1].id]).includes(d) || idx(d) < idx((q.after || [])[0] || q.id)).map(d => [d, 1]));
+    const done = Object.fromEntries(pre.map(x => [x.id, 1]));
+    assert.ok(Q.isOpen(q, done), q.id + " opens once what comes before it is done");
     for (const id of q.needs || []) assert.ok(Q.onSale(id, done), `${id} not on sale when ${q.id} opens`);
   });
 });
@@ -68,7 +73,7 @@ test("the induction hypothesis is a fact about one number, not a machine", () =>
 });
 
 test("induction is refused where it would be unsound", () => {
-  assert.throws(() => L.step(fresh(idx("sym")), { op: "induct", at: "", v: "a" }), /can't vary/);
+  assert.throws(() => L.step(L.start({ goal: "b=a", given: ["a=b"] }, everything()), { op: "induct", at: "", v: "a" }), /can't vary/);
   assert.throws(() => L.step(L.start(Q.QUESTS[idx("zadd")], Q.machinesFor(idx("zadd"), allDone(4), new Set(["add0", "addS"]))), { op: "induct", at: "", v: "a" }), /don't have/);
   const g = fresh(idx("comm"));
   assert.throws(() => L.step(g, { op: "induct", at: "", v: "z" }), /isn't in the goal/);
@@ -123,7 +128,8 @@ test("make puts a machine's statement on the bench with its slots filled", () =>
   assert.equal(L.show(g.root.bench[1].s), "b+S(a) = S(b+a)");
   assert.throws(() => L.step(g, { op: "make", at: "", m: "addS", fill: { a: "b" } }), /give a term for b/);
   assert.throws(() => L.step(g, { op: "make", at: "", m: "zadd", fill: { a: "z" } }), /nothing called z/);
-  assert.throws(() => L.step(g, { op: "make", at: "", m: "sym", fill: {} }), /rule/);
+  assert.throws(() => L.step(g, { op: "make", at: "", m: "sym", fill: {} }), /give a term for a/);
+  assert.throws(() => L.step(L.start({ goal: "b=a", given: ["a=b"] }, [L.questMachine({ id: "r", name: "r", given: ["a=b"], goal: "b=a" })]), { op: "make", at: "", m: "r", fill: {} }), /rule/);
   assert.throws(() => L.step(g, { op: "make", at: "", m: "comm", fill: { a: "a", b: "b" } }), /don't have/);
   L.step(g, { op: "induct", at: "", v: "b" });
   assert.throws(() => L.step(g, { op: "make", at: "s", m: "h0", fill: {} }), /as it is/);
@@ -214,7 +220,8 @@ test("a proved implication is a rule: hypotheses in, consequent out", () => {
   assert.equal(show(by("sym")), "a = b gives b = a");
   assert.equal(show(by("comm")), "a+b = b+a", "equations stay equality machines");
   assert.equal(L.show(by("pchain").stmt), "(P → Q) → ((Q → R) → (P → R))", "and the implication can still be stamped whole");
-  assert.equal(by("sym").stmt, undefined);
+  assert.equal(show(by("trans")), "a = b, b = c gives a = c");
+  assert.equal(L.show(by("sym").stmt), "a = b → b = a", "Symmetry is an implication between equations (airetho)");
   // three-block rules are offered by the scanner
   const h = L.start({ goal: "(P->R)->((Q->R)->(P|Q->R))" }, everything());
   for (const at of ["", "a", "aa"]) L.step(h, { op: "assume", at });
@@ -365,6 +372,44 @@ test("Contradiction: assume the opposite, reach ⊥, two steps' worth", () => {
   assert.throws(() => L.step(noDne, { op: "byc", at: "" }), /needs Double negation/);
 });
 
+test("follow: the next step of Amog's proof from where the player stands, one workshop at a time", () => {
+  const all = allDone(Q.QUESTS.length);
+  // taking the advice, in whatever order the workshops are visited, finishes everything in par
+  for (const [q, ms] of [...Q.QUESTS.map((q, i) => [q, Q.machinesFor(i, all)]), ...Q.BOUNTIES.map(b => [b, Q.playMachines(all, undefined, b.worlds)])]) {
+    for (const pick of [ws => ws[0], ws => ws[ws.length - 1]]) {
+      const g = L.start(q, ms);
+      for (let n = 0; !g.root.done; n++) {
+        assert.ok(n < 60, q.id);
+        const at = pick(L.shops(g).filter(x => !x.c.kids && !x.c.done)).at, st = L.follow(g, at, q.proof, ms);
+        assert.ok(st, `${q.id}: no advice in "${at}"`);
+        L.step(g, st);
+      }
+      assert.equal(L.count(g.steps), Q.par(q), q.id);
+    }
+  }
+  // the first induction (airetho's friend): reaching for the hypothesis doesn't lose the thread
+  const i = idx("zadd"), q = Q.QUESTS[i], ms = Q.machinesFor(i, all), g = L.start(q, ms);
+  assert.equal(L.follow(g, "", q.proof, ms).op, "induct");
+  L.step(g, { op: "induct", at: "", v: "a" });
+  assert.equal(L.follow(g, "", q.proof, ms), null, "a split workshop has no step of its own");
+  L.step(g, { op: "hyp", at: "s", i: 0 });
+  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "refl", at: "s", t: "0+S(a)" });
+  L.step(g, { op: "refl", at: "s", t: "0+S(a)" });
+  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "rw", at: "s", b: 1, path: [1], m: "addS", dir: "lr" }, "block numbers are the player's");
+  L.step(g, { op: "rw", at: "s", b: 1, path: [1], m: "addS", dir: "lr" });
+  L.step(g, { op: "dup", at: "s", b: 1 });
+  L.step(g, { op: "rw", at: "s", b: 2, path: [1, 0], m: "h0", dir: "lr" });
+  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "qed", at: "s", b: 2 }, "the furthest point of the proof that is on the bench");
+  L.step(g, { op: "qed", at: "s", b: 2 });
+  assert.equal(L.follow(g, "s", q.proof, ms), null, "nothing left to do there");
+  assert.equal(L.follow(g, "b", q.proof, ms).op, "refl");
+  // another route (induction on the other letter) is not Amog's: no advice rather than wrong advice
+  const j = idx("comm"), h = L.start(Q.QUESTS[j], Q.machinesFor(j, all));
+  L.step(h, { op: "induct", at: "", v: "a" });
+  assert.equal(L.follow(h, "s", Q.QUESTS[j].proof, Q.machinesFor(j, all)), null);
+  assert.equal(L.follow(h, "zz", Q.QUESTS[j].proof, Q.machinesFor(j, all)), null);
+});
+
 test("a world only sees the machines of the worlds it builds on", () => {
   const all = allDone(Q.QUESTS.length), ids = id => Q.machinesFor(idx(id), all).map(m => m.id);
   assert.ok(ids("massoc").includes("comm") && ids("massoc").includes("mul0") && !ids("massoc").includes("assume") && !ids("massoc").includes("pid"));
@@ -373,6 +418,9 @@ test("a world only sees the machines of the worlds it builds on", () => {
   assert.ok(ids("comm").includes("have") && ids("la").includes("have"), "Lemma works in every world");
   assert.deepEqual(Q.playMachines(all, undefined, ["prop"]).map(m => m.id).filter(id => /^(dne|apply|landi|comm|mp|pk)$/.test(id)).sort(), ["mp", "pk"], "a bounty can be limited to some worlds");
   assert.ok(!ids("assoc").includes("mul0") && !ids("assoc").includes("mp"));
+  assert.ok(ids("zadd").includes("sym") && ids("massoc").includes("trans") && !ids("pdist").includes("sym"), "the number worlds get the equality rules");
+  assert.ok(ids("trans").includes("assume") && ids("trans").includes("sym") && !ids("trans").includes("add0") && !ids("trans").includes("pid"), "equality: Assume and nothing about addition");
+  assert.ok(Q.numeric("eq") && Q.numeric("add") && Q.numeric("mul") && !Q.numeric("prop") && !Q.numeric("logic"));
   assert.equal(everything().length, Q.GATES.length + Q.QUESTS.length);
   for (const q of Q.QUESTS) for (const id of q.needs || []) assert.ok(Q.sees(q.world, Q.gate(id).w), `${q.id} needs ${id} from a world it can't see`);
 });
@@ -384,6 +432,14 @@ test("bounties are provable from the finished quests", () => {
     assert.ok(L.closeAll(g).root.done, b.id);
     for (const blk of g.root.bench) assert.ok(L.holds(blk.s, { a: 3, b: 5, c: 2, d: 7 }), b.id);
   }
+  // a bounty is closed until the machines Amog's proof of it uses are there (airetho)
+  const by = id => Q.BOUNTIES.find(b => b.id === id), d = ids => Object.fromEntries(ids.map(id => [id, 1]));
+  assert.deepEqual(by("b11").tools.sort(), ["add0", "addS"]);
+  assert.deepEqual(by("ln").tools.sort(), ["assume", "mp", "pmp"]);
+  assert.ok(Q.BOUNTIES.every(b => !Q.bountyOpen(b, {}, new Set())), "none at the start");
+  assert.ok(!Q.bountyOpen(by("b11"), {}, new Set(["add0"])) && Q.bountyOpen(by("b11"), {}, new Set(["add0", "addS"])));
+  assert.ok(!Q.bountyOpen(by("bswap"), d(["comm"]), new Set(["add0", "addS"])) && Q.bountyOpen(by("bswap"), d(["comm", "assoc"]), new Set()));
+  assert.ok(Q.BOUNTIES.every(b => Q.bountyOpen(b, d(Q.QUESTS.map(q => q.id)), new Set(Q.GATES.map(m => m.id)))));
 });
 
 test("owned shop machines gate what a quest can use", () => {
@@ -400,32 +456,38 @@ test("quests open in branches and machines go on sale when a quest needs them", 
   const done = ids => Object.fromEntries(ids.map(id => [id, 99]));
   const open = d => Q.QUESTS.filter(q => !(q.id in d) && Q.isOpen(q, d)).map(q => q.id);
   assert.deepEqual(open({}), ["refl0"]);
-  assert.deepEqual(open(done(["refl0", "zz", "sym"])), ["trans"]);
-  assert.deepEqual(open(done(["refl0", "zz", "sym", "trans"])), ["zadd", "pid"], "the fork: induction or propositions");
+  assert.deepEqual(open(done(["refl0"])), ["zz"]);
+  assert.deepEqual(open(done(["refl0", "zz"])), ["zadd", "pid"], "the fork: induction or propositions");
+  assert.deepEqual(open(done(["refl0", "zz", "pid"])), ["sym", "zadd", "pk"], "equality opens once Assume is known");
+  assert.deepEqual(open(done(["refl0", "zz", "pid", "sym"])), ["trans", "zadd", "pk"]);
   assert.deepEqual(open(done(Q.QUESTS.filter(q => q.world === "add").map(q => q.id))), ["pid", "mz"]);
-  assert.deepEqual(open(done(["refl0", "zz", "sym", "trans", "pid", "pk", "pmp"])), ["zadd", "pchain", "lnn"], "three ways on");
+  assert.deepEqual(open(done(["refl0", "zz", "pid", "pk", "pmp"])), ["sym", "zadd", "pchain", "lnn"], "four ways on");
   const sale = d => Q.SHOP.filter(x => x.gate && Q.onSale(x.id, d)).map(x => x.id);
   assert.deepEqual(sale({}), []);
   assert.deepEqual(sale(done(["refl0"])), ["add0"]);
-  assert.deepEqual(sale(done(["refl0", "zz", "sym", "trans"])), ["add0", "addS", "induct", "assume"]);
-  assert.match(Q.canBuy("mul0", done(["refl0", "zz", "sym", "trans"]), new Set(["add0"])), /not on sale/);
+  assert.deepEqual(sale(done(["refl0", "zz"])), ["add0", "addS", "induct", "assume"]);
+  assert.match(Q.canBuy("mul0", done(["refl0", "zz"]), new Set(["add0"])), /not on sale/);
   assert.deepEqual(Q.SHOP.filter(x => x.gate && !x.extra).map(x => x.id).sort(), Q.QUESTS.flatMap(q => q.needs || []).sort(), "every machine sold is needed by exactly one quest's `needs`");
   assert.deepEqual(Q.SHOP.filter(x => x.gate).map(x => x.id), Q.GATES.map(m => m.id));
-  for (const w of Q.WORLDS) { const at = Q.QUESTS.map((q, i) => (q.world === w[0] ? i : -1)).filter(i => i >= 0); assert.equal(at[at.length - 1] - at[0] + 1, at.length, w[0] + " is contiguous in QUESTS"); }
+  assert.deepEqual([...new Set(Q.QUESTS.map(q => q.world))].sort(), Q.WORLDS.map(w => w[0]).sort());
 });
 
 test("payouts", () => {
-  assert.equal(Q.earned({ refl0: 1 }), 1 + Q.PAR_BONUS);
-  assert.equal(Q.earned({ refl0: 9, b11: 3, nonsense: 1 }), 1 + 1);
+  assert.equal(Q.earned({ refl0: 1 }), 2 + Q.PAR_BONUS);
+  assert.equal(Q.earned({ refl0: 9, b11: 3, nonsense: 1 }), 2 + 1);
   assert.match(Q.canBuy("addS", {}, new Set()), /not on sale/);
   assert.match(Q.canBuy("add0", {}, new Set()), /not on sale/);
-  assert.match(Q.canBuy("scanner", { refl0: 9 }, new Set()), /need ∎3 more/);
-  // with ∎1 the only sensible buy is the machine quest 1 needs; an upgrade would strand you
+  assert.match(Q.canBuy("scanner", { refl0: 9 }, new Set()), /need ∎2 more/);
+  // with ∎2 the only sensible buy is the machine quest 1 needs; an upgrade would strand you
   assert.equal(Q.canBuy("add0", { refl0: 9 }, new Set()), "");
-  assert.match(Q.canBuy("autofill", { refl0: 1, zz: 9 }, new Set(["add0"])), /^$/, "sym needs nothing, so spending is safe");
-  assert.match(Q.canBuy("scanner", { refl0: 9, zz: 9, sym: 9, trans: 9 }, new Set(["add0"])), /leave too little/);
-  assert.equal(Q.canBuy("assume", { refl0: 9, zz: 9, sym: 9, trans: 9 }, new Set(["add0"])), "", "either branch can be bought into");
-  assert.equal(Q.canBuy("induct", { refl0: 9, zz: 9, sym: 9, trans: 9 }, new Set(["add0"])), "");
+  assert.match(Q.canBuy("autofill", { refl0: 9 }, new Set()), /leave too little/);
+  // after Zero plus zero, even with no par bonus, either branch can be bought into (and not half of one)
+  const d = { refl0: 9, zz: 9 }, own = new Set(["add0"]);
+  assert.equal(Q.balance(d, own), 4);
+  assert.equal(Q.canBuy("assume", d, own), "", "implication");
+  assert.equal(Q.canBuy("induct", d, own), "", "or induction, which needs both of its machines");
+  assert.equal(Q.canBuy("addS", d, new Set(["add0", "induct"])), "");
+  assert.match(Q.canBuy("scanner", d, own), /leave too little/);
 });
 
 test("the shop has no dead ends: whatever is bought, in any order, every quest can still be finished", () => {

@@ -6,17 +6,21 @@
  * owned and the finished quests listed before it (machinesFor), so nothing is ever circular. `proof` is a list of
  * engine steps (see logic.js); its length is the par shown to the player, and the tests replay it, so every quest
  * is known to be provable. A quest opens when every quest in `after` is finished (default: the one before it in its
- * world), `needs` lists the shop machines its proof uses, and `guide` makes the page point at each next step.
+ * world), `needs` lists the shop machines its proof uses, and `guide` makes the page point at each next step
+ * without being asked (the first use of a mechanic; everywhere else the hint button does it on request).
  * `takes` is how many arrows of an implication are hypotheses of its rule (logic.js questMachine): read the goal as
  * a theorem, "from these, that", so Chain is "P → Q, Q → R give P → R" rather than a disguised modus ponens.
  *
- * Worlds branch (Pope Amog's choice): addition is the trunk; implication opens after Transitivity, logic (and, or,
- * false, true) after the third implication quest, multiplication after Associativity, each started by buying its
+ * Worlds branch (Pope Amog's choice): addition is the trunk; implication opens after Zero plus zero, equality
+ * (Symmetry and Transitivity as implications between equations, airetho) after Identity, logic (and, or, false,
+ * true) after the third implication quest, multiplication after Associativity, each started by buying its
  * machines. A world only sees machines from the worlds in SEES (logic sees implication, multiplication sees
- * addition); bounties and the playground see everything.
+ * addition, both number worlds see equality); bounties and the playground see everything. A world's quests need
+ * not sit together in QUESTS: the order of the list is what a quest may use (the finished quests before it), so
+ * the equality quests sit before Zero on the left.
  *
  * Economy: finishing a quest pays `pay` ∎ (tombstones), plus PAR_BONUS if the best proof is no longer than Amog's;
- * BOUNTIES are optional theorems that pay once. ∎ buys the SHOP: `gate` machines (axioms, Induction, Assume, Modus
+ * BOUNTIES are optional theorems that pay once, each open once the machines its reference proof uses are there. ∎ buys the SHOP: `gate` machines (axioms, Induction, Assume, Modus
  * ponens; each appears once the quests in its `after` are finished, i.e. when there is a quest it helps with) and
  * convenience upgrades. Nothing is stored as a balance: `balance` derives it from what is done and owned, so it
  * can't be farmed or drift. `canBuy` looks ahead (`alive`) and refuses any purchase after which some quest could no longer be
@@ -42,8 +46,8 @@
     ["mul", L.machine({ id: "mul0", name: "Times zero", stmt: "a*0=0" })],
     ["mul", L.machine({ id: "mulS", name: "Times a successor", stmt: "a*S(b)=a*b+a" })],
   ].map(([w, m]) => ({ ...m, w }));
-  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["logic", "Logic"], ["mul", "Multiplication"]];
-  const SEES = { add: ["add"], prop: ["prop"], logic: ["prop", "logic"], mul: ["add", "mul"] };
+  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["mul", "Multiplication"]];
+  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], mul: ["add", "mul", "eq"] };
   /* does a quest in `world` see things from world w? (no world = bounties and the playground: everything) */
   const sees = (world, w) => !world || w === "any" || SEES[world].includes(w);
   /* tactics open workshops instead of stating something */
@@ -63,33 +67,35 @@
 
   const QUESTS = [
     {
-      id: "refl0", name: "Something from nothing", pay: 1, goal: "0=0", guide: true,
+      id: "refl0", name: "Something from nothing", pay: 2, goal: "0=0", guide: true,
       intro: "This is your first machine. <b>refl</b> makes theorems of the form $t = t$ out of thin air, for any term $t$ you feed it. That is already enough for a theorem, if not a deep one.",
       hint: "Open refl, type $0$ and run it.",
       proof: [refl("", "0")],
     },
     {
-      id: "zz", name: "Zero plus zero", pay: 2, needs: ["add0"], goal: "0+0=0", guide: true,
-      intro: "Finishing a craft pays ∎. Spend your first one on a machine: <i>Adding zero</i>, an axiom. An equality machine rewrites a part of a block: set its lever to a direction, then tap the part to feed it.",
-      hint: "Make $0+0 = 0+0$ with refl. Then open <i>Adding zero</i>, lever on $a+0 \\to a$, and tap the right-hand $0+0$.",
+      id: "zz", name: "Zero plus zero", pay: 3, needs: ["add0"], goal: "0+0=0", guide: true,
+      intro: "Finishing a craft pays ∎, and ∎ buys machines. This quest needs one: <i>Adding zero</i>, an axiom. An equality machine rewrites a part of a block: set its lever to a direction, then tap the part to feed it. Nearly every equation is crafted this way: make a block from one side of the goal with refl, then rewrite its other side until the block is the goal.",
+      hint: "Make $0+0 = 0+0$ with refl. Then open <i>Adding zero</i>, set its lever to $a+0 \\to a$, and tap the $0+0$ on the right side of your block.",
       proof: [refl("", "0+0"), rw("", [1], "add0")],
     },
+    /* ---- equality: Symmetry and Transitivity in the logic world's framing (airetho). They sit here in the list
+       so the number worlds can use them as rules, but they open after Identity. ---- */
     {
-      id: "sym", name: "Symmetry", pay: 2, given: ["a=b"], goal: "b=a", guide: true,
-      intro: "This time you are <i>given</i> a fact: $a = b$, for two numbers you know nothing else about. A given fact is a machine too, but it only speaks about this $a$ and this $b$.",
-      hint: "Start from $b = b$ and use the given fact backwards on one side.",
-      proof: [refl("", "b"), rw("", [1], "h0", "rl")],
+      id: "sym", world: "eq", after: ["pid"], name: "Symmetry", pay: 2, goal: "a=b->b=a",
+      intro: "Equations can be assumed too. To craft $a = b \\to b = a$, run Assume: you get a workshop that holds $a = b$, for two numbers you know nothing else about. A fact you hold is a machine: it rewrites $a$ into $b$, or $b$ back into $a$, but only this $a$ and this $b$.",
+      hint: "Assume. Make $b = b$ with refl, then open the assumption and run it backwards ($b \\to a$) on the right side of that block.",
+      proof: [assume(""), refl("a", "b"), { ...rw("a", [1], "h0", "rl"), b: 1 }],
     },
     {
-      id: "trans", name: "Transitivity", pay: 2, given: ["a=b", "b=c"], goal: "a=c",
-      intro: "Two given facts. Once this is crafted, <i>Symmetry</i> and <i>Transitivity</i> are rules: they take whole blocks, so open one and tap a block's $=$ sign.",
-      hint: "A given fact can go on the bench as a block. Put $a = b$ there, then walk its right side along.",
-      proof: [hyp("", 0), rw("", [1], "h1")],
+      id: "trans", world: "eq", name: "Transitivity", pay: 2, goal: "a=b->(b=c->a=c)",
+      intro: "Two assumptions, one after the other. Once this is crafted, <i>Symmetry</i> and <i>Transitivity</i> are rules in every world with numbers: they take whole blocks, so open one and tap a block's $=$ sign.",
+      hint: "Assume twice. Both assumptions are on the bench already: use the second one, $b = c$, to rewrite the right side of the block $a = b$.",
+      proof: [assume(""), assume("a"), rw("aa", [1], "h1")],
     },
     {
-      id: "zadd", name: "Zero on the left", pay: 3, needs: ["addS", "induct"], goal: "0+a=a",
-      intro: "<i>Adding zero</i> says $a+0 = a$. With the zero on the left, no machine fits: $a$ could be anything. Two machines to buy: <i>Adding a successor</i>, the other axiom, and <b>Induction</b>, which splits the job into two workshops: craft it for $0$, then craft it for $S(a)$ while holding the fact for $a$.",
-      hint: "Induct on $a$. In the step workshop, push the $S$ outward with <i>Adding a successor</i>, then the given fact fits inside it.",
+      id: "zadd", name: "Zero on the left", pay: 3, needs: ["addS", "induct"], goal: "0+a=a", guide: true,
+      intro: "<i>Adding zero</i> says $a+0 = a$. With the zero on the left, no machine fits: $a$ could be anything. Two machines to buy: <i>Adding a successor</i>, the other axiom, and <b>Induction</b>. Induction splits the job into two workshops: craft the goal for $0$ (the base case), then craft it for $S(a)$ while <i>holding</i> it for $a$ (the step). What you hold there, the induction hypothesis, is a machine too: it turns $0+a$ into $a$, but only for this $a$.",
+      hint: "Induct on $a$. Each workshop then goes like <i>Zero plus zero</i>: make a block from the goal's left side with refl, and rewrite its right side until it reads the goal's right side. Don't try to reshape the induction hypothesis into the goal: it is the machine for the last rewrite. In the step, <i>Adding a successor</i> turns $0+S(a)$ into $S(0+a)$, and now there is a $0+a$ inside for the induction hypothesis to work on.",
       proof: [{ op: "induct", at: "", v: "a" }, refl("b", "0+0"), rw("b", [1], "add0"), refl("s", "0+S(a)"), rw("s", [1], "addS"), rw("s", [1, 0], "h0")],
     },
     {
@@ -119,7 +125,7 @@
 
     /* ---- propositions: implication only, by assuming and by modus ponens ---- */
     {
-      id: "pid", world: "prop", after: ["trans"], name: "Identity", pay: 2, needs: ["assume"], goal: "P->P",
+      id: "pid", world: "prop", after: ["zz"], name: "Identity", pay: 2, needs: ["assume"], goal: "P->P", guide: true,
       intro: "A new kind of block: statements, written with capital letters, joined by $\\to$ (\"implies\"). Nothing is known about $P$. To craft $P \\to Q$ you buy <b>Assume</b>: it opens a workshop where $P$ is a fact, already on the bench, and the goal is $Q$.",
       hint: "Run Assume. Inside the workshop, the assumption is exactly the goal.",
       proof: [assume("")],
@@ -131,14 +137,14 @@
       proof: [assume(""), assume("a")],
     },
     {
-      id: "pmp", takes: 1, world: "prop", name: "Using an implication", pay: 3, needs: ["mp"], goal: "P->((P->Q)->Q)",
+      id: "pmp", takes: 1, world: "prop", name: "Using an implication", pay: 3, needs: ["mp"], goal: "P->((P->Q)->Q)", guide: true,
       intro: "Holding $P \\to Q$ and $P$ should give $Q$. That is a machine to buy: <b>Modus ponens</b>, a rule. Feed it the implication first, then the block that matches its left side; it uses up both. Every implication you craft from now on becomes a rule of its own: it takes its hypotheses as blocks and gives what they imply.",
       hint: "Assume twice, then open Modus ponens and tap the $\\to$ of $P \\to Q$, then $P$.",
       proof: [assume(""), assume("a"), mp("aa", 1, 0)],
     },
     {
       id: "pchain", takes: 2, world: "prop", name: "Chain", pay: 4, goal: "(P->Q)->((Q->R)->(P->R))",
-      intro: "Implications compose, like transitivity for $=$.",
+      intro: "Implications compose: from $P$ to $Q$ and from $Q$ to $R$ makes from $P$ to $R$.",
       hint: "Assume three times. Get $Q$ from $P \\to Q$ and $P$, then $R$ from $Q \\to R$ and $Q$.",
       proof: [assume(""), assume("a"), assume("aa"), mp("aaa", 0, 2), mp("aaa", 1, 0)],
     },
@@ -317,13 +323,15 @@
   /* a workshop finishes only when the player says so (a qed step, free): add those to the reference proofs */
   const EVERY = [...GATES, ...QUESTS.map(L.questMachine)];
   for (const q of [...QUESTS, ...BOUNTIES]) q.proof = L.withQed(q, EVERY, q.proof);
+  /* a bounty opens once the machines Amog's proof of it uses are there (airetho): shop machines owned, theorems crafted */
+  for (const b of BOUNTIES) b.tools = [...new Set(b.proof.flatMap(s => [TACTICS.includes(s.op) ? s.op : null, s.m]).filter(m => m && !/^h\d+$/.test(m)))];
 
   const PAR_BONUS = 1;
   const SHOP = [
     { id: "add0", gate: true, price: 1, after: ["refl0"] },
-    { id: "addS", gate: true, price: 2, after: ["trans"] },
-    { id: "induct", gate: true, price: 3, after: ["trans"] },
-    { id: "assume", gate: true, price: 3, after: ["trans"] },
+    { id: "addS", gate: true, price: 2, after: ["zz"] },
+    { id: "induct", gate: true, price: 2, after: ["zz"] },
+    { id: "assume", gate: true, price: 3, after: ["zz"] },
     { id: "mp", gate: true, price: 3, after: ["pk"] },
     { id: "have", gate: true, extra: true, price: 3, after: ["pmp"] },
     { id: "dne", gate: true, price: 3, after: ["lnn"] },
@@ -333,6 +341,7 @@
     { id: "mulS", gate: true, price: 3, after: ["assoc"] },
     { id: "autofill", name: "Autofill", price: 2, text: "refl offers the two sides of the goal, and Induction offers the letters, so you type less." },
     { id: "press", name: "Block press", price: 2, text: "Any equality machine can stamp its own statement onto the bench, with the slots filled in as you like." },
+    { id: "quick", name: "Goal buttons", price: 2, text: "When the goal reads t = t, a refl button on it crafts that block and uses it. When the goal is an implication, an assume button runs Assume. One tap instead of opening the machine." },
     { id: "scanner", name: "Scanner", price: 4, text: "Tap a part of a block with no machine open to list every machine that fits it, and see where the open machine fits." },
     { id: "goalrw", name: "Goal lever", price: 4, after: ["assoc"], text: "Equality machines rewrite the goal too: with one open, tap a part of the goal. Craft towards the goal and the goal towards you." },
   ];
@@ -343,9 +352,12 @@
   /* done: { id: best step count }. A quest is open once the quests it comes after are finished. */
   function isOpen(q, done) {
     if (q.after) return all(q.after, done);
-    const i = QUESTS.indexOf(q);
-    return i <= 0 || QUESTS[i - 1].world !== q.world || QUESTS[i - 1].id in done;
+    const chain = QUESTS.filter(x => x.world === q.world), k = chain.indexOf(q);
+    return k <= 0 || chain[k - 1].id in done;
   }
+  const bountyOpen = (b, done, owned) => b.tools.every(id => (gate(id) ? owned.has(id) : id in done));
+  /* does a world work with numbers (so refl belongs on its floor)? */
+  const numeric = w => QUESTS.some(q => q.world === w && q.goal.includes("="));
   /* a shop item is on sale once the quests it comes after are finished */
   const onSale = (id, done) => { const it = SHOP.find(x => x.id === id); return !!it && all(it.after, done); };
   function earned(done) {
@@ -408,5 +420,5 @@
     return [...mine(owned).filter(m => ok(m.w)), ...QUESTS.filter(q => done.has(q.id) && ok(q.world)).map(L.questMachine)];
   }
 
-  root.MathcraftQuests = { GATES, WORLDS, SEES, sees, TACTICS, QUESTS, BOUNTIES, SHOP, PAR_BONUS, gate, machinesFor, playMachines, par, price, isOpen, onSale, missing, earned, balance, canBuy };
+  root.MathcraftQuests = { GATES, WORLDS, SEES, sees, TACTICS, QUESTS, BOUNTIES, SHOP, PAR_BONUS, gate, machinesFor, playMachines, par, price, isOpen, bountyOpen, numeric, onSale, missing, earned, balance, canBuy };
 })(typeof window !== "undefined" ? window : globalThis);
