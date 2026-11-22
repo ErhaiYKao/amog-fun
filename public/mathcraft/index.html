@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=8"></script>
-<script src="/mathcraft/quests.js?v=8"></script>
+<script src="/mathcraft/logic.js?v=9"></script>
+<script src="/mathcraft/quests.js?v=9"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -148,7 +148,15 @@
   div.opt:hover { border-color: var(--line-2); }
   .opt .form { margin-top: 4px; }
   .opt .res.bad { font-family: var(--mono); font-size: 12.5px; color: var(--g2); }
-  .goalline { border-radius: 10px; padding: 6px 8px; margin: 0 -8px; }
+  .goalline { border-radius: 12px; padding: 8px 12px; margin: 0 0 4px; border: 1px solid color-mix(in srgb, var(--g3) 60%, var(--line)); background: color-mix(in srgb, var(--g3) 9%, var(--bg)); }
+  .goalline > .meta:first-child { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--g3); }
+  .goalline .st.goalst { font-size: 24px; }
+  .goalline.done { opacity: .7; }
+  .block .use { flex: none; font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--g3); background: color-mix(in srgb, var(--g3) 16%, transparent); color: var(--g3); cursor: pointer; white-space: nowrap; }
+  .block .use:hover { background: color-mix(in srgb, var(--g3) 28%, transparent); }
+  .st .neg { padding: 2px 1px; }
+  details.curious { margin-top: 10px; font-size: 15.5px; color: #d3cfc5; }
+  details.curious summary { cursor: pointer; font-family: var(--mono); font-size: 12px; color: var(--g1); }
   .goalline .t { cursor: pointer; border-radius: 6px; padding: 2px 1px; }
   .goalline .t:hover:not(:has(.t:hover)) { background: #ffffff14; }
   .block .grip { flex: none; cursor: grab; touch-action: none; user-select: none; color: var(--faint); font-size: 16px; padding: 2px 2px; }
@@ -223,6 +231,15 @@
     }
     return s;
   }
+  /* saves from before qed (#33): workshops used to finish by themselves, so put the qed steps in once */
+  function migrate() {
+    if (save.qed) return;
+    for (const q of [...Q.QUESTS, ...Q.BOUNTIES, ...lemmas()]) {
+      const steps = save.steps[q.id];
+      if (steps && steps.length) try { save.steps[q.id] = L.withQed(q, machinesOf(q), steps); } catch (e) {}
+    }
+    save.qed = 1; store();
+  }
   function store() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} }
   const doneSet = () => new Set(Object.keys(save.done));
   const ownedSet = () => new Set(save.owned);
@@ -258,7 +275,7 @@
   function tHtml(t, o = {}, path = [], paren = false) {
     const p = path.join("."), top = !path.length;
     const cls = q => `t${o.sel === q ? " sel" : ""}${o.fit && o.fit.has(q) ? " fit" : ""}`;
-    const kid = (i, ops) => tHtml(t[i + 1], o, [...path, i], ops.includes(t[i + 1][0]));
+    const kid = (i, ops) => tHtml(t[i + 1], o, [...path, i], ops.includes(t[i + 1][0]) && !L.neg(t[i + 1]));
     // the main sign of a block stands for the whole block
     const sign = ch => (o.live && top ? `<span class="eqs ${cls("")}" data-p="" title="the whole block">${ch}</span>` : `<span class="eqs">${ch}</span>`);
     let inner;
@@ -268,6 +285,7 @@
     else if (t[0] === "+") inner = kid(0, "+") + " + " + kid(1, "+");
     else if (t[0] === "*") inner = kid(0, "+*") + "·" + kid(1, "+*");
     else if (t[0] === "=") inner = kid(0, "") + sign("=") + kid(1, "");
+    else if (L.neg(t)) inner = (o.live && top ? `<span class="neg ${cls("")}" data-p="" title="the whole block">¬</span>` : "¬") + kid(0, "=→∧∨");   // A → ⊥, written ¬A
     else if (t[0] === "→") inner = kid(0, "→") + sign("→") + kid(1, "→");
     else if (t[0] === "∧" || t[0] === "∨") inner = kid(0, "→∧∨") + sign(t[0]) + kid(1, "→∧∨");
     else inner = t[0];                                                   // ⊥, ⊤
@@ -283,7 +301,7 @@
 
   /* ---------- machines as objects ---------- */
   const GATES = Q.SHOP.filter(x => x.gate).map(x => x.id);
-  const COLORS = { refl: "var(--g3)", eq: "var(--g1)", fact: "var(--g1)", rule: "#c9a7ff", induct: "var(--g2)", assume: "var(--g2)", apply: "var(--g2)", have: "var(--g2)", unfold: "#c9a7ff", hyp: "#f5c04a", held: "#f5c04a" };
+  const COLORS = { refl: "var(--g3)", eq: "var(--g1)", fact: "var(--g1)", rule: "#c9a7ff", induct: "var(--g2)", assume: "var(--g2)", apply: "var(--g2)", have: "var(--g2)", byc: "var(--g2)", unfold: "#c9a7ff", hyp: "#f5c04a", held: "#f5c04a" };
   function icon(kind, size = 44) {
     const c = COLORS[kind], line = `fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
     const glyph = {
@@ -297,6 +315,7 @@
       fact: `<path d="M12 20.5h14M22 16l4.5 4.5L22 25" ${line}/>`,
       apply: `<path d="M28 20.5H13M17.5 16L13 20.5l4.5 4.5" ${line}/>`,
       have: `<path d="M13 14v13M27 14v13M13 20.5h14" ${line}/>`,
+      byc: `<path d="M12.5 27.5h15M20 13v14.5" ${line}/>`,
       unfold: `<path d="M11 16.5h17l-3-3M29 24.5H12l3 3" ${line} stroke-dasharray="3 2.5"/>`,
     }[kind];
     return `<svg viewBox="0 0 40 44" width="${size * 40 / 44}" height="${size}" aria-hidden="true"><rect x="27" y="1.5" width="6" height="8" rx="1.5" fill="none" stroke="${c}" stroke-width="1.5" opacity=".55"/>
@@ -304,7 +323,7 @@
       <circle cx="12" cy="38.5" r="3.5" fill="none" stroke="${c}" stroke-width="1.5"/><circle cx="28" cy="38.5" r="3.5" fill="none" stroke="${c}" stroke-width="1.5"/></svg>`;
   }
   /* what each fact held in workshop `at` is: the quest's givens, then one per induction step or assumption on the way in */
-  const hypNames = at => [...(item.given || []).map(() => "given"), ...[...at].filter(ch => "sac".includes(ch)).map(ch => ({ s: "induction hypothesis", a: "assumption", c: "lemma" }[ch]))];
+  const hypNames = at => [...(item.given || []).map(() => "given"), ...[...at].filter(ch => "sacx".includes(ch)).map(ch => ({ s: "induction hypothesis", a: "assumption", c: "lemma", x: "for contradiction" }[ch]))];
   const hypName = i => hypNames(where)[i] || "given";
   /* { id, name, kind, stmt | premises+concl, locked, hyp } for anything that can be opened */
   function mach(id) {
@@ -326,14 +345,15 @@
     fact: "A statement you have proved, with slots. Fill them in and it puts the block on the bench.",
     apply: "Works backwards. When the goal is <i>Q</i>, tap a block <i>P</i> → <i>Q</i> (it is used up) or drag it onto the goal, and the goal becomes <i>P</i>. A rule that concludes the goal leaves one goal for each thing it takes.",
     have: "A lemma in the middle of a proof: type a statement about what is in play. You craft it in a workshop of its own, then carry on with it on the bench. Nothing on the bench is lost.",
-    unfold: "∨, ∧ and ⊤ are definitions: <i>A</i> ∨ <i>B</i> is ¬<i>A</i> → <i>B</i>, <i>A</i> ∧ <i>B</i> is ¬(<i>A</i> → ¬<i>B</i>), and ⊤ is ⊥ → ⊥, where ¬<i>A</i> is <i>A</i> → ⊥. Tap a part of a block to unfold it, or fold it back. Free: it takes no step.",
+    unfold: "∨, ∧ and ⊤ are definitions: <i>A</i> ∨ <i>B</i> is ¬<i>A</i> → <i>B</i>, <i>A</i> ∧ <i>B</i> is ¬(<i>A</i> → ¬<i>B</i>), and ⊤ is ¬⊥. (¬<i>A</i> is just how <i>A</i> → ⊥ is written.) Tap a part of a block or of the goal to unfold it, or fold it back. Free: it takes no step.",
+    byc: "Proof by contradiction: suppose the goal is false and reach ⊥. It opens a workshop that holds ¬<i>P</i>, with the goal ⊥. It is Apply Double negation followed by Assume, so it counts as those two steps.",
   };
 
   /* ---------- workshops ---------- */
   const leaves = () => L.shops(game).filter(x => !x.c.kids);
   const firstOpen = () => { const ls = leaves(); return (ls.find(l => !l.c.done) || ls[0]).at; };
   const shopName = at => {
-    const parts = [...at].map(ch => ({ b: "Base case", s: "Step", a: "Assume", l: "Lemma", c: "With the lemma" }[ch] || "Goal " + ch));
+    const parts = [...at].map(ch => ({ b: "Base case", s: "Step", a: "Assume", l: "Lemma", c: "With the lemma", x: "Contradiction" }[ch] || "Goal " + ch));
     return (parts.length > 3 ? "… › " : "") + parts.slice(-3).join(" › ");
   };
   /* the number terms refl is most likely wanted for: the sides of the goal, if it is an equation */
@@ -446,6 +466,7 @@
     const bench = g => g.root.bench.map(b => L.show(b.s)).join("|");
     try { if (bench(L.replay(item, Q.machinesFor(Q.QUESTS.indexOf(item), doneSet()), p.slice(0, n))) !== bench(game)) return null; } catch (e) { return null; }
     const s = p[n];
+    if (s.op === "qed") return { text: "That block is the goal. Tap <b>✓ use it</b> to finish.", at: `[data-qed="${s.b}"]` };
     if (s.op === "refl") {
       if (openM !== "refl") return { text: n ? "Start with a block. Open <b>refl</b>." : "This is your first machine. Open <b>refl</b>.", at: `[data-m="refl"]` };
       return { text: `Feed it a term: type <b>${esc(L.show(L.term(s.t)))}</b> and run it.`, at: typed.replace(/\s/g, "") === L.show(L.term(s.t)) ? `[data-do="refl"]` : "#rterm" };
@@ -498,7 +519,7 @@
     const pays = quest ? ` · pays ∎${q.pay}, +${Q.PAR_BONUS} in ${Q.par(q)} steps or fewer` : "";
     let h = `<p class="label">${q.own ? "Playground" : q.bounty ? "Bounty" : `${wname} · quest ${q.world === "add" ? k : k + 1} of ${q.world === "add" ? chain.length - 1 : chain.length}`}</p><h2>${esc(q.name)}</h2>
       <div class="goal"><span class="meta">craft</span><span class="scroll">${st(L.term(q.goal))}</span><span class="meta">${forAny}</span></div>
-      <p>${text}</p>`;
+      <p>${text}</p>${q.curious ? `<details class="curious"><summary>for the curious</summary><p>${q.curious}</p></details>` : ""}`;
     const missing = (q.needs || []).filter(id => !up(id));
     if (missing.length && !game.root.done) h += `<p class="need">This one needs ${and(missing.map(id => `<i>${esc(Q.gate(id).name)}</i> (∎${Q.price(id)})`))}. Open ${missing.length > 1 ? "them" : "it"} on the machine floor to buy.</p>`;
     h += `<div class="row hint">${quest ? `<button class="mini" data-do="hint">${hint ? "hide hint" : "hint"}</button>` : ""}
@@ -536,7 +557,8 @@
       `<button data-at="${l.at}" class="${l.at === where ? "on" : ""} ${l.c.done ? "done" : ""}"><span class="meta">${shopName(l.at)}${l.c.done ? " ✓" : ""}</span><span class="st small">${tHtml(l.c.goal)}</span></button>`).join("") + `</div>`;
     h += `<p class="label">${where ? "Workshop · " + shopName(where) : "Workbench"}<button class="mini tiny widen" data-do="wide">${save.wide ? "narrower" : "wider"}</button></p>`;
     const om = openM && mach(openM), gLive = up("goalrw") && om && !om.locked && (om.kind === "eq" || om.kind === "hyp");
-    h += `<div class="given goalline" data-goal ${canApply() ? `title="drop a block P → (this goal) here to apply it"` : ""}><span class="meta">${where ? "craft" : "goal"}</span><span class="scroll">${st(c.goal, gLive ? { live: true } : {}, "small")}</span>${gLive ? `<span class="meta">tap a part to rewrite the goal</span>` : ""}</div>`;
+    const gTip = om && om.kind === "unfold" ? "tap a part to translate the goal" : gLive ? "tap a part to rewrite the goal" : "";
+    h += `<div class="given goalline ${c.done ? "done" : ""}" data-goal title="the goal${canApply() ? ": drop a block P → (this goal) here to apply it, or the goal itself to use it" : ""}"><span class="meta">${c.done ? "done ✓" : "goal"}</span><span class="scroll">${st(c.goal, { live: true, sel: sel && sel.b === "g" ? pstr(sel.path) : null }, "goalst")}</span>${gTip ? `<span class="meta">${gTip}</span>` : ""}</div>`;
     c.hyps.forEach((s, i) => {
       h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span>
         <button class="mini tiny ${openM === "h" + i ? "on" : ""}" data-m="h${i}">open</button></div>`;
@@ -549,7 +571,7 @@
       const on = sel && sel.b === i, goal = L.sameDef(b.s, c.goal);
       h += `<div class="block ${on ? "sel" : ""} ${goal ? "goal" : ""} ${picked.includes(i) ? "picked" : ""} ${flash === i ? "flash" : ""}" data-b="${i}">${grips ? `<span class="grip" data-grip="${i}" title="drag onto a block for modus ponens, or onto the goal to apply it">⠿</span>` : ""}<span class="n">${i + 1}</span>
         <span class="scroll">${st(b.s, { live: true, sel: on ? pstr(sel.path) : null, fit: fit[i] })}</span>
-        ${goal ? `<span class="ok" title="this block is the goal">✓</span>` : b.deps.length ? `<span class="dot" title="Made with the ${hypName(b.deps[b.deps.length - 1])}: only true inside this workshop."></span>` : ""}
+        ${goal ? (c.done ? `<span class="ok" title="this block is the goal">✓</span>` : `<button class="use" data-qed="${i}" title="this block is the goal: use it to finish the workshop (free)">✓ use it</button>`) : b.deps.length ? `<span class="dot" title="Made with the ${hypName(b.deps[b.deps.length - 1])}: only true inside this workshop."></span>` : ""}
         <button class="x" data-dup="${i}" title="duplicate">⧉</button><button class="x" data-del="${i}" title="throw away">✕</button></div>`;
     });
     put(el, h + `</div>`);
@@ -567,12 +589,12 @@
       <span class="st res">${tHtml(o.result, { hi: o.rule ? null : pstr(sel.path) })}</span></button>`;
   }
   function scanHtml() {
-    const b = L.ctxAt(game, where).bench[sel.b], whole = !sel.path.length;
-    shown = L.options(game, where, sel.b, sel.path);
+    const onGoal = sel.b === "g", c = L.ctxAt(game, where), b = onGoal ? { s: c.goal } : c.bench[sel.b], whole = !sel.path.length;
+    shown = L.options(game, where, sel.b, sel.path).filter(o => o.step.op !== "rwg" || up("goalrw"));
     const pairs = shown.map((o, i) => [o, i]), tight = pairs.filter(x => !x[0].loose), loose = pairs.filter(x => x[0].loose);
-    let h = `<p class="label">Scanner</p><div class="row" style="margin-bottom:10px"><span class="meta">selected</span>${whole ? `<span class="meta">the whole of block ${sel.b + 1}</span>` : st(L.at(b.s, sel.path), {}, "small")}
+    let h = `<p class="label">Scanner</p><div class="row" style="margin-bottom:10px"><span class="meta">selected</span>${whole ? `<span class="meta">${onGoal ? "the whole goal" : `the whole of block ${sel.b + 1}`}</span>` : st(L.at(b.s, sel.path), {}, "small")}${onGoal ? `<span class="meta">of the goal</span>` : ""}
       <button class="mini tiny" data-do="widen" ${whole ? "disabled" : ""}>widen</button></div><div class="opts">`;
-    if (!tight.length) h += `<p class="empty">${whole ? "No rule does anything to this block." : "Nothing fits this part exactly."}</p>`;
+    if (!tight.length) h += `<p class="empty">${onGoal ? (up("goalrw") ? "Nothing translates or rewrites this part of the goal." : "Nothing translates this part of the goal. Rewriting the goal needs the Goal lever.") : whole ? "No rule does anything to this block." : "Nothing fits this part exactly."}</p>`;
     h += tight.map(x => optHtml(x[0], x[1])).join("");
     const more = save.more !== false;
     if (loose.length) h += `<button class="mini tiny" data-do="more" style="justify-self:start">${more ? "hide" : "show"} ${loose.length} that fit anything</button>` + (more ? loose.map(x => optHtml(x[0], x[1])).join("") : "");
@@ -601,7 +623,7 @@
       const c = L.ctxAt(game, where), names = [...game.names];
       const stmt = m.premises ? `<div class="scroll"><span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span></div>`
         : m.stmt ? `<div class="scroll">${st(m.stmt, { slot: !m.hyp }, "small")}</div>`
-        : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop", apply: "in: a block P → goal, or a rule · out: the goal P", have: "in: a statement · out: a workshop for it, then the goal with it", unfold: "in: a part of a block · out: its definition, or back · free" }[m.kind]}</div>`;
+        : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop", apply: "in: a block P → goal, or a rule · out: the goal P", have: "in: a statement · out: a workshop for it, then the goal with it", byc: "in: a goal P · out: a workshop holding ¬P, goal ⊥ · counts as 2 steps", unfold: "in: a part of a block · out: its definition, or back · free" }[m.kind]}</div>`;
       h = `<div class="mhead">${icon(m.kind, 60)}<div><h3>${esc(m.name)}</h3>${stmt}</div><button class="x" data-do="close" title="close">✕</button></div>`;
       if (m.locked) {
         const why = Q.canBuy(m.id, save.done, ownedSet());
@@ -622,6 +644,8 @@
         h += `<p class="what">${BLURB.have}</p><div class="row"><input class="term" id="lemma" value="${esc(lemmaText)}" placeholder="a statement, like a+0 = 0+a" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the lemma to craft"><button class="mini" data-do="have">open a workshop</button></div>`;
       } else if (m.kind === "unfold") {
         h += `<p class="what">${BLURB.unfold}</p>`;
+      } else if (m.kind === "byc") {
+        h += `<p class="what">${BLURB.byc}</p><div class="row"><button class="mini" data-do="byc">run</button></div>`;
       } else if (m.kind === "assume") {
         h += `<p class="what">${BLURB.assume}</p><div class="row"><button class="mini" data-do="assume">run</button></div>`;
       } else if (m.kind === "held") {
@@ -768,6 +792,7 @@
     else if (d.do === "refl") runRefl();
     else if (d.refl !== undefined) act({ op: "refl", at: where, t: reflSides(c)[+d.refl] });
     else if (d.do === "assume") act({ op: "assume", at: where });
+    else if (d.do === "byc") act({ op: "byc", at: where });
     else if (d.do === "have") act({ op: "have", at: where, s: lemmaText.trim() });
     else if (d.do === "induct") runInduct(letter);
     else if (d.induct) runInduct(d.induct);
@@ -785,27 +810,39 @@
       if (d.do === "wide") { save.wide = !save.wide; store(); document.body.classList.toggle("wide", save.wide); draw(); }
       else if (d.at !== undefined) { where = d.at; sel = null; msg = ""; picked = []; if (/^h/.test(openM || "")) openM = null; draw(); }
       else if (d.m) openMachine(d.m);
+      else if (d.qed !== undefined) act({ op: "qed", at: where, b: +d.qed });
       else if (d.dup !== undefined) act({ op: "dup", at: where, b: +d.dup });
       else if (d.del !== undefined) { picked = []; act({ op: "del", at: where, b: +d.del }); }
       return;
     }
     const m0 = openM && mach(openM), gl = e.target.closest("[data-goal]");
-    if (gl) {                                                              // the Goal lever: rewrite the goal itself
+    if (gl) {                                                              // the goal is a statement like the blocks
       const t = e.target.closest(".t");
-      if (!t || !m0 || m0.locked || (m0.kind !== "eq" && m0.kind !== "hyp") || !up("goalrw")) return;
-      const path = t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number);
-      if (!path.length) { msg = "Tap a part of one side of the goal."; return draw(); }
-      const need = m0.hyp ? [] : openSlots(m0);
-      act({ op: "rwg", at: where, path, m: openM, dir, ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, needVals[v] || ""])) } : {}) });
-      return;
+      if (!t) return;
+      const path = t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number), c = L.ctxAt(game, where);
+      if (c.done) { msg = "This workshop is done."; return draw(); }
+      if (m0 && m0.kind === "unfold") {                                    // the Translator, on the goal
+        const tr = translation(L.at(c.goal, path));
+        if (tr) act({ op: "unfoldg", at: where, path, ...tr }); else { msg = "Nothing there is a definition, or folds into one."; draw(); }
+        return;
+      }
+      if (m0 && !m0.locked && (m0.kind === "eq" || m0.kind === "hyp")) {  // the Goal lever: rewrite the goal itself
+        if (!up("goalrw")) { msg = "Rewriting the goal needs the Goal lever upgrade."; return draw(); }
+        if (!path.length) { msg = "Tap a part of one side of the goal."; return draw(); }
+        const need = m0.hyp ? [] : openSlots(m0);
+        act({ op: "rwg", at: where, path, m: openM, dir, ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, needVals[v] || ""])) } : {}) });
+        return;
+      }
+      if (up("scanner")) { openM = null; sel = { b: "g", path }; msg = ""; return draw(); }
+      msg = "Open the Translator to unfold the goal" + (up("goalrw") ? ", or an equality machine to rewrite it." : ".");
+      return draw();
     }
     const t = e.target.closest(".t"), blk = e.target.closest(".block");
     if (!t || !blk) return;
     if (m0 && !m0.locked && m0.kind === "apply") { act({ op: "apply", at: where, b: +blk.dataset.b }); return; }
     if (m0 && m0.kind === "unfold") {
-      const b = +blk.dataset.b, path = t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number), node = L.at(L.ctxAt(game, where).bench[b].s, path);
-      if (L.unfold(node)) act({ op: "unfold", at: where, b, path });
-      else { const f = L.folds(node)[0]; if (f) act({ op: "unfold", at: where, b, path, as: f[0] }); else { msg = "Nothing there is a definition, or folds into one."; draw(); } }
+      const b = +blk.dataset.b, path = t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number), tr = translation(L.at(L.ctxAt(game, where).bench[b].s, path));
+      if (tr) act({ op: "unfold", at: where, b, path, ...tr }); else { msg = "Nothing there is a definition, or folds into one."; draw(); }
       return;
     }
     const pick = { b: +blk.dataset.b, path: t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number) };
@@ -831,6 +868,8 @@
     msg = m && m.locked ? "That machine isn't yours yet." : "Open a machine that takes blocks first, then tap what to feed it.";
     draw();
   };
+  /* what the Translator does to a part: unfold a definition, else fold into the first connective it fits */
+  const translation = node => (!node || !L.isForm(node) ? null : L.unfold(node) ? {} : L.folds(node).length ? { as: L.folds(node)[0][0] } : null);
   /* drag a block onto another (modus ponens, either way round) or onto the goal (Apply) */
   let drag = null;
   const target = e => { const el = document.elementFromPoint(e.clientX, e.clientY); return el && (el.closest(".block") || el.closest("[data-goal]")); };
@@ -847,6 +886,8 @@
     const t = target(e);
     if (!t || t === d.el) return;
     if (t.matches("[data-goal]")) {
+      const c = L.ctxAt(game, where);
+      if (!c.done && L.sameDef(c.bench[d.b].s, c.goal)) { act({ op: "qed", at: where, b: d.b }); return; }
       if (!canApply()) { msg = "Dropping on the goal needs the Apply machine."; return draw(); }
       act({ op: "apply", at: where, b: d.b });
       return;
@@ -873,6 +914,7 @@
   $("shop").addEventListener("pointercancel", e => { if (drag) dragEnd(e, true); });
   document.addEventListener("keydown", e => { if (game && (e.metaKey || e.ctrlKey) && e.key === "z" && e.target.tagName !== "INPUT") { e.preventDefault(); undo(); } });
 
+  migrate();
   document.body.classList.toggle("wide", !!save.wide);
   if (save.cur === "new") openNew();
   else {

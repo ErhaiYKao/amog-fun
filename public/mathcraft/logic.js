@@ -2,7 +2,8 @@
  *
  * Terms are arrays. Numbers: ["0"], ["S", t], ["+", a, b], ["*", a, b], ["v", "a"] (lowercase letter).
  * Statements: ["=", l, r] between numbers; ["→", A, B], ["∧", A, B], ["∨", A, B] between statements; ["⊥"] (false),
- * ["⊤"] (true); ["v", "P"] (capital letter). "not A" is A → ⊥ and has no node of its own.
+ * ["⊤"] (true); ["v", "P"] (capital letter). "not A" is A → ⊥ and has no node of its own: `show` (and the page)
+ * just write A → ⊥ as ¬A, as notation (#33), so ¬(P → ¬Q) is how the definition of P ∧ Q reads.
  * Definitions (#33): A ∨ B is ¬A → B, A ∧ B is ¬(A → ¬B), ⊤ is ⊥ → ⊥ (`unfold`, `folds`). The engine sees through
  * them one way only: wherever a pattern wants an implication (modus ponens, Assume, Apply, any → in a machine), a
  * ∧ / ∨ / ⊤ is read as its definition; a machine about ∨ never matches a plain ¬A → B until it is folded. A goal
@@ -47,11 +48,17 @@
  *   { op: "rwg", at, path, m, dir, fill }     rewrite the goal itself with an equality (the Goal lever upgrade)
  *   { op: "unfold", at, b, path, as }         free: replace a ∧ / ∨ / ⊤ by its definition, or with `as` fold a
  *                                             definition back into that connective
+ *   { op: "unfoldg", at, path, as }           free: the same on the goal
+ *   { op: "byc", at }                         proof by contradiction: a workshop "x" that holds ¬goal with goal ⊥
+ *                                             (Apply Double negation + Assume in one go, so it counts as 2 steps)
+ *   { op: "qed", at, b }                      free: block b is the goal, so this workshop is done. Nothing finishes
+ *                                             by itself (airetho): the player says when. `withQed` adds these to
+ *                                             step lists written before it existed.
  * New workshops start with a copy of the bench they split from (with 0 for v in an induction's base case): those
  * blocks hold for every value of v, since induction refuses a v that a hypothesis mentions.
  *   { op: "dup", at, b }                      a copy of block b next to it (a step: rules use blocks up)
  *   { op: "del", at, b }                      throw block b away, not counted as a step
- * A workshop is done when a block on its bench equals its goal, or its sub-workshops are all done.
+ * A workshop is done once a qed step closes it, or when its sub-workshops are all done.
  */
 (function (root) {
   "use strict";
@@ -67,6 +74,8 @@
   const CONNECTIVES = "→∧∨";
   const isForm = t => t[0] === "=" || CONNECTIVES.includes(t[0]) || t[0] === "⊥" || t[0] === "⊤" || (isVar(t) && upper(t[1]));
   const kids = t => (isVar(t) || t[0] === "0" ? [] : t.slice(1));
+  /* ¬A, i.e. A → ⊥ */
+  const neg = t => t[0] === "→" && t[2][0] === "⊥";
 
   function same(a, b) {
     if (a[0] !== b[0]) return false;
@@ -135,7 +144,8 @@
 
   /* ---------- text ---------- */
   function show(t) {
-    const wrap = (k, ops) => (ops.includes(k[0]) ? "(" + show(k) + ")" : show(k));
+    const wrap = (k, ops) => (ops.includes(k[0]) && !neg(k) ? "(" + show(k) + ")" : show(k));
+    if (neg(t)) return "¬" + wrap(t[1], "=" + CONNECTIVES);
     switch (t[0]) {
       case "0": return "0";
       case "v": return t[1];
@@ -219,7 +229,7 @@
   }
 
   /* ---------- workshops ---------- */
-  const newCtx = (goal, hyps) => ({ goal, hyps, bench: [], kids: null, done: false });
+  const newCtx = (goal, hyps) => ({ goal, hyps, bench: [], kids: null, done: false, closed: false });
   function start(quest, machines) {
     const goal = term(quest.goal), hyps = (quest.given || []).map(term);
     const names = new Set(); [goal, ...hyps].forEach(t => vars(t, names));
@@ -241,7 +251,7 @@
   function refresh(c) {
     const ss = subs(c);
     ss.forEach(x => refresh(x[1]));
-    c.done = c.bench.some(b => sameDef(b.s, c.goal)) || (ss.length > 0 && ss.every(x => x[1].done));
+    c.done = c.closed || (ss.length > 0 && ss.every(x => x[1].done));
   }
   const union = (a, b) => [...new Set([...a, ...b])].sort((x, y) => x - y);
 
@@ -274,6 +284,13 @@
     return t;
   }
 
+  /* the definition of a statement part, or with `as` what it folds into */
+  function translate(sub, as) {
+    if (!sub || !isForm(sub)) throw new Error("only statements have definitions to unfold");
+    const to = as ? folds(sub).find(f => f[0] === as) : unfold(sub);
+    if (!to) throw new Error(as ? "that isn't the definition of " + as : "only ∧, ∨ and ⊤ unfold");
+    return to;
+  }
   /* work out what a step does without doing it: returns a function that applies it */
   function plan(game, st) {
     const c = ctxAt(game, st.at);
@@ -399,12 +416,26 @@
         };
       }
       case "unfold": {
-        const b = block(st.b), sub = at(b.s, st.path || []);
-        if (!sub || !isForm(sub)) throw new Error("only statements have definitions to unfold");
-        const to = st.as ? folds(sub).find(f => f[0] === st.as) : unfold(sub);
-        if (!to) throw new Error(st.as ? "that isn't the definition of " + st.as : "only ∧, ∨ and ⊤ unfold");
-        const s = put(b.s, st.path || [], to);
+        const b = block(st.b), s = put(b.s, st.path || [], translate(at(b.s, st.path || []), st.as));
         return () => { c.bench[st.b] = { s, deps: b.deps }; };
+      }
+      case "unfoldg": {
+        if (c.kids) throw new Error("this workshop is already split");
+        const s = put(c.goal, st.path || [], translate(at(c.goal, st.path || []), st.as));
+        return () => { c.goal = s; };
+      }
+      case "byc": {
+        if (!have("byc")) throw new Error("you don't have the Contradiction machine yet");
+        if (!have("dne")) throw new Error("proof by contradiction needs Double negation");
+        if (c.kids) throw new Error("this workshop is already split");
+        const n = ["→", c.goal, F];
+        return () => { c.kids = { kind: "byc", list: [["x", child(F, [...c.hyps, n], [...carry(c.bench), { s: n, deps: [c.hyps.length] }])]] }; };
+      }
+      case "qed": {
+        if (c.kids) throw new Error("this workshop is split: finish its parts");
+        if (c.closed) throw new Error("this workshop is already done");
+        if (!sameDef(block(st.b).s, c.goal)) throw new Error("that block isn't the goal");
+        return () => { c.closed = true; };
       }
       case "dup": { const b = block(st.b); return () => c.bench.splice(st.b + 1, 0, { s: b.s, deps: b.deps }); }
       case "del": { block(st.b); return () => c.bench.splice(st.b, 1); }
@@ -422,8 +453,23 @@
     for (const st of steps) step(g, st);
     return g;
   }
-  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg"]);
-  const count = steps => steps.filter(s => COUNTED.has(s.op)).length;
+  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg", "byc"]);
+  const WEIGHT = { byc: 2 };                                              // a convenience: it is two steps in one
+  const count = steps => steps.reduce((n, s) => n + (COUNTED.has(s.op) ? WEIGHT[s.op] || 1 : 0), 0);
+  /* close every open workshop that has its goal on the bench (tests, and step lists from before qed) */
+  function closeAll(game) {
+    for (const { at: w, c } of shops(game)) if (!c.kids && !c.closed) {
+      const b = c.bench.findIndex(x => sameDef(x.s, c.goal));
+      if (b >= 0) step(game, { op: "qed", at: w, b });
+    }
+    return game;
+  }
+  /* a step list with a qed after each step that brings a workshop's goal onto its bench */
+  function withQed(quest, machines, steps) {
+    const g = closeAll(start(quest, machines));
+    for (const st of steps) { if (st.op !== "qed") step(g, st); closeAll(g); }
+    return g.steps;
+  }
 
   /* every move available on the selection in block b: a part (path non-empty) offers the equality machines that
    * fit there, the whole block (path []) offers the rules. Each is { step, result, name, from, to, hyp, loose } or
@@ -438,12 +484,14 @@
   /* the block a step would leave where it acted, without doing it (throws if the step is refused) */
   function preview(game, st) {
     const c = ctxAt(game, st.at), apply = plan(game, st), before = c.bench;
+    if (st.op === "rwg" || st.op === "unfoldg") { const g = c.goal; try { apply(); return c.goal; } finally { c.goal = g; } }
     c.bench = before.slice();
     try { apply(); return c.bench[st.op === "rule" ? st.b - st.others.filter(o => o < st.b).length : st.b].s; }
     finally { c.bench = before; }
   }
+  /* b = "g" scans the goal instead: translations and rewrites, no rules */
   function options(game, where, b, path) {
-    const c = ctxAt(game, where), blk = c.bench[b], out = [], seen = new Set();
+    const c = ctxAt(game, where), onGoal = b === "g", blk = onGoal ? (c.kids ? null : { s: c.goal }) : c.bench[b], out = [], seen = new Set();
     if (!blk) return out;
     const add = (st, info, open) => {
       if (open.length) st = { ...st, fill: Object.fromEntries(open.map(v => [v, guess(game, v)])) };
@@ -458,7 +506,7 @@
     const node = at(blk.s, path || []);
     if (node && isForm(node)) {
       const to = [unfold(node), ...folds(node)].filter(Boolean);
-      for (const t of to) add({ op: "unfold", at: where || "", b, path: path || [], ...(DEFS.includes(node[0]) ? {} : { as: t[0] }) },
+      for (const t of to) add({ op: onGoal ? "unfoldg" : "unfold", at: where || "", ...(onGoal ? {} : { b }), path: path || [], ...(DEFS.includes(node[0]) ? {} : { as: t[0] }) },
         { name: DEFS.includes(node[0]) ? "unfold the definition" : "fold into " + t[0], from: node, to: t, free: true }, []);
     }
     if (path && path.length) {
@@ -468,9 +516,9 @@
       const eqs = [...c.hyps.map((h, i) => ({ id: "h" + i, name: "given", stmt: h, hyp: true })), ...game.machines].filter(m => isEq(m.stmt));
       for (const m of eqs) for (const dir of ["lr", "rl"]) {
         const [from, to] = dir === "lr" ? [m.stmt[1], m.stmt[2]] : [m.stmt[2], m.stmt[1]];
-        add({ op: "rw", at: where || "", b, path, m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) }, m.hyp ? [] : left(to, [from]));
+        add(onGoal ? { op: "rwg", at: where || "", path, m: m.id, dir } : { op: "rw", at: where || "", b, path, m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) }, m.hyp ? [] : left(to, [from]));
       }
-    } else for (const m of game.machines.filter(x => x.premises)) {
+    } else if (!onGoal) for (const m of game.machines.filter(x => x.premises)) {
       const n = m.premises.length;
       const rest = c.bench.map((_, i) => i).filter(i => i !== b);
       const picks = n === 1 ? [[]] : n === 2 ? rest.map(i => [i]) : n === 3 ? rest.flatMap(i => rest.filter(j => j !== i).map(j => [i, j])) : [];
@@ -545,7 +593,7 @@
   }
 
   root.MathcraftLogic = {
-    Z, S, plus, V, eq, same, vars, at, put, subst, match, show, parse, term, isForm, upper, machine, questMachine,
-    start, ctxAt, subs, shops, step, replay, count, options, preview, guess, applies, applyGoals, unfold, folds, expand, sameDef, fits, paths, value, holds,
+    Z, S, plus, V, eq, same, vars, at, put, subst, match, show, parse, term, isForm, upper, neg, machine, questMachine,
+    start, ctxAt, subs, shops, step, replay, count, closeAll, withQed, options, preview, guess, applies, applyGoals, unfold, folds, expand, sameDef, fits, paths, value, holds,
   };
 })(typeof window !== "undefined" ? window : globalThis);

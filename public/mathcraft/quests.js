@@ -38,6 +38,7 @@
     ["any", { id: "have", name: "Lemma" }],
     ["logic", thm("dne", "Double negation", "((P->false)->false)->P")],
     ["logic", { id: "apply", name: "Apply" }],
+    ["logic", { id: "byc", name: "Contradiction" }],
     ["mul", L.machine({ id: "mul0", name: "Times zero", stmt: "a*0=0" })],
     ["mul", L.machine({ id: "mulS", name: "Times a successor", stmt: "a*S(b)=a*b+a" })],
   ].map(([w, m]) => ({ ...m, w }));
@@ -46,7 +47,7 @@
   /* does a quest in `world` see things from world w? (no world = bounties and the playground: everything) */
   const sees = (world, w) => !world || w === "any" || SEES[world].includes(w);
   /* tactics open workshops instead of stating something */
-  const TACTICS = ["induct", "assume", "apply", "have"];
+  const TACTICS = ["induct", "assume", "apply", "have", "byc"];
 
   const rw = (at, path, m, dir = "lr", fill) => ({ op: "rw", at, b: 0, path, m, dir, ...(fill ? { fill } : {}) });
   const refl = (at, t) => ({ op: "refl", at, t });
@@ -174,6 +175,12 @@
       proof: [assume(""), assume("a"), mp("aa", 1, 0), rule("aa", 0, "lefq", [], { P: "Q" })],
     },
     {
+      id: "lre", world: "logic", name: "Or: from the right", pay: 2, goal: "Q->P|Q",
+      intro: "The other half. Unfolded, $Q \\to P \\lor Q$ is $Q \\to (\\lnot P \\to Q)$, and you may have seen that before.",
+      hint: "Assume twice, or stamp a theorem you already have with the right slots.",
+      proof: [make("", "pk", { P: "Q", Q: "P->false" })],
+    },
+    {
       id: "landi", takes: 2, world: "logic", name: "And: make", pay: 3, goal: "P->(Q->P&Q)",
       intro: "$P \\land Q$ is short for $\\lnot(P \\to \\lnot Q)$: it is not the case that $P$ rules out $Q$. As with $\\lor$, Assume sees through it.",
       hint: "Assume three times: you hold $P$, $Q$ and $P \\to \\lnot Q$. Modus ponens twice.",
@@ -193,7 +200,7 @@
     },
     {
       id: "lore", world: "logic", name: "Or: by cases", pay: 5, goal: "(P->R)->((Q->R)->(P|Q->R))",
-      intro: "If $P$ gives $R$ and $Q$ gives $R$, then $P \\lor Q$ gives $R$. The longest craft in logic.",
+      intro: "If $P$ gives $R$ and $Q$ gives $R$, then $P \\lor Q$ gives $R$. The longest craft in logic. New on the floor: <b>Contradiction</b>. Applying Double negation and then assuming $\\lnot P$ is what you did in both $\\land$ proofs: that is proof by contradiction, and the tactic does both at once. It still counts as the two steps it is.",
       hint: "Assume three times and apply Double negation, so you hold $\\lnot R$ and the goal is $\\bot$. Keep a copy of $\\lnot R$, then work backwards: $\\lnot R$, then $Q \\to R$, then $P \\lor Q$ leave the goal $\\lnot P$.",
       proof: [assume(""), assume("a"), assume("aa"), applyR("aaa", "dne"), assume("aaa1"), dup("aaa1a", 3), applyB("aaa1a", 3), applyB("aaa1a1", 1), applyB("aaa1a11", 1), assume("aaa1a111"), mp("aaa1a111a", 0, 2), mp("aaa1a111a", 1, 0)],
     },
@@ -236,6 +243,7 @@
     {
       id: "lem", world: "logic", name: "Excluded middle", pay: 2, goal: "P|(P->false)",
       intro: "$P$ or not $P$: the famous one. Unfold it before you start.",
+      curious: "Why is this so easy, when excluded middle is supposed to be the classical axiom? Because the classical part is in our definition of $\\lor$. In intuitionistic logic $P \\lor Q$ is a connective of its own: a proof of it is a proof of $P$ or a proof of $Q$, and $P \\lor \\lnot P$ can't be proved. Our $P \\lor Q$ means $\\lnot P \\to Q$, which intuitionistically is weaker (it follows from the real $\\lor$, not the other way round). Unfolded, excluded middle is just $\\lnot P \\to \\lnot P$, an Identity. The price was paid earlier: <i>Or: by cases</i>, the rule that makes $\\lor$ behave like an or, needed Double negation.",
       hint: "What does $P \\lor \\lnot P$ stand for?",
       proof: [assume("")],
     },
@@ -306,6 +314,10 @@
       proof: [assume(""), assume("a"), rule("aa", 1, "pmp", [], { Q: "false" }), mp("aa", 0, 1)] },
   ].map(b => ({ ...b, bounty: true }));
 
+  /* a workshop finishes only when the player says so (a qed step, free): add those to the reference proofs */
+  const EVERY = [...GATES, ...QUESTS.map(L.questMachine)];
+  for (const q of [...QUESTS, ...BOUNTIES]) q.proof = L.withQed(q, EVERY, q.proof);
+
   const PAR_BONUS = 1;
   const SHOP = [
     { id: "add0", gate: true, price: 1, after: ["refl0"] },
@@ -316,6 +328,7 @@
     { id: "have", gate: true, extra: true, price: 3, after: ["pmp"] },
     { id: "dne", gate: true, price: 3, after: ["lnn"] },
     { id: "apply", gate: true, price: 3, after: ["landi"] },
+    { id: "byc", gate: true, extra: true, price: 2, after: ["landr"] },
     { id: "mul0", gate: true, price: 2, after: ["assoc"] },
     { id: "mulS", gate: true, price: 3, after: ["assoc"] },
     { id: "autofill", name: "Autofill", price: 2, text: "refl offers the two sides of the goal, and Induction offers the letters, so you type less." },

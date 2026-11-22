@@ -15,7 +15,7 @@ const bench = (g, at = "") => L.ctxAt(g, at).bench.map(b => L.show(b.s));
 
 test("parse and show round-trip", () => {
   for (const s of ["0", "S(0)", "a+b", "(a+b)+c", "a+(b+c)", "S(a+S(b))+0", "(a+b)+c = a+(b+c)", "a·b+c", "a·(b+c)", "(a·b)·c", "a·(b·c)", "(a+b)·c = a·c+b·c",
-    "P", "P → Q", "P → (Q → P)", "(P → Q) → R", "a = b → b = a"]) assert.equal(L.show(L.parse(s)), s);
+    "P", "P → Q", "P → (Q → P)", "(P → Q) → R", "a = b → b = a", "¬P", "¬¬P → P", "¬P → Q", "¬(P → ¬Q)", "¬(a = b)", "¬P ∧ Q", "¬⊥"]) assert.equal(L.show(L.parse(s)), s);
   assert.equal(L.show(L.parse("a+b+c")), "(a+b)+c");
   assert.equal(L.show(L.parse("a*b*c")), "(a·b)·c");
   assert.equal(L.show(L.parse("a+b*c")), "a+b·c");
@@ -28,7 +28,7 @@ test("every quest's reference proof replays to done, using only earlier quests a
   const owned = new Set();
   Q.QUESTS.forEach((q, i) => {
     const g = L.replay(q, Q.machinesFor(i, allDone(i)), q.proof);
-    assert.ok(g.root.done, q.id);
+    assert.ok(L.closeAll(g).root.done, q.id);
     assert.ok(Q.par(q) >= 1 && Q.par(q) <= 16, q.id + " par");
     for (let k = 0; k < q.proof.length; k++) assert.ok(!L.replay(q, Q.machinesFor(i, allDone(i)), q.proof.slice(0, k)).root.done, q.id + " done early");
     // `needs` is exactly the shop machines the proof uses that no earlier quest of its world asked for
@@ -180,7 +180,7 @@ test("propositions: Assume, Modus ponens and their limits", () => {
   L.step(g, { op: "rule", at: "aa", b: 0, m: "mp", others: [1] });
   assert.deepEqual(bench(g, "aa"), ["Q"], "modus ponens uses up both inputs");
   assert.deepEqual(L.ctxAt(g, "aa").bench[0].deps, [0, 1]);
-  assert.ok(g.root.done);
+  assert.ok(L.closeAll(g).root.done);
   // a block from inside a workshop never reaches the outer bench
   assert.deepEqual(g.root.bench, []);
   // a proved statement is a machine whose capital slots take statements and whose small ones take numbers
@@ -223,9 +223,9 @@ test("a proved implication is a rule: hypotheses in, consequent out", () => {
 
 test("definitions: ∨, ∧ and ⊤ unfold, fold back, and are seen through one way", () => {
   const t = L.parse, sh = x => L.show(x);
-  assert.equal(sh(L.unfold(t("P|Q"))), "(P → ⊥) → Q");
-  assert.equal(sh(L.unfold(t("P&Q"))), "(P → (Q → ⊥)) → ⊥");
-  assert.equal(sh(L.unfold(t("true"))), "⊥ → ⊥");
+  assert.equal(sh(L.unfold(t("P|Q"))), "¬P → Q");
+  assert.equal(sh(L.unfold(t("P&Q"))), "¬(P → ¬Q)");
+  assert.equal(sh(L.unfold(t("true"))), "¬⊥");
   assert.deepEqual(L.folds(t("(P->(Q->false))->false")).map(sh), ["P ∧ Q"]);
   assert.deepEqual(L.folds(t("~~P")).map(sh), ["P ∨ ⊥"], "¬¬P is also P ∨ ⊥");
   assert.deepEqual(L.folds(t("false->false")).map(sh), ["⊤"]);
@@ -235,7 +235,7 @@ test("definitions: ∨, ∧ and ⊤ unfold, fold back, and are seen through one 
   const g = L.start({ goal: "(P|Q)->((P->false)->Q)" }, all);
   L.step(g, { op: "assume", at: "" }); L.step(g, { op: "assume", at: "a" });
   L.step(g, { op: "rule", at: "aa", b: 0, m: "mp", others: [1] });
-  assert.ok(g.root.done);
+  assert.ok(L.closeAll(g).root.done);
   // ... but a machine about ∨ doesn't take ¬P → Q until it is folded (free)
   const h = L.start({ goal: "((P->false)->Q)->(P->R)->(Q->R)->R" }, all);
   for (const at of ["", "a", "aa"]) L.step(h, { op: "assume", at });
@@ -244,12 +244,12 @@ test("definitions: ∨, ∧ and ⊤ unfold, fold back, and are seen through one 
   assert.equal(bench(h, "aaa")[0], "P ∨ Q");
   assert.throws(() => L.step(h, { op: "unfold", at: "aaa", b: 1, path: [], as: "∧" }), /isn't the definition/);
   L.step(h, { op: "rule", at: "aaa", b: 1, m: "lore", others: [2, 0] });
-  assert.ok(h.root.done);
+  assert.ok(L.closeAll(h).root.done);
   assert.equal(L.count(h.steps), 4, "folding is free");
   // Assume sees through a goal, and a goal is reached up to definitions
   const k = L.start({ goal: "P|(P->false)" }, all);
   L.step(k, { op: "assume", at: "" });
-  assert.ok(k.root.done, "excluded middle by unfolding");
+  assert.ok(L.closeAll(k).root.done, "excluded middle by unfolding");
   // ⊥ gives anything you name, but only from an actual ⊥
   const e = L.start({ goal: "P->Q" }, all);
   L.step(e, { op: "assume", at: "" });
@@ -263,24 +263,24 @@ test("Apply works backwards; Lemma crafts a statement mid-proof; the Goal lever 
   L.step(g, { op: "assume", at: "" });
   assert.throws(() => L.step(g, { op: "apply", at: "a", b: 0 }), /not in the goal/);
   const ways = L.applies(g, "a");
-  assert.ok(ways.some(w => w.step.m === "dne" && L.show(w.goals[0]) === "(P → ⊥) → ⊥"));
+  assert.ok(ways.some(w => w.step.m === "dne" && L.show(w.goals[0]) === "¬¬P"));
   assert.ok(ways.some(w => w.step.m === "mp" && w.open), "modus ponens backwards needs its P");
   L.step(g, { op: "apply", at: "a", m: "dne" });
-  assert.equal(L.show(L.ctxAt(g, "a1").goal), "(P → ⊥) → ⊥");
+  assert.equal(L.show(L.ctxAt(g, "a1").goal), "¬¬P");
   assert.throws(() => L.step(g, { op: "apply", at: "a", m: "dne" }), /already split/);
   L.step(g, { op: "assume", at: "a1" });
   L.step(g, { op: "apply", at: "a1a", b: 0 });                                    // P ∧ Q read as ¬(P → ¬Q)
-  assert.equal(L.show(L.ctxAt(g, "a1a1").goal), "P → (Q → ⊥)");
-  assert.deepEqual(bench(g, "a1a1"), ["P → ⊥"], "the applied block is used up");
+  assert.equal(L.show(L.ctxAt(g, "a1a1").goal), "P → ¬Q");
+  assert.deepEqual(bench(g, "a1a1"), ["¬P"], "the applied block is used up");
   L.step(g, { op: "assume", at: "a1a1" }); L.step(g, { op: "assume", at: "a1a1a" });
   L.step(g, { op: "rule", at: "a1a1aa", b: 0, m: "mp", others: [1] });
-  assert.ok(g.root.done);
+  assert.ok(L.closeAll(g).root.done);
   // a rule with several premises leaves a goal for each
   const h = L.start({ goal: "P->(Q->P&Q)" }, all);
   L.step(h, { op: "assume", at: "" }); L.step(h, { op: "assume", at: "a" });
   L.step(h, { op: "apply", at: "aa", m: "landi" });
   assert.deepEqual(L.subs(L.ctxAt(h, "aa")).map(x => x[0] + ": " + L.show(x[1].goal)), ["1: P", "2: Q"]);
-  assert.ok(h.root.done, "both already on the carried bench");
+  assert.ok(L.closeAll(h).root.done, "both already on the carried bench");
   // a lemma: its own workshop, then the old goal holding it
   const k = L.start(Q.QUESTS[idx("comm")], Q.machinesFor(idx("comm"), allDone(idx("comm")), new Set(["add0", "addS", "induct"])));
   assert.throws(() => L.step(k, { op: "have", at: "", s: "a+0=a" }), /don't have/);
@@ -292,14 +292,77 @@ test("Apply works backwards; Lemma crafts a statement mid-proof; the Goal lever 
   assert.deepEqual(bench(m, "c"), ["b = b", "0+a = a"]);
   assert.deepEqual(L.ctxAt(m, "c").bench[1].deps, [0]);
   L.step(m, { op: "make", at: "l", m: "zadd", fill: { a: "a" } });
+  L.closeAll(m);
   assert.ok(!m.root.done && L.ctxAt(m, "l").done);
   // the goal lever
   const r = L.start(Q.QUESTS[idx("comm")], all);
   L.step(r, { op: "rwg", at: "", path: [1], m: "comm", dir: "lr" });
   assert.equal(L.show(r.root.goal), "a+b = a+b");
   L.step(r, { op: "refl", at: "", t: "a+b" });
-  assert.ok(r.root.done);
+  assert.ok(L.closeAll(r).root.done);
   assert.throws(() => L.step(L.start({ goal: "P->P" }, all), { op: "rwg", at: "", path: [0], m: "comm", dir: "lr" }), /rewrite numbers|no such part/);
+});
+
+test("nothing finishes by itself: a free qed step uses a block that is the goal", () => {
+  const g = fresh(idx("zz"));
+  L.step(g, { op: "refl", at: "", t: "0+0" });
+  L.step(g, { op: "rw", at: "", b: 0, path: [1], m: "add0", dir: "lr" });
+  assert.ok(!g.root.done, "the goal is on the bench, but the player hasn't said so");
+  L.step(g, { op: "refl", at: "", t: "0" });
+  assert.throws(() => L.step(g, { op: "qed", at: "", b: 1 }), /isn't the goal/);
+  L.step(g, { op: "qed", at: "", b: 0 });
+  assert.ok(g.root.done);
+  assert.equal(L.count(g.steps), 3, "qed is free");
+  assert.throws(() => L.step(g, { op: "qed", at: "", b: 0 }), /already done/);
+  // up to definitions, and not on a split workshop
+  const h = L.start({ goal: "P->P|Q" }, everything());
+  L.step(h, { op: "assume", at: "" });
+  assert.throws(() => L.step(h, { op: "qed", at: "", b: 0 }), /split/);
+  L.step(h, { op: "assume", at: "a" });
+  L.step(h, { op: "rule", at: "aa", b: 1, m: "mp", others: [0] });
+  L.step(h, { op: "rule", at: "aa", b: 0, m: "lefq", fill: { P: "Q" } });
+  L.step(h, { op: "qed", at: "aa", b: 0 });
+  assert.ok(h.root.done, "a split workshop is done when its parts are");
+  // old step lists get their qed steps back
+  const q = Q.QUESTS[idx("zadd")], bare = q.proof.filter(s => s.op !== "qed");
+  assert.ok(!L.replay(q, everything(), bare).root.done);
+  assert.deepEqual(L.withQed(q, everything(), bare), q.proof);
+  assert.deepEqual(L.withQed(q, everything(), q.proof), q.proof, "and keeps the ones it has");
+});
+
+test("the goal can be scanned, translated and rewritten", () => {
+  const g = L.start({ goal: "P|Q->Q|P" }, everything());
+  const o = L.options(g, "", "g", [0]);
+  assert.deepEqual(o.map(x => x.step.op + " " + L.show(x.result)), ["unfoldg (¬P → Q) → Q ∨ P"]);
+  L.step(g, o[0].step);
+  L.step(g, { op: "unfoldg", at: "", path: [1] });
+  assert.equal(L.show(g.root.goal), "(¬P → Q) → (¬Q → P)");
+  L.step(g, { op: "unfoldg", at: "", path: [0], as: "∨" });
+  assert.equal(L.show(g.root.goal), "P ∨ Q → (¬Q → P)");
+  assert.throws(() => L.step(g, { op: "unfoldg", at: "", path: [0, 0] }), /only ∧, ∨ and ⊤ unfold/);
+  assert.equal(L.count(g.steps), 0);
+  const r = L.start(Q.QUESTS[idx("comm")], everything());
+  assert.ok(L.options(r, "", "g", [1]).some(x => x.step.op === "rwg" && x.step.m === "comm"), "rewrites on a part of the goal");
+  assert.ok(L.options(r, "", "g", []).every(x => !x.rule), "and no rules");
+  L.step(r, { op: "induct", at: "", v: "b" });
+  assert.deepEqual(L.options(r, "", "g", [1]), [], "a split workshop's goal is fixed");
+});
+
+test("Contradiction: assume the opposite, reach ⊥, two steps' worth", () => {
+  const g = L.start({ goal: "P&Q->P" }, everything());
+  L.step(g, { op: "assume", at: "" });
+  L.step(g, { op: "byc", at: "a" });
+  assert.equal(L.show(L.ctxAt(g, "ax").goal), "⊥");
+  assert.deepEqual(bench(g, "ax"), ["P ∧ Q", "¬P"]);
+  L.step(g, { op: "apply", at: "ax", b: 0 });
+  L.step(g, { op: "assume", at: "ax1" }); L.step(g, { op: "assume", at: "ax1a" });
+  L.step(g, { op: "rule", at: "ax1aa", b: 0, m: "mp", others: [1] });
+  assert.ok(L.closeAll(g).root.done);
+  assert.equal(L.count(g.steps), Q.par(Q.QUESTS[idx("landl")]), "the same count as Apply Double negation + Assume");
+  const p = L.start({ goal: "((P->false)->false)->(P->false)" }, Q.playMachines(allDone(Q.QUESTS.length), undefined, ["prop", "any"]));
+  assert.throws(() => L.step(p, { op: "byc", at: "" }), /don't have/);
+  const noDne = L.start({ goal: "P" }, [{ id: "byc", name: "Contradiction" }]);
+  assert.throws(() => L.step(noDne, { op: "byc", at: "" }), /needs Double negation/);
 });
 
 test("a world only sees the machines of the worlds it builds on", () => {
@@ -318,7 +381,7 @@ test("bounties are provable from the finished quests", () => {
   const done = allDone(Q.QUESTS.length);
   for (const b of Q.BOUNTIES) {
     const g = L.replay(b, Q.playMachines(done), b.proof);
-    assert.ok(g.root.done, b.id);
+    assert.ok(L.closeAll(g).root.done, b.id);
     for (const blk of g.root.bench) assert.ok(L.holds(blk.s, { a: 3, b: 5, c: 2, d: 7 }), b.id);
   }
 });
@@ -405,9 +468,10 @@ test("random play only ever makes true statements", () => {
     for (let run = 0; run < 30; run++) {
       const g = L.start(q, machines), names = [...g.names], nums = names.filter(n => !L.upper(n));
       for (let move = 0; move < 30; move++) {
-        const ws = L.shops(g).filter(x => !x.c.kids), at = ws[rnd(ws.length)].at, c = L.ctxAt(g, at), r = rnd(12);
+        const ws = L.shops(g).filter(x => !x.c.kids), at = ws[rnd(ws.length)].at, c = L.ctxAt(g, at), r = rnd(13);
         try {
           if (r === 0 && nums.length) L.step(g, { op: "induct", at, v: nums[rnd(nums.length)] });
+          else if (r === 12) { const o = L.options(g, at, "g", rnd(2) ? [] : [rnd(2)]); L.step(g, o.length ? o[rnd(o.length)].step : { op: "byc", at }); }
           else if (r === 1) L.step(g, rnd(3) ? { op: "assume", at } : rnd(2) ? { op: "have", at, s: L.show(c.bench.length ? c.bench[rnd(c.bench.length)].s : c.goal) } : (() => { const a = L.applies(g, at); return a.length ? a[rnd(a.length)].step : { op: "assume", at }; })());
           else if (r <= 3 && c.hyps.length) L.step(g, { op: "hyp", at, i: rnd(c.hyps.length) });
           else if (r <= 5 || !c.bench.length) { const ts = sides(c.goal); if (ts.length) L.step(g, { op: "refl", at, t: ts[rnd(ts.length)] }); }
@@ -418,6 +482,7 @@ test("random play only ever makes true statements", () => {
             if (o.length) L.step(g, o[rnd(o.length)].step);
           }
         } catch (e) { /* refused moves are fine; unsound ones are what we're hunting */ }
+        if (rnd(4) === 0) L.closeAll(g);                                       // qed whatever is ready
         for (const w of L.shops(g)) for (const blk of w.c.bench) for (let k = 0; k < 6; k++) {
           const env = {}, x = rnd(5);
           for (const v of names) env[v] = L.upper(v) ? rnd(2) === 1 : k < 2 ? x : rnd(5);
