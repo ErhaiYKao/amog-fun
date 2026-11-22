@@ -1,12 +1,14 @@
 /* Mathcraft quests (#33): the shop machines, the quest worlds and Amog's reference proof of each quest.
  * Needs logic.js first. Pure (page and Node).
  *
- * A quest: { id, world, name, goal, given?, pay, needs?, after?, intro, hint, proof, guide? }. Finishing it adds its
+ * A quest: { id, world, name, goal, given?, takes?, pay, needs?, after?, intro, hint, proof, guide? }. Finishing it adds its
  * theorem to the library as a machine (a rule if it has `given` premises); a quest may only use the shop machines
  * owned and the finished quests listed before it (machinesFor), so nothing is ever circular. `proof` is a list of
  * engine steps (see logic.js); its length is the par shown to the player, and the tests replay it, so every quest
  * is known to be provable. A quest opens when every quest in `after` is finished (default: the one before it in its
  * world), `needs` lists the shop machines its proof uses, and `guide` makes the page point at each next step.
+ * `takes` is how many arrows of an implication are hypotheses of its rule (logic.js questMachine): read the goal as
+ * a theorem, "from these, that", so Chain is "P → Q, Q → R give P → R" rather than a disguised modus ponens.
  *
  * Worlds branch (Pope Amog's choice): addition is the trunk; implication opens after Transitivity, logic (and, or,
  * false, true) after the third implication quest, multiplication after Associativity, each started by buying its
@@ -80,8 +82,8 @@
     {
       id: "trans", name: "Transitivity", pay: 2, given: ["a=b", "b=c"], goal: "a=c",
       intro: "Two given facts. Once this is crafted, <i>Symmetry</i> and <i>Transitivity</i> are rules: they take whole blocks, so open one and tap a block's $=$ sign.",
-      hint: "Start from $a = a$ and walk the right side along: $a$ to $b$, then $b$ to $c$.",
-      proof: [refl("", "a"), rw("", [1], "h0"), rw("", [1], "h1")],
+      hint: "A given fact can go on the bench as a block. Put $a = b$ there, then walk its right side along.",
+      proof: [hyp("", 0), rw("", [1], "h1")],
     },
     {
       id: "zadd", name: "Zero on the left", pay: 3, needs: ["addS", "induct"], goal: "0+a=a",
@@ -98,7 +100,7 @@
         refl("s", "S(a)+S(b)"), rw("s", [1], "addS"), rw("s", [1, 0], "h0"), rw("s", [1, 0], "addS", "rl")],
     },
     {
-      id: "comm", name: "Commutativity", pay: 4, goal: "a+b=b+a",
+      id: "comm", name: "Commutativity of +", pay: 4, goal: "a+b=b+a",
       intro: "The two machines you just crafted are exactly the two this one needs.",
       hint: "Induct on $b$. The base case is <i>Zero on the left</i> run backwards; the step ends with <i>Successor on the left</i> run backwards.",
       proof: [{ op: "induct", at: "", v: "b" },
@@ -106,7 +108,7 @@
         refl("s", "a+S(b)"), rw("s", [1], "addS"), rw("s", [1, 0], "h0"), rw("s", [1], "sadd", "rl")],
     },
     {
-      id: "assoc", name: "Associativity", pay: 4, goal: "(a+b)+c=a+(b+c)",
+      id: "assoc", name: "Associativity of +", pay: 4, goal: "(a+b)+c=a+(b+c)",
       intro: "The last one for addition. After this the brackets are yours to move, and multiplication opens.",
       hint: "Induct on $c$. In the step, <i>Adding a successor</i> runs backwards twice, once on the outside and once inside.",
       proof: [{ op: "induct", at: "", v: "c" },
@@ -122,31 +124,31 @@
       proof: [assume(""), hyp("a", 0)],
     },
     {
-      id: "pk", world: "prop", name: "Weakening", pay: 2, goal: "P->(Q->P)",
+      id: "pk", takes: 1, world: "prop", name: "Weakening", pay: 2, goal: "P->(Q->P)",
       intro: "If $P$ holds, it still holds after assuming something else. Workshops nest: a goal that is itself an implication can be assumed again.",
       hint: "Assume twice. In the inner workshop you hold both $P$ and $Q$, and the goal is $P$.",
       proof: [assume(""), assume("a"), hyp("aa", 0)],
     },
     {
-      id: "pmp", world: "prop", name: "Using an implication", pay: 3, needs: ["mp"], goal: "P->((P->Q)->Q)",
+      id: "pmp", takes: 1, world: "prop", name: "Using an implication", pay: 3, needs: ["mp"], goal: "P->((P->Q)->Q)",
       intro: "Holding $P \\to Q$ and $P$ should give $Q$. That is a machine to buy: <b>Modus ponens</b>, a rule. Feed it the implication first, then the block that matches its left side; it uses up both. Every implication you craft from now on becomes a rule of its own: it takes its hypotheses as blocks and gives what they imply.",
       hint: "Assume twice, put both assumptions on the bench, then open Modus ponens and tap the $\\to$ of $P \\to Q$, then $P$.",
       proof: [assume(""), assume("a"), hyp("aa", 1), hyp("aa", 0), mp("aa", 0, 1)],
     },
     {
-      id: "pchain", world: "prop", name: "Chain", pay: 4, goal: "(P->Q)->((Q->R)->(P->R))",
+      id: "pchain", takes: 2, world: "prop", name: "Chain", pay: 4, goal: "(P->Q)->((Q->R)->(P->R))",
       intro: "Implications compose, like transitivity for $=$.",
       hint: "Assume three times. Get $Q$ from $P \\to Q$ and $P$, then $R$ from $Q \\to R$ and $Q$.",
       proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 1, 0)],
     },
     {
-      id: "pswap", world: "prop", name: "Swapping assumptions", pay: 4, goal: "(P->(Q->R))->(Q->(P->R))",
+      id: "pswap", takes: 1, world: "prop", name: "Swapping assumptions", pay: 4, goal: "(P->(Q->R))->(Q->(P->R))",
       intro: "The order in which you assume things does not matter.",
       hint: "Assume three times. Modus ponens twice: first with $P$, then with $Q$.",
       proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 0, 1)],
     },
     {
-      id: "pdist", world: "prop", name: "Distributing an assumption", pay: 5, goal: "(P->(Q->R))->((P->Q)->(P->R))",
+      id: "pdist", takes: 2, world: "prop", name: "Distributing an assumption", pay: 5, goal: "(P->(Q->R))->((P->Q)->(P->R))",
       intro: "The last one for implication: $P$ gets used twice, and a rule uses up what it is fed, so it has to go on the bench twice.",
       hint: "Assume three times. Use $P$ on both implications, then combine what comes out.",
       proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), hyp("aaa", 2), mp("aaa", 1, 2), mp("aaa", 0, 1)],
@@ -160,13 +162,13 @@
       proof: [assume(""), hyp("a", 0), hyp("a", 0), rule("a", 0, "andR"), rule("a", 1, "andL"), rule("a", 0, "andI", [1])],
     },
     {
-      id: "lc", world: "logic", name: "Currying", pay: 3, goal: "(P&Q->R)->(P->(Q->R))",
+      id: "lc", takes: 1, world: "logic", name: "Currying", pay: 3, goal: "(P&Q->R)->(P->(Q->R))",
       intro: "A machine that wants $P \\land Q$ can be fed $P$ and $Q$ one at a time.",
       hint: "Assume three times. Build $P \\land Q$, then modus ponens.",
       proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 1), hyp("aaa", 2), rule("aaa", 0, "andI", [1]), hyp("aaa", 0), mp("aaa", 1, 0)],
     },
     {
-      id: "lu", world: "logic", name: "Uncurrying", pay: 4, goal: "(P->(Q->R))->(P&Q->R)",
+      id: "lu", takes: 1, world: "logic", name: "Uncurrying", pay: 4, goal: "(P->(Q->R))->(P&Q->R)",
       intro: "And the other way round.",
       hint: "Assume twice. Take $P \\land Q$ apart (you need it twice), then modus ponens twice.",
       proof: [assume(""), assume("a"), hyp("aa", 1), hyp("aa", 1), rule("aa", 0, "andL"), rule("aa", 1, "andR"), hyp("aa", 0), mp("aa", 2, 0), mp("aa", 1, 0)],
@@ -184,19 +186,19 @@
       proof: [assume(""), hyp("a", 0), rule("a", 0, "top"), hyp("a", 0), mp("a", 1, 0)],
     },
     {
-      id: "ln", world: "logic", name: "Double negation", pay: 3, goal: "P->((P->false)->false)",
-      intro: "$\\bot$ is the statement that is simply false, and \"not $P$\" is written $P \\to \\bot$: assuming $P$ leads to falsehood. No new machine is needed for this one.",
-      hint: "Assume twice. You hold $P$ and $P \\to \\bot$.",
-      proof: [assume(""), assume("a"), hyp("aa", 1), hyp("aa", 0), mp("aa", 0, 1)],
+      id: "ln", takes: 1, world: "logic", name: "Triple negation", pay: 3, goal: "(((P->false)->false)->false)->(P->false)",
+      intro: "$\\bot$ is the statement that is simply false, and \"not $P$\" is written $P \\to \\bot$: assuming $P$ leads to falsehood. Then $P$ gives not-not-$P$ for free: that is <i>Using an implication</i>, whose rule turns $P$ into $(P \\to Q) \\to Q$ for any $Q$ you name. Here, not three times is the same as not once.",
+      hint: "Assume twice: you hold $((P \\to \\bot) \\to \\bot) \\to \\bot$ and $P$. Feed $P$ to <i>Using an implication</i> with $Q = \\bot$, then modus ponens.",
+      proof: [assume(""), assume("a"), hyp("aa", 1), rule("aa", 0, "pmp", [], { Q: "false" }), hyp("aa", 0), mp("aa", 1, 0)],
     },
     {
-      id: "lk", world: "logic", name: "Contrapositive", pay: 4, goal: "(P->Q)->((Q->false)->(P->false))",
-      intro: "If $P$ implies $Q$, then not $Q$ implies not $P$. If you crafted <i>Chain</i>, it is a rule now, and it can beat Amog's step count here.",
-      hint: "Assume three times: you hold $P \\to Q$, $Q \\to \\bot$ and $P$.",
-      proof: [assume(""), assume("a"), assume("aa"), hyp("aaa", 0), hyp("aaa", 2), mp("aaa", 0, 1), hyp("aaa", 1), mp("aaa", 1, 0)],
+      id: "lk", takes: 1, world: "logic", name: "Modus tollens", pay: 4, goal: "(P->Q)&(Q->false)->(P->false)",
+      intro: "If $P$ implies $Q$ and $Q$ is false, then $P$ is false. If you crafted <i>Chain</i>, it is a rule now, and it can beat Amog's step count here.",
+      hint: "Assume twice. Take the $\\land$ apart (you need it twice), get $Q$ from $P$, then $\\bot$.",
+      proof: [assume(""), assume("a"), hyp("aa", 0), { op: "dup", at: "aa", b: 0 }, rule("aa", 0, "andL"), rule("aa", 1, "andR"), hyp("aa", 1), mp("aa", 0, 2), mp("aa", 1, 0)],
     },
     {
-      id: "le", world: "logic", name: "Explosion", pay: 3, needs: ["efq"], goal: "P->((P->false)->Q)",
+      id: "le", takes: 2, world: "logic", name: "Explosion", pay: 3, needs: ["efq"], goal: "P->((P->false)->Q)",
       intro: "From a contradiction, anything follows. The last machine: it turns $\\bot$ into whatever statement you name.",
       hint: "Assume twice, get $\\bot$, then feed it to <i>From false, anything</i> and tell it you want $Q$.",
       proof: [assume(""), assume("a"), hyp("aa", 1), hyp("aa", 0), mp("aa", 0, 1), rule("aa", 0, "efq", [], { P: "Q" })],

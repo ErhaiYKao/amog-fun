@@ -107,7 +107,7 @@ test("symmetry and transitivity work as rules once crafted", () => {
   L.step(g, { op: "rule", at: "", b: 0, m: "trans", others: [1] });              // 0+0 = 0+0, and both inputs are used up
   assert.deepEqual(bench(g), ["0+0 = 0+0"]);
   assert.throws(() => L.step(g, { op: "rule", at: "", b: 0, m: "trans", others: [0] }));
-  assert.equal(L.count(g.steps), 4, "dup is free");
+  assert.equal(L.count(g.steps), 5, "dup counts: rules use blocks up, so a copy is worth a step");
   assert.ok(L.options(g, "", 0, []).every(o => o.rule.id !== "sym"), "sym on t = t changes nothing, so it isn't offered");
   rw(g, [1], "add0");
   assert.ok(L.options(g, "", 0, []).some(o => o.rule.id === "sym"), "rules are offered on the whole block");
@@ -148,7 +148,13 @@ test("a direction that leaves a slot open asks for the term", () => {
   assert.throws(() => L.step(g, { op: "rw", at: "", b: 0, path: [1], m: "mz", dir: "rl", fill: { a: "z" } }), /nothing called z/);
   L.step(g, { op: "rw", at: "", b: 0, path: [1], m: "mz", dir: "rl", fill: { a: "b+a" } });
   assert.equal(L.show(g.root.bench[0].s), "a·0 = 0·(b+a)");
-  assert.ok(L.options(g, "", 0, [0]).every(o => !/needs/.test(L.show(o.result))), "open-slot directions are not offered as options");
+  // the scanner offers it, with a guess for the open slot that the page lets the player change
+  const zeros = L.options(g, "", 0, [0, 1]).filter(o => o.open);
+  assert.ok(zeros.some(o => o.step.m === "mz" && o.step.fill.a === "a"), "0 → 0·a is offered on a 0, with a guessed a");
+  assert.ok(zeros.some(o => o.step.m === "mul0"), "and 0 → a·0");
+  const mz = zeros.find(o => o.step.m === "mz").step;                            // the 0 in a·0, left side
+  assert.equal(L.show(L.preview(g, { ...mz, fill: { a: "b" } })), "a·(0·b) = 0·(b+a)");
+  assert.throws(() => L.preview(g, { ...mz, fill: { a: "z" } }), /nothing called z/);
 });
 
 test("propositions: Assume, Modus ponens and their limits", () => {
@@ -190,21 +196,31 @@ test("propositions: Assume, Modus ponens and their limits", () => {
 test("a proved implication is a rule: hypotheses in, consequent out", () => {
   const show = m => (m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : L.show(m.stmt));
   const by = id => Q.playMachines(allDone(Q.QUESTS.length)).find(m => m.id === id);
-  assert.equal(show(by("pchain")), "P → Q, Q → R, P gives R");
-  assert.equal(show(by("pk")), "P, Q gives P");
+  assert.equal(show(by("pchain")), "P → Q, Q → R gives P → R", "takes: the hypotheses as the theorem states them");
+  assert.equal(show(by("pk")), "P gives Q → P");
+  assert.equal(show(by("pswap")), "P → (Q → R) gives Q → (P → R)", "not a disguised double modus ponens");
+  assert.equal(show(by("andI")), "P, Q gives P ∧ Q", "without takes, every arrow is a hypothesis");
   assert.equal(show(by("sym")), "a = b gives b = a");
   assert.equal(show(by("comm")), "a+b = b+a", "equations stay equality machines");
   assert.equal(L.show(by("pchain").stmt), "(P → Q) → ((Q → R) → (P → R))", "and the implication can still be stamped whole");
   assert.equal(by("sym").stmt, undefined);
-  // contrapositive in one rule application instead of two rounds of modus ponens
-  const g = L.start({ goal: "(P->Q)->((Q->false)->(P->false))" }, everything());
-  for (const at of ["", "a", "aa"]) L.step(g, { op: "assume", at });
-  for (const i of [0, 1, 2]) L.step(g, { op: "hyp", at: "aaa", i });
-  assert.equal(L.options(g, "aaa", 0, []).filter(o => o.rule.id === "pchain").length, 1, "three-block rules are offered too");
-  L.step(g, { op: "rule", at: "aaa", b: 0, m: "pchain", others: [1, 2] });
-  assert.deepEqual(bench(g, "aaa"), ["⊥"]);
+  // modus tollens with Chain instead of two rounds of modus ponens
+  const g = L.start(Q.QUESTS[idx("lk")], everything());
+  L.step(g, { op: "assume", at: "" });
+  L.step(g, { op: "hyp", at: "a", i: 0 });
+  L.step(g, { op: "dup", at: "a", b: 0 });
+  L.step(g, { op: "rule", at: "a", b: 0, m: "andL" });
+  L.step(g, { op: "rule", at: "a", b: 1, m: "andR" });
+  assert.equal(L.options(g, "a", 0, []).filter(o => o.rule.id === "pchain").length, 1, "two-block rules are offered");
+  L.step(g, { op: "rule", at: "a", b: 0, m: "pchain", others: [1] });
+  assert.deepEqual(bench(g, "a"), ["P → ⊥"]);
   assert.ok(g.root.done);
   assert.ok(L.count(g.steps) < Q.par(Q.QUESTS[idx("lk")]), "which beats the reference proof");
+  // three-block rules are offered too
+  const h = L.start({ goal: "P->((P->false)->Q)" }, everything());
+  L.step(h, { op: "assume", at: "" }); L.step(h, { op: "assume", at: "a" });
+  for (const i of [0, 1]) L.step(h, { op: "hyp", at: "aa", i });
+  assert.ok(L.options(h, "aa", 0, []).some(o => o.rule.id === "le" && o.open), "Explosion offered with its Q to fill");
 });
 
 test("and, or, false, true", () => {

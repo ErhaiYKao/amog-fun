@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=5"></script>
-<script src="/mathcraft/quests.js?v=5"></script>
+<script src="/mathcraft/logic.js?v=6"></script>
+<script src="/mathcraft/quests.js?v=6"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -144,6 +144,14 @@
   .opt.hyp .name { color: #f5c04a; }
   .opt .st.small { color: var(--muted); font-size: 15px; }
   .opt .res { display: block; font-size: 19px; overflow-x: auto; }
+  div.opt { cursor: default; }
+  div.opt:hover { border-color: var(--line-2); }
+  .opt .form { margin-top: 4px; }
+  .opt .res.bad { font-family: var(--mono); font-size: 12.5px; color: var(--g2); }
+  body.wide .wrap { max-width: min(1680px, 100%); }
+  body.wide .cols { grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); }
+  .widen { float: right; margin: -4px 0 0 8px; }
+  @media (max-width: 860px) { .widen { display: none; } }
 
   .ups { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .ups li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; }
@@ -189,7 +197,7 @@
   // item: the quest, bounty or lemma on the bench (null on the "your own" page)
   // openM: the machine whose interface is open ("refl", "induct", "h0", or a machine id); dir: its lever
   // picked: blocks fed to an open rule so far; sel: { b, path } for the Scanner list (path [] = whole block)
-  let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = false, more = false;
+  let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = false;
   let openM = null, dir = "lr", picked = [], typed = "", letter = "", fillVals = {}, needVals = {}, flash = -1;
 
   function load() {
@@ -311,7 +319,7 @@
   const reflSides = c => (c.goal[0] !== "=" ? [] : L.same(c.goal[1], c.goal[2]) ? [c.goal[1]] : [c.goal[1], c.goal[2]]);
   const and = a => (a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
 
-  function reset() { sel = null; msg = ""; hint = false; more = false; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; fillVals = {}; flash = -1; }
+  function reset() { sel = null; msg = ""; hint = false; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; fillVals = {}; flash = -1; }
   function open(id) {
     item = [...Q.QUESTS, ...Q.BOUNTIES, ...lemmas()].find(q => q.id === id) || Q.QUESTS[0];
     const ms = machinesOf(item);
@@ -504,7 +512,7 @@
     let h = tip ? `<div class="coach"><b class="k">next</b><span>${tip.text}</span></div>` : "";
     if (ls.length > 1) h += `<div class="tabs">` + ls.map(l =>
       `<button data-at="${l.at}" class="${l.at === where ? "on" : ""} ${l.c.done ? "done" : ""}"><span class="meta">${shopName(l.at)}${l.c.done ? " ✓" : ""}</span><span class="st small">${tHtml(l.c.goal)}</span></button>`).join("") + `</div>`;
-    h += `<p class="label">${where ? "Workshop · " + shopName(where) : "Workbench"}</p>`;
+    h += `<p class="label">${where ? "Workshop · " + shopName(where) : "Workbench"}<button class="mini tiny widen" data-do="wide">${save.wide ? "narrower" : "wider"}</button></p>`;
     if (where) h += `<div class="given"><span class="meta">craft</span><span class="scroll">${st(c.goal, {}, "small")}</span></div>`;
     c.hyps.forEach((s, i) => {
       h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span>
@@ -527,6 +535,10 @@
   function optHtml(o, i) {
     const name = o.hyp ? hypName(+o.step.m.slice(1)) : o.name;
     const how = o.rule ? (o.others.length ? `<span class="meta">with block ${o.others.map(i => i + 1).join(" and ")}</span>` : "") : arrow(o.from, o.to, { slot: !o.hyp });
+    if (o.open) return `<div class="opt" data-optc="${i}"><span class="top"><span class="name">${esc(name)}</span>${how}</span>
+      <div class="form"><span class="meta">needs</span>${o.open.map(v => `<label>${v} =</label><input class="term" data-ofill="${v}" value="${esc(L.show(L.term(o.step.fill[v])))}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="term for ${v}">`).join("")}
+      <button class="mini tiny" data-opt="${i}">apply</button></div>
+      <span class="st res">${tHtml(o.result, { hi: o.rule ? null : pstr(sel.path) })}</span></div>`;
     return `<button class="opt ${o.hyp ? "hyp" : ""}" data-opt="${i}"><span class="top"><span class="name">${esc(name)}</span>${how}</span>
       <span class="st res">${tHtml(o.result, { hi: o.rule ? null : pstr(sel.path) })}</span></button>`;
   }
@@ -538,6 +550,7 @@
       <button class="mini tiny" data-do="widen" ${whole ? "disabled" : ""}>widen</button></div><div class="opts">`;
     if (!tight.length) h += `<p class="empty">${whole ? "No rule does anything to this block." : "Nothing fits this part exactly."}</p>`;
     h += tight.map(x => optHtml(x[0], x[1])).join("");
+    const more = save.more !== false;
     if (loose.length) h += `<button class="mini tiny" data-do="more" style="justify-self:start">${more ? "hide" : "show"} ${loose.length} that fit anything</button>` + (more ? loose.map(x => optHtml(x[0], x[1])).join("") : "");
     return h + `</div>`;
   }
@@ -664,16 +677,23 @@
     if (e.target.id === "rterm") { typed = e.target.value; const t = coach(); if (t && t.at === `[data-do="refl"]`) draw(), $("rterm").focus(), $("rterm").setSelectionRange(typed.length, typed.length); }
     else if (e.target.id === "iv") letter = e.target.value.trim();
     else if (e.target.dataset.need) needVals[e.target.dataset.need] = e.target.value.trim();
+    else if (e.target.dataset.ofill) {                                   // re-preview a scanner move with the slot as typed
+      const card = e.target.closest("[data-optc]"), x = shown[+card.dataset.optc], res = card.querySelector(".res");
+      try { res.className = "st res"; res.innerHTML = tHtml(L.preview(game, { ...x.step, fill: optFill(card) }), { hi: x.rule ? null : pstr(sel.path) }); }
+      catch (err) { res.className = "res bad"; res.textContent = err.message; }
+    }
   });
+  const optFill = el => Object.fromEntries([...el.closest("[data-optc]").querySelectorAll("[data-ofill]")].map(i => [i.dataset.ofill, i.value.trim()]));
   $("panel").addEventListener("keydown", e => {
     if (e.key !== "Enter") return;
-    if (e.target.id === "rterm") runRefl();
+    if (e.target.dataset.ofill) { const x = shown[+e.target.closest("[data-optc]").dataset.optc]; act({ ...x.step, fill: optFill(e.target) }); }
+    else if (e.target.id === "rterm") runRefl();
     else if (e.target.id === "iv") runInduct(letter);
     else if (e.target.dataset.slot) stamp(openM);
   });
   $("panel").onclick = e => {
     const o = e.target.closest("[data-opt]");
-    if (o) { act(shown[+o.dataset.opt].step); return; }
+    if (o) { const x = shown[+o.dataset.opt]; act(x.open ? { ...x.step, fill: optFill(o) } : x.step); return; }
     const b = e.target.closest("button"); if (!b) return;
     const d = b.dataset, c = L.ctxAt(game, where);
     if (d.key) { typed = d.key === "⌫" ? typed.slice(0, -1) : typed + d.key; msg = ""; draw(); }
@@ -687,14 +707,15 @@
     else if (d.buy) buy(d.buy);
     else if (d.hyp !== undefined) act({ op: "hyp", at: where, i: +d.hyp });
     else if (d.mk) stamp(d.mk);
-    else if (d.do === "more") { more = !more; draw(); }
+    else if (d.do === "more") { save.more = !save.more; store(); draw(); }
     else if (d.do === "widen" && sel && sel.path.length) { sel = { b: sel.b, path: sel.path.slice(0, -1) }; draw(); }
   };
   $("shop").onclick = e => {
     const b = e.target.closest("button");
     if (b) {
       const d = b.dataset;
-      if (d.at !== undefined) { where = d.at; sel = null; msg = ""; picked = []; if (/^h/.test(openM || "")) openM = null; draw(); }
+      if (d.do === "wide") { save.wide = !save.wide; store(); document.body.classList.toggle("wide", save.wide); draw(); }
+      else if (d.at !== undefined) { where = d.at; sel = null; msg = ""; picked = []; if (/^h/.test(openM || "")) openM = null; draw(); }
       else if (d.m) openMachine(d.m);
       else if (d.dup !== undefined) act({ op: "dup", at: where, b: +d.dup });
       else if (d.del !== undefined) { picked = []; act({ op: "del", at: where, b: +d.del }); }
@@ -721,12 +742,13 @@
       act({ op: "rule", at: where, b: p[0], m: openM, others: p.slice(1), ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, needVals[v] || ""])) } : {}) });
       return;
     }
-    if (up("scanner")) { openM = null; sel = pick; msg = ""; more = false; return draw(); }
+    if (up("scanner")) { openM = null; sel = pick; msg = ""; return draw(); }
     msg = m && m.locked ? "That machine isn't yours yet." : "Open a machine that takes blocks first, then tap what to feed it.";
     draw();
   };
   document.addEventListener("keydown", e => { if (game && (e.metaKey || e.ctrlKey) && e.key === "z" && e.target.tagName !== "INPUT") { e.preventDefault(); undo(); } });
 
+  document.body.classList.toggle("wide", !!save.wide);
   if (save.cur === "new") openNew();
   else {
     const known = [...Q.QUESTS.filter(unlocked), ...Q.BOUNTIES, ...lemmas()];

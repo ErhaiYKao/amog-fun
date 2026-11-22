@@ -16,6 +16,8 @@
  *           { id, name, premises: [stmt], concl } is a rule: blocks matching the premises, in order, are used up
  *             and the conclusion takes the first one's place. A proved implication A → (B → C) becomes the rule
  *             A, B gives C (questMachine), and keeps `stmt` so the implication itself can still be made as a block.
+ *             A quest's `takes` says how many of its arrows are hypotheses (default: all): Swapping assumptions,
+ *             (P → (Q → R)) → (Q → (P → R)), takes 1 and gives Q → (P → R), not R from three blocks.
  *           { id: "induct" } and { id: "assume" } open workshops.
  *
  * A proof is a list of steps replayed by `replay`, each aimed at a workshop `at`: "" is the quest itself, "b" / "s"
@@ -32,7 +34,8 @@
  *                                             conclusion that the premises don't fix (⊥ gives P, for any P)
  *   { op: "induct", at, v }                   split the goal by induction on the number v: workshops for 0 and S(v)
  *   { op: "assume", at }                      for a goal A → B: a workshop that holds A and has goal B
- *   { op: "dup" | "del", at, b }              housekeeping, not counted as steps
+ *   { op: "dup", at, b }                      a copy of block b next to it (a step: rules use blocks up)
+ *   { op: "del", at, b }                      throw block b away, not counted as a step
  * A workshop is done when a block on its bench equals its goal, or its sub-workshops are all done.
  */
 (function (root) {
@@ -168,8 +171,8 @@
      gives the consequent (so nothing has to go through modus ponens), and keeps the whole statement as `stmt`. */
   function questMachine(q) {
     const given = (q.given || []).map(term), goal = term(q.goal), premises = given.slice();
-    let concl = goal;
-    while (concl[0] === "→") { premises.push(concl[1]); concl = concl[2]; }
+    let concl = goal, n = q.takes == null ? Infinity : q.takes;
+    while (concl[0] === "→" && n-- > 0) { premises.push(concl[1]); concl = concl[2]; }
     if (!premises.length) return { id: q.id, name: q.name, stmt: goal };
     return { id: q.id, name: q.name, premises, concl, ...(given.length ? {} : { stmt: goal }) };
   }
@@ -319,29 +322,39 @@
     for (const st of steps) step(g, st);
     return g;
   }
-  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume"]);
+  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup"]);
   const count = steps => steps.filter(s => COUNTED.has(s.op)).length;
 
   /* every move available on the selection in block b: a part (path non-empty) offers the equality machines that
    * fit there, the whole block (path []) offers the rules. Each is { step, result, name, from, to, hyp, loose } or
    * { step, result, name, rule, others }. `loose` marks rewrites whose pattern is a bare slot (a → a+0): they fit
-   * everywhere, so they sort last and the page keeps them behind "more". Directions that leave a slot open
-   * (0 → a·0) are not listed: the machine's own interface asks for the missing term. */
+   * everywhere, so they sort last and the page keeps them behind "more". A move that leaves a slot open (0 → a·0,
+   * ⊥ gives P) comes with `open`: the slots, filled in the step with a guess (guess) the player can change. */
+  function guess(game, v) {
+    if (game.names.has(v)) return v;
+    const pick = [...game.names].sort().find(x => upper(x) === upper(v));
+    return pick || (upper(v) ? "⊤" : "0");
+  }
+  /* the block a step would leave where it acted, without doing it (throws if the step is refused) */
+  function preview(game, st) {
+    const c = ctxAt(game, st.at), apply = plan(game, st), before = c.bench;
+    c.bench = before.slice();
+    try { apply(); return c.bench[st.op === "rule" ? st.b - st.others.filter(o => o < st.b).length : st.b].s; }
+    finally { c.bench = before; }
+  }
   function options(game, where, b, path) {
     const c = ctxAt(game, where), blk = c.bench[b], out = [], seen = new Set();
     if (!blk) return out;
-    const add = (st, info) => {
-      let apply;
-      try { apply = plan(game, st); } catch (e) { return; }
-      const before = c.bench;
-      c.bench = before.slice(); apply();
-      const result = c.bench[st.op === "rule" ? b - st.others.filter(o => o < b).length : b].s;
-      c.bench = before;
+    const add = (st, info, open) => {
+      if (open.length) st = { ...st, fill: Object.fromEntries(open.map(v => [v, guess(game, v)])) };
+      let result;
+      try { result = preview(game, st); } catch (e) { return; }
       const key = show(result);
       if (same(result, blk.s) || seen.has(key)) return;
       seen.add(key);
-      out.push({ step: st, result, ...info });
+      out.push({ step: st, result, ...info, ...(open.length ? { open } : {}) });
     };
+    const left = (to, from) => [...vars(to)].filter(v => !from.some(f => vars(f).has(v))).sort();
     if (path && path.length) {
       const sub = at(blk.s, path);
       if (!sub || isForm(sub)) return out;
@@ -349,13 +362,13 @@
       const eqs = [...c.hyps.map((h, i) => ({ id: "h" + i, name: "given", stmt: h, hyp: true })), ...game.machines].filter(m => isEq(m.stmt));
       for (const m of eqs) for (const dir of ["lr", "rl"]) {
         const [from, to] = dir === "lr" ? [m.stmt[1], m.stmt[2]] : [m.stmt[2], m.stmt[1]];
-        add({ op: "rw", at: where || "", b, path, m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) });
+        add({ op: "rw", at: where || "", b, path, m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) }, m.hyp ? [] : left(to, [from]));
       }
     } else for (const m of game.machines.filter(x => x.premises)) {
       const n = m.premises.length;
       const rest = c.bench.map((_, i) => i).filter(i => i !== b);
       const picks = n === 1 ? [[]] : n === 2 ? rest.map(i => [i]) : n === 3 ? rest.flatMap(i => rest.filter(j => j !== i).map(j => [i, j])) : [];
-      for (const others of picks) add({ op: "rule", at: where || "", b, m: m.id, others }, { name: m.name, rule: m, others });
+      for (const others of picks) add({ op: "rule", at: where || "", b, m: m.id, others }, { name: m.name, rule: m, others }, left(m.concl, m.premises));
     }
     return out.sort((x, y) => (x.loose ? 1 : 0) - (y.loose ? 1 : 0));
   }
@@ -404,6 +417,6 @@
 
   root.MathcraftLogic = {
     Z, S, plus, V, eq, same, vars, at, put, subst, match, show, parse, term, isForm, upper, machine, questMachine,
-    start, ctxAt, subs, shops, step, replay, count, options, fits, paths, value, holds,
+    start, ctxAt, subs, shops, step, replay, count, options, preview, guess, fits, paths, value, holds,
   };
 })(typeof window !== "undefined" ? window : globalThis);
