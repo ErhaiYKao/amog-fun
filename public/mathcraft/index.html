@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=6"></script>
-<script src="/mathcraft/quests.js?v=6"></script>
+<script src="/mathcraft/logic.js?v=8"></script>
+<script src="/mathcraft/quests.js?v=8"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -148,6 +148,15 @@
   div.opt:hover { border-color: var(--line-2); }
   .opt .form { margin-top: 4px; }
   .opt .res.bad { font-family: var(--mono); font-size: 12.5px; color: var(--g2); }
+  .goalline { border-radius: 10px; padding: 6px 8px; margin: 0 -8px; }
+  .goalline .t { cursor: pointer; border-radius: 6px; padding: 2px 1px; }
+  .goalline .t:hover:not(:has(.t:hover)) { background: #ffffff14; }
+  .block .grip { flex: none; cursor: grab; touch-action: none; user-select: none; color: var(--faint); font-size: 16px; padding: 2px 2px; }
+  .block .grip:hover { color: var(--ink); }
+  .block.dragging { opacity: .45; }
+  .ghost { position: fixed; z-index: 50; pointer-events: none; opacity: .9; box-shadow: 0 8px 24px #0008; }
+  .drop { outline: 2px dashed var(--g3); outline-offset: 2px; }
+  #floor .allw { margin-top: 12px; }
   body.wide .wrap { max-width: min(1680px, 100%); }
   body.wide .cols { grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); }
   .widen { float: right; margin: -4px 0 0 8px; }
@@ -168,7 +177,7 @@
   <div class="head">
     <div class="sig">mathcraft : Axioms → Theorems</div>
     <h1>Mathcraft</h1>
-    <p>Prove theorems by crafting them. Machines make blocks and rewrite them; every theorem you craft earns <i class="ts" title="tombstones, the end-of-proof mark"></i> and becomes a machine itself. A proof of concept: addition, from Peano's axioms.</p>
+    <p>Prove theorems by crafting them. Machines make blocks and rewrite them; every theorem you craft earns <i class="ts" title="tombstones, the end-of-proof mark"></i> and becomes a machine itself. A proof of concept: arithmetic from Peano's axioms, and classical logic from one axiom.</p>
   </div>
   <div class="quests" id="quests"></div>
   <div class="cols">
@@ -198,7 +207,7 @@
   // openM: the machine whose interface is open ("refl", "induct", "h0", or a machine id); dir: its lever
   // picked: blocks fed to an open rule so far; sel: { b, path } for the Scanner list (path [] = whole block)
   let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = false;
-  let openM = null, dir = "lr", picked = [], typed = "", letter = "", fillVals = {}, needVals = {}, flash = -1;
+  let openM = null, dir = "lr", picked = [], typed = "", letter = "", fillVals = {}, needVals = {}, flash = -1, lemmaText = "", applied = [];
 
   function load() {
     let s = null;
@@ -218,6 +227,8 @@
   const doneSet = () => new Set(Object.keys(save.done));
   const ownedSet = () => new Set(save.owned);
   const up = id => save.owned.includes(id);
+  const has = id => !!game && game.machines.some(m => m.id === id);
+  const canApply = () => has("apply");
   const bal = () => Q.balance(save.done, ownedSet());
   const unlocked = q => q.id in save.done || Q.isOpen(q, save.done);
   const ownQuest = (o, k) => ({ id: o.id, name: "Lemma " + (k + 1), goal: o.goal, own: true });
@@ -229,7 +240,7 @@
   function machinesOf(q) {
     const d = doneSet(), o = ownedSet();
     if (q && !q.own && !q.bounty) return Q.machinesFor(Q.QUESTS.indexOf(q), d, o);
-    if (q && q.bounty) return Q.playMachines(d, o);
+    if (q && q.bounty) return Q.playMachines(d, o, q.worlds);
     const ls = lemmas(), k = q ? ls.findIndex(l => l.id === q.id) : ls.length;
     return [...Q.playMachines(d, o), ...Q.BOUNTIES.filter(finished).map(asMachine), ...ls.slice(0, k).filter(finished).map(asMachine)];
   }
@@ -272,7 +283,7 @@
 
   /* ---------- machines as objects ---------- */
   const GATES = Q.SHOP.filter(x => x.gate).map(x => x.id);
-  const COLORS = { refl: "var(--g3)", eq: "var(--g1)", fact: "var(--g1)", rule: "#c9a7ff", induct: "var(--g2)", assume: "var(--g2)", hyp: "#f5c04a", held: "#f5c04a" };
+  const COLORS = { refl: "var(--g3)", eq: "var(--g1)", fact: "var(--g1)", rule: "#c9a7ff", induct: "var(--g2)", assume: "var(--g2)", apply: "var(--g2)", have: "var(--g2)", unfold: "#c9a7ff", hyp: "#f5c04a", held: "#f5c04a" };
   function icon(kind, size = 44) {
     const c = COLORS[kind], line = `fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
     const glyph = {
@@ -284,21 +295,25 @@
       held: `<path d="M20 13v9M20 27v.5" ${line}/>`,
       assume: `<path d="M15 13h-3v15h3M25 13h3v15h-3M17 20.5h6" ${line}/>`,
       fact: `<path d="M12 20.5h14M22 16l4.5 4.5L22 25" ${line}/>`,
+      apply: `<path d="M28 20.5H13M17.5 16L13 20.5l4.5 4.5" ${line}/>`,
+      have: `<path d="M13 14v13M27 14v13M13 20.5h14" ${line}/>`,
+      unfold: `<path d="M11 16.5h17l-3-3M29 24.5H12l3 3" ${line} stroke-dasharray="3 2.5"/>`,
     }[kind];
     return `<svg viewBox="0 0 40 44" width="${size * 40 / 44}" height="${size}" aria-hidden="true"><rect x="27" y="1.5" width="6" height="8" rx="1.5" fill="none" stroke="${c}" stroke-width="1.5" opacity=".55"/>
       <rect x="4" y="7" width="32" height="27" rx="6" fill="var(--bg)" stroke="${c}" stroke-width="2"/>${glyph}
       <circle cx="12" cy="38.5" r="3.5" fill="none" stroke="${c}" stroke-width="1.5"/><circle cx="28" cy="38.5" r="3.5" fill="none" stroke="${c}" stroke-width="1.5"/></svg>`;
   }
   /* what each fact held in workshop `at` is: the quest's givens, then one per induction step or assumption on the way in */
-  const hypNames = at => [...(item.given || []).map(() => "given"), ...[...at].filter(ch => ch !== "b").map(ch => (ch === "s" ? "induction hypothesis" : "assumption"))];
+  const hypNames = at => [...(item.given || []).map(() => "given"), ...[...at].filter(ch => "sac".includes(ch)).map(ch => ({ s: "induction hypothesis", a: "assumption", c: "lemma" }[ch]))];
   const hypName = i => hypNames(where)[i] || "given";
   /* { id, name, kind, stmt | premises+concl, locked, hyp } for anything that can be opened */
   function mach(id) {
     if (id === "refl") return { id, name: "refl", kind: "refl" };
+    if (id === "unfold") return { id, name: "Translator", kind: "unfold" };
     const h = /^h(\d+)$/.exec(id);
     if (h) { const s = L.ctxAt(game, where).hyps[+h[1]]; return s ? { id, name: hypName(+h[1]), kind: s[0] === "=" ? "hyp" : "held", stmt: s, hyp: true } : null; }
     const m = game.machines.find(x => x.id === id) || (GATES.includes(id) ? { ...Q.gate(id), locked: true } : null);
-    return m ? { ...m, kind: m.id === "induct" || m.id === "assume" ? m.id : m.premises ? "rule" : m.stmt[0] === "=" ? "eq" : "fact" } : null;
+    return m ? { ...m, kind: Q.TACTICS.includes(m.id) ? m.id : m.premises ? "rule" : m.stmt[0] === "=" ? "eq" : "fact" } : null;
   }
   const BLURB = {
     refl: "Makes the block <i>t</i> = <i>t</i> out of thin air, for any term <i>t</i> you feed it.",
@@ -309,17 +324,23 @@
     assume: "For a goal of the form <i>A</i> → <i>B</i>. It opens a workshop where <i>A</i> is a fact you hold, and the goal is <i>B</i>.",
     rule: "A rule. It takes whole blocks that match what is left of “gives”, uses them up, and puts what is right of it in their place.",
     fact: "A statement you have proved, with slots. Fill them in and it puts the block on the bench.",
+    apply: "Works backwards. When the goal is <i>Q</i>, tap a block <i>P</i> → <i>Q</i> (it is used up) or drag it onto the goal, and the goal becomes <i>P</i>. A rule that concludes the goal leaves one goal for each thing it takes.",
+    have: "A lemma in the middle of a proof: type a statement about what is in play. You craft it in a workshop of its own, then carry on with it on the bench. Nothing on the bench is lost.",
+    unfold: "∨, ∧ and ⊤ are definitions: <i>A</i> ∨ <i>B</i> is ¬<i>A</i> → <i>B</i>, <i>A</i> ∧ <i>B</i> is ¬(<i>A</i> → ¬<i>B</i>), and ⊤ is ⊥ → ⊥, where ¬<i>A</i> is <i>A</i> → ⊥. Tap a part of a block to unfold it, or fold it back. Free: it takes no step.",
   };
 
   /* ---------- workshops ---------- */
   const leaves = () => L.shops(game).filter(x => !x.c.kids);
   const firstOpen = () => { const ls = leaves(); return (ls.find(l => !l.c.done) || ls[0]).at; };
-  const shopName = at => [...at].map(ch => ({ b: "Base case", s: "Step", a: "Assume" }[ch])).join(" › ");
+  const shopName = at => {
+    const parts = [...at].map(ch => ({ b: "Base case", s: "Step", a: "Assume", l: "Lemma", c: "With the lemma" }[ch] || "Goal " + ch));
+    return (parts.length > 3 ? "… › " : "") + parts.slice(-3).join(" › ");
+  };
   /* the number terms refl is most likely wanted for: the sides of the goal, if it is an equation */
   const reflSides = c => (c.goal[0] !== "=" ? [] : L.same(c.goal[1], c.goal[2]) ? [c.goal[1]] : [c.goal[1], c.goal[2]]);
   const and = a => (a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
 
-  function reset() { sel = null; msg = ""; hint = false; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; fillVals = {}; flash = -1; }
+  function reset() { sel = null; msg = ""; hint = false; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; fillVals = {}; flash = -1; lemmaText = ""; }
   function open(id) {
     item = [...Q.QUESTS, ...Q.BOUNTIES, ...lemmas()].find(q => q.id === id) || Q.QUESTS[0];
     const ms = machinesOf(item);
@@ -352,11 +373,12 @@
     const before = leaves().find(l => l.at === where), wasDone = !!(before && before.c.done);
     try { L.step(game, step); msg = ""; } catch (e) { msg = e.message; draw(); return false; }
     const at0 = where;
-    if (step.op === "induct" || step.op === "assume") { where = step.at + (step.op === "induct" ? "b" : "a"); sel = null; openM = null; }
+    if (Q.TACTICS.includes(step.op)) { where = step.at + L.subs(L.ctxAt(game, step.at))[0][0]; sel = null; openM = null; }
     else if (step.op === "rule") sel = null;
     else if (step.op !== "rw") sel = null;
-    flash = step.op === "rule" ? step.b - step.others.filter(o => o < step.b).length : step.op === "rw" ? step.b : ["refl", "hyp", "make", "stamp"].includes(step.op) ? L.ctxAt(game, step.at).bench.length - 1 : step.op === "dup" ? step.b + 1 : -1;
+    flash = step.op === "rule" ? step.b - step.others.filter(o => o < step.b).length : step.op === "rw" ? step.b : ["refl", "hyp", "make", "stamp"].includes(step.op) ? L.ctxAt(game, step.at).bench.length - 1 : step.op === "dup" ? step.b + 1 : step.op === "unfold" ? step.b : -1;
     if (step.op === "refl") typed = "";
+    if (step.op === "have") lemmaText = "";
     settle(wasDone);
     if (where !== at0) { flash = -1; if (/^h/.test(openM || "")) openM = null; }
     draw();
@@ -472,10 +494,10 @@
     const chain = quest ? Q.QUESTS.filter(x => x.world === q.world) : [], k = chain.indexOf(q), wname = quest ? Q.WORLDS.find(w => w[0] === q.world)[1] : "";
     const steps = `${n} step${n === 1 ? "" : "s"}`;
     const text = q.own ? "Your own conjecture. If it is true and you can craft it, it becomes a machine for your later lemmas."
-      : q.bounty ? `A bounty: an optional theorem that pays ${coin(q.pay)} the first time you craft it, and becomes a machine in the playground.` : q.intro;
+      : q.bounty ? `${q.intro ? q.intro + " " : ""}A bounty: an optional theorem that pays ${coin(q.pay)} the first time you craft it, and becomes a machine in the playground.` : q.intro;
     const pays = quest ? ` · pays ∎${q.pay}, +${Q.PAR_BONUS} in ${Q.par(q)} steps or fewer` : "";
     let h = `<p class="label">${q.own ? "Playground" : q.bounty ? "Bounty" : `${wname} · quest ${q.world === "add" ? k : k + 1} of ${q.world === "add" ? chain.length - 1 : chain.length}`}</p><h2>${esc(q.name)}</h2>
-      <div class="goal"><span class="meta">craft</span><span class="scroll">${st(game.root.goal)}</span><span class="meta">${forAny}</span></div>
+      <div class="goal"><span class="meta">craft</span><span class="scroll">${st(L.term(q.goal))}</span><span class="meta">${forAny}</span></div>
       <p>${text}</p>`;
     const missing = (q.needs || []).filter(id => !up(id));
     if (missing.length && !game.root.done) h += `<p class="need">This one needs ${and(missing.map(id => `<i>${esc(Q.gate(id).name)}</i> (∎${Q.price(id)})`))}. Open ${missing.length > 1 ? "them" : "it"} on the machine floor to buy.</p>`;
@@ -492,7 +514,7 @@
       const after = !quest ? `<button class="mini" data-do="new">a conjecture of your own</button>`
         : k + 1 < chain.length ? `<button class="mini" data-do="next">next quest →</button>`
         : `<span class="meta">That's all of ${wname.toLowerCase()}. ${Q.QUESTS.every(finished) ? "And all of Mathcraft, for now: the bounties and the playground are still open." : "Other branches are open in the list above."}</span>`;
-      h += `<div class="qed"><b>Q.E.D.</b> ${st(game.root.goal, { slot: true }, "small")} is now a machine${quest ? "" : " in the playground"}. ${steps}. ${verdict}${paid}<div class="row">${after}</div></div>`;
+      h += `<div class="qed"><b>Q.E.D.</b> ${st(L.term(q.goal), { slot: true }, "small")} is now a machine${quest ? "" : " in the playground"}. ${steps}. ${verdict}${paid}<div class="row">${after}</div></div>`;
     }
     put($("quest"), h);
     if (window.amogMath) amogMath($("quest"));
@@ -513,7 +535,8 @@
     if (ls.length > 1) h += `<div class="tabs">` + ls.map(l =>
       `<button data-at="${l.at}" class="${l.at === where ? "on" : ""} ${l.c.done ? "done" : ""}"><span class="meta">${shopName(l.at)}${l.c.done ? " ✓" : ""}</span><span class="st small">${tHtml(l.c.goal)}</span></button>`).join("") + `</div>`;
     h += `<p class="label">${where ? "Workshop · " + shopName(where) : "Workbench"}<button class="mini tiny widen" data-do="wide">${save.wide ? "narrower" : "wider"}</button></p>`;
-    if (where) h += `<div class="given"><span class="meta">craft</span><span class="scroll">${st(c.goal, {}, "small")}</span></div>`;
+    const om = openM && mach(openM), gLive = up("goalrw") && om && !om.locked && (om.kind === "eq" || om.kind === "hyp");
+    h += `<div class="given goalline" data-goal ${canApply() ? `title="drop a block P → (this goal) here to apply it"` : ""}><span class="meta">${where ? "craft" : "goal"}</span><span class="scroll">${st(c.goal, gLive ? { live: true } : {}, "small")}</span>${gLive ? `<span class="meta">tap a part to rewrite the goal</span>` : ""}</div>`;
     c.hyps.forEach((s, i) => {
       h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span>
         <button class="mini tiny ${openM === "h" + i ? "on" : ""}" data-m="h${i}">open</button></div>`;
@@ -521,9 +544,10 @@
     if (c.hyps.length > (item.given || []).length) h += `<p class="meta">What a workshop holds is about these particular numbers and statements: machines without slots.</p>`;
     h += `<div class="bench">`;
     if (!c.bench.length) h += `<p class="empty">The bench is empty. A machine has to make the first block.</p>`;
+    const grips = has("mp") || canApply();
     c.bench.forEach((b, i) => {
-      const on = sel && sel.b === i, goal = L.same(b.s, c.goal);
-      h += `<div class="block ${on ? "sel" : ""} ${goal ? "goal" : ""} ${picked.includes(i) ? "picked" : ""} ${flash === i ? "flash" : ""}" data-b="${i}"><span class="n">${i + 1}</span>
+      const on = sel && sel.b === i, goal = L.sameDef(b.s, c.goal);
+      h += `<div class="block ${on ? "sel" : ""} ${goal ? "goal" : ""} ${picked.includes(i) ? "picked" : ""} ${flash === i ? "flash" : ""}" data-b="${i}">${grips ? `<span class="grip" data-grip="${i}" title="drag onto a block for modus ponens, or onto the goal to apply it">⠿</span>` : ""}<span class="n">${i + 1}</span>
         <span class="scroll">${st(b.s, { live: true, sel: on ? pstr(sel.path) : null, fit: fit[i] })}</span>
         ${goal ? `<span class="ok" title="this block is the goal">✓</span>` : b.deps.length ? `<span class="dot" title="Made with the ${hypName(b.deps[b.deps.length - 1])}: only true inside this workshop."></span>` : ""}
         <button class="x" data-dup="${i}" title="duplicate">⧉</button><button class="x" data-del="${i}" title="throw away">✕</button></div>`;
@@ -534,7 +558,7 @@
   let shown = [];
   function optHtml(o, i) {
     const name = o.hyp ? hypName(+o.step.m.slice(1)) : o.name;
-    const how = o.rule ? (o.others.length ? `<span class="meta">with block ${o.others.map(i => i + 1).join(" and ")}</span>` : "") : arrow(o.from, o.to, { slot: !o.hyp });
+    const how = o.rule ? (o.others.length ? `<span class="meta">with block ${o.others.map(i => i + 1).join(" and ")}</span>` : "") : arrow(o.from, o.to, { slot: !o.hyp && !o.free }) + (o.free ? `<span class="meta">free</span>` : "");
     if (o.open) return `<div class="opt" data-optc="${i}"><span class="top"><span class="name">${esc(name)}</span>${how}</span>
       <div class="form"><span class="meta">needs</span>${o.open.map(v => `<label>${v} =</label><input class="term" data-ofill="${v}" value="${esc(L.show(L.term(o.step.fill[v])))}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="term for ${v}">`).join("")}
       <button class="mini tiny" data-opt="${i}">apply</button></div>
@@ -554,6 +578,19 @@
     if (loose.length) h += `<button class="mini tiny" data-do="more" style="justify-self:start">${more ? "hide" : "show"} ${loose.length} that fit anything</button>` + (more ? loose.map(x => optHtml(x[0], x[1])).join("") : "");
     return h + `</div>`;
   }
+  /* Apply's interface: every way to work backwards from this workshop's goal */
+  function applyHtml(c) {
+    if (c.kids) return `<p class="empty">This workshop is already split.</p>`;
+    applied = L.applies(game, where);
+    if (!applied.length) return `<p class="empty">Nothing on the bench or on the floor ends in this goal.</p>`;
+    return `<div class="opts">` + applied.map((o, i) => {
+      const goals = `<span class="st res">${o.goals.map(g => tHtml(g)).join(`<span class="meta">  and  </span>`)}</span>`;
+      const head = `<span class="top"><span class="name">${esc(o.name)}</span><span class="meta">goal becomes</span></span>`;
+      if (!o.open) return `<button class="opt" data-ap="${i}">${head}${goals}</button>`;
+      return `<div class="opt" data-apc="${i}">${head}<div class="form"><span class="meta">needs</span>${o.open.map(v => `<label>${v} =</label><input class="term" data-afill="${v}" value="${esc(L.show(L.term(o.step.fill[v])))}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="what ${v} is">`).join("")}<button class="mini tiny" data-ap="${i}">apply</button></div>${goals}</div>`;
+    }).join("") + `</div>`;
+  }
+  const apFill = el => Object.fromEntries([...el.closest("[data-apc]").querySelectorAll("[data-afill]")].map(i => [i.dataset.afill, i.value.trim()]));
   function drawPanel() {
     const el = $("panel"), m = openM && mach(openM);
     let h;
@@ -564,7 +601,7 @@
       const c = L.ctxAt(game, where), names = [...game.names];
       const stmt = m.premises ? `<div class="scroll"><span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span></div>`
         : m.stmt ? `<div class="scroll">${st(m.stmt, { slot: !m.hyp }, "small")}</div>`
-        : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop" }[m.kind]}</div>`;
+        : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop", apply: "in: a block P → goal, or a rule · out: the goal P", have: "in: a statement · out: a workshop for it, then the goal with it", unfold: "in: a part of a block · out: its definition, or back · free" }[m.kind]}</div>`;
       h = `<div class="mhead">${icon(m.kind, 60)}<div><h3>${esc(m.name)}</h3>${stmt}</div><button class="x" data-do="close" title="close">✕</button></div>`;
       if (m.locked) {
         const why = Q.canBuy(m.id, save.done, ownedSet());
@@ -579,6 +616,12 @@
         const ok = [...L.vars(c.goal)].filter(v => !L.upper(v) && !c.hyps.some(s => L.vars(s).has(v)));
         h += `<p class="what">${BLURB.induct}</p><div class="row"><input class="term" id="iv" maxlength="1" value="${esc(letter)}" placeholder="letter" style="width:84px" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the letter to induct on"><button class="mini" data-do="induct">run</button>` +
           (up("autofill") ? `<span class="meta">autofill</span>` + ok.map(v => `<button class="mini" data-induct="${v}"><i>${v}</i></button>`).join("") : "") + `</div>`;
+      } else if (m.kind === "apply") {
+        h += `<p class="what">${BLURB.apply}</p>` + applyHtml(c);
+      } else if (m.kind === "have") {
+        h += `<p class="what">${BLURB.have}</p><div class="row"><input class="term" id="lemma" value="${esc(lemmaText)}" placeholder="a statement, like a+0 = 0+a" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the lemma to craft"><button class="mini" data-do="have">open a workshop</button></div>`;
+      } else if (m.kind === "unfold") {
+        h += `<p class="what">${BLURB.unfold}</p>`;
       } else if (m.kind === "assume") {
         h += `<p class="what">${BLURB.assume}</p><div class="row"><button class="mini" data-do="assume">run</button></div>`;
       } else if (m.kind === "held") {
@@ -615,15 +658,26 @@
   }
   function drawFloor() {
     const world = item.world, quests = new Set(Q.QUESTS.map(q => q.id)), mine = game.machines.map(m => m.id);
-    const numbers = !world || Q.sees(world, "add");                      // refl makes equations: no use among pure statements
+    // bounties and the playground: by default only the worlds the goal is about (airetho)
+    const goal = L.term(item.goal), text = L.show(goal);
+    const logicGoal = /[→∧∨⊥⊤]/.test(text) || [...L.vars(goal)].some(L.upper), numGoal = text.includes("=");
+    const rel = item.worlds || (world || save.allw ? null : [...(numGoal ? ["add", "mul"] : []), ...(logicGoal ? ["prop", "logic"] : [])]);
+    const wOf = id => { const g = Q.gate(id); if (g) return g.w; const q = Q.QUESTS.find(x => x.id === id); return q ? q.world : null; };
+    const shown = id => !rel || !wOf(id) || wOf(id) === "any" || rel.includes(wOf(id));
+    const numbers = world ? Q.sees(world, "add") : numGoal;              // refl makes equations: no use among pure statements
+    const translator = world ? Q.sees(world, "logic") : logicGoal && (!item.worlds || item.worlds.includes("logic"));
     const card = id => {
       const m = mach(id);
       return `<button class="card ${m.locked ? "locked" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${esc(m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : m.stmt ? L.show(m.stmt) : "")}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">∎${Q.price(id)}</span>` : ""}</button>`;
     };
     const group = (title, ids) => (ids.length ? `<p class="sub">${title}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
-    const axioms = [...(numbers ? ["refl"] : []), ...GATES.filter(id => (up(id) || Q.onSale(id, save.done)) && Q.sees(world, Q.gate(id).w))];
+    const gates = GATES.filter(id => (up(id) || Q.onSale(id, save.done)) && Q.sees(world, Q.gate(id).w) && shown(id));
+    const theorems = mine.filter(id => quests.has(id)), hidden = theorems.filter(id => !shown(id)).length + GATES.filter(id => up(id) && !shown(id)).length;
     put($("floor"), `<p class="label">Machine floor${world ? " · " + Q.WORLDS.find(w => w[0] === world)[1].toLowerCase() : ""}</p>` +
-      group("axioms", axioms) + group("theorems", mine.filter(id => quests.has(id))) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))));
+      group("axioms", [...(numbers ? ["refl"] : []), ...gates.filter(id => !Q.TACTICS.includes(id))]) +
+      group("tactics", [...gates.filter(id => Q.TACTICS.includes(id)), ...(translator ? ["unfold"] : [])]) +
+      group("theorems", theorems.filter(shown)) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))) +
+      (!world && !item.worlds && (hidden || save.allw) ? `<button class="mini tiny allw" data-do="allw">${save.allw ? "only the worlds this goal is about" : `show ${hidden} from other worlds`}</button>` : ""));
   }
   function drawStore() {
     put($("store"), `<p class="label">Upgrades</p><ul class="ups">` + Q.SHOP.filter(x => !x.gate).map(x => {
@@ -656,7 +710,10 @@
     else if (d === "next") open(Q.QUESTS[Q.QUESTS.indexOf(item) + 1].id);   // same world: worlds are contiguous in QUESTS
   };
   $("quest").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "conj") addLemma(e.target.value); });
-  $("floor").onclick = e => { const b = e.target.closest("[data-m]"); if (b) openMachine(b.dataset.m); };
+  $("floor").onclick = e => {
+    if (e.target.closest("[data-do='allw']")) { save.allw = !save.allw; store(); return draw(); }
+    const b = e.target.closest("[data-m]"); if (b) openMachine(b.dataset.m);
+  };
   $("store").onclick = e => { const b = e.target.closest("[data-buy]"); if (b) buy(b.dataset.buy); };
 
   function runRefl() {
@@ -677,6 +734,12 @@
     if (e.target.id === "rterm") { typed = e.target.value; const t = coach(); if (t && t.at === `[data-do="refl"]`) draw(), $("rterm").focus(), $("rterm").setSelectionRange(typed.length, typed.length); }
     else if (e.target.id === "iv") letter = e.target.value.trim();
     else if (e.target.dataset.need) needVals[e.target.dataset.need] = e.target.value.trim();
+    else if (e.target.id === "lemma") lemmaText = e.target.value;
+    else if (e.target.dataset.afill) {
+      const card = e.target.closest("[data-apc]"), x = applied[+card.dataset.apc], res = card.querySelector(".res");
+      try { res.className = "st res"; res.innerHTML = L.applyGoals(game, { ...x.step, fill: apFill(card) }).map(g => tHtml(g)).join(`<span class="meta">  and  </span>`); }
+      catch (err) { res.className = "res bad"; res.textContent = err.message; }
+    }
     else if (e.target.dataset.ofill) {                                   // re-preview a scanner move with the slot as typed
       const card = e.target.closest("[data-optc]"), x = shown[+card.dataset.optc], res = card.querySelector(".res");
       try { res.className = "st res"; res.innerHTML = tHtml(L.preview(game, { ...x.step, fill: optFill(card) }), { hi: x.rule ? null : pstr(sel.path) }); }
@@ -686,7 +749,9 @@
   const optFill = el => Object.fromEntries([...el.closest("[data-optc]").querySelectorAll("[data-ofill]")].map(i => [i.dataset.ofill, i.value.trim()]));
   $("panel").addEventListener("keydown", e => {
     if (e.key !== "Enter") return;
-    if (e.target.dataset.ofill) { const x = shown[+e.target.closest("[data-optc]").dataset.optc]; act({ ...x.step, fill: optFill(e.target) }); }
+    if (e.target.id === "lemma") act({ op: "have", at: where, s: lemmaText.trim() });
+    else if (e.target.dataset.afill) { const x = applied[+e.target.closest("[data-apc]").dataset.apc]; act({ ...x.step, fill: apFill(e.target) }); }
+    else if (e.target.dataset.ofill) { const x = shown[+e.target.closest("[data-optc]").dataset.optc]; act({ ...x.step, fill: optFill(e.target) }); }
     else if (e.target.id === "rterm") runRefl();
     else if (e.target.id === "iv") runInduct(letter);
     else if (e.target.dataset.slot) stamp(openM);
@@ -694,6 +759,8 @@
   $("panel").onclick = e => {
     const o = e.target.closest("[data-opt]");
     if (o) { const x = shown[+o.dataset.opt]; act(x.open ? { ...x.step, fill: optFill(o) } : x.step); return; }
+    const ap = e.target.closest("[data-ap]");
+    if (ap) { const x = applied[+ap.dataset.ap]; act(x.open ? { ...x.step, fill: apFill(ap) } : x.step); return; }
     const b = e.target.closest("button"); if (!b) return;
     const d = b.dataset, c = L.ctxAt(game, where);
     if (d.key) { typed = d.key === "⌫" ? typed.slice(0, -1) : typed + d.key; msg = ""; draw(); }
@@ -701,6 +768,7 @@
     else if (d.do === "refl") runRefl();
     else if (d.refl !== undefined) act({ op: "refl", at: where, t: reflSides(c)[+d.refl] });
     else if (d.do === "assume") act({ op: "assume", at: where });
+    else if (d.do === "have") act({ op: "have", at: where, s: lemmaText.trim() });
     else if (d.do === "induct") runInduct(letter);
     else if (d.induct) runInduct(d.induct);
     else if (d.dir) { dir = d.dir; msg = ""; needVals = {}; draw(); }
@@ -721,8 +789,25 @@
       else if (d.del !== undefined) { picked = []; act({ op: "del", at: where, b: +d.del }); }
       return;
     }
+    const m0 = openM && mach(openM), gl = e.target.closest("[data-goal]");
+    if (gl) {                                                              // the Goal lever: rewrite the goal itself
+      const t = e.target.closest(".t");
+      if (!t || !m0 || m0.locked || (m0.kind !== "eq" && m0.kind !== "hyp") || !up("goalrw")) return;
+      const path = t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number);
+      if (!path.length) { msg = "Tap a part of one side of the goal."; return draw(); }
+      const need = m0.hyp ? [] : openSlots(m0);
+      act({ op: "rwg", at: where, path, m: openM, dir, ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, needVals[v] || ""])) } : {}) });
+      return;
+    }
     const t = e.target.closest(".t"), blk = e.target.closest(".block");
     if (!t || !blk) return;
+    if (m0 && !m0.locked && m0.kind === "apply") { act({ op: "apply", at: where, b: +blk.dataset.b }); return; }
+    if (m0 && m0.kind === "unfold") {
+      const b = +blk.dataset.b, path = t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number), node = L.at(L.ctxAt(game, where).bench[b].s, path);
+      if (L.unfold(node)) act({ op: "unfold", at: where, b, path });
+      else { const f = L.folds(node)[0]; if (f) act({ op: "unfold", at: where, b, path, as: f[0] }); else { msg = "Nothing there is a definition, or folds into one."; draw(); } }
+      return;
+    }
     const pick = { b: +blk.dataset.b, path: t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number) };
     const m = openM && mach(openM);
     if (m && !m.locked && (m.kind === "eq" || m.kind === "hyp")) {       // feed the part to the open machine
@@ -746,6 +831,46 @@
     msg = m && m.locked ? "That machine isn't yours yet." : "Open a machine that takes blocks first, then tap what to feed it.";
     draw();
   };
+  /* drag a block onto another (modus ponens, either way round) or onto the goal (Apply) */
+  let drag = null;
+  const target = e => { const el = document.elementFromPoint(e.clientX, e.clientY); return el && (el.closest(".block") || el.closest("[data-goal]")); };
+  function dragMove(e) {
+    drag.ghost.style.left = e.clientX - drag.dx + "px"; drag.ghost.style.top = e.clientY - drag.dy + "px";
+    const t = target(e);
+    document.querySelectorAll(".drop").forEach(x => x !== t && x.classList.remove("drop"));
+    if (t && t !== drag.el) t.classList.add("drop");
+  }
+  function dragEnd(e, cancel) {
+    const d = drag; drag = null;
+    d.ghost.remove(); document.querySelectorAll(".drop, .dragging").forEach(x => x.classList.remove("drop", "dragging"));
+    if (cancel) return;
+    const t = target(e);
+    if (!t || t === d.el) return;
+    if (t.matches("[data-goal]")) {
+      if (!canApply()) { msg = "Dropping on the goal needs the Apply machine."; return draw(); }
+      act({ op: "apply", at: where, b: d.b });
+      return;
+    }
+    if (!has("mp")) { msg = "Dropping a block on another needs Modus ponens."; return draw(); }
+    const o = +t.dataset.b, tries = [{ op: "rule", at: where, b: d.b, m: "mp", others: [o] }, { op: "rule", at: where, b: o, m: "mp", others: [d.b] }];
+    const ok = tries.find(st => { try { L.preview(game, st); return true; } catch (err) { return false; } });
+    if (ok) act(ok); else { msg = "Those two don't fit modus ponens: drag P → Q onto P."; draw(); }
+  }
+  $("shop").addEventListener("pointerdown", e => {
+    const g = e.target.closest("[data-grip]");
+    if (!g || drag) return;
+    e.preventDefault();
+    const el = g.closest(".block"), r = el.getBoundingClientRect(), ghost = el.cloneNode(true);
+    ghost.classList.add("ghost"); ghost.style.width = r.width + "px";
+    document.body.appendChild(ghost);
+    drag = { b: +g.dataset.grip, el, ghost, dx: e.clientX - r.left, dy: e.clientY - r.top };
+    el.classList.add("dragging");
+    g.setPointerCapture(e.pointerId);
+    dragMove(e);
+  });
+  $("shop").addEventListener("pointermove", e => { if (drag) dragMove(e); });
+  $("shop").addEventListener("pointerup", e => { if (drag) dragEnd(e, false); });
+  $("shop").addEventListener("pointercancel", e => { if (drag) dragEnd(e, true); });
   document.addEventListener("keydown", e => { if (game && (e.metaKey || e.ctrlKey) && e.key === "z" && e.target.tagName !== "INPUT") { e.preventDefault(); undo(); } });
 
   document.body.classList.toggle("wide", !!save.wide);

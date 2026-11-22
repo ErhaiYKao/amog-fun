@@ -3,6 +3,10 @@
  * Terms are arrays. Numbers: ["0"], ["S", t], ["+", a, b], ["*", a, b], ["v", "a"] (lowercase letter).
  * Statements: ["=", l, r] between numbers; ["→", A, B], ["∧", A, B], ["∨", A, B] between statements; ["⊥"] (false),
  * ["⊤"] (true); ["v", "P"] (capital letter). "not A" is A → ⊥ and has no node of its own.
+ * Definitions (#33): A ∨ B is ¬A → B, A ∧ B is ¬(A → ¬B), ⊤ is ⊥ → ⊥ (`unfold`, `folds`). The engine sees through
+ * them one way only: wherever a pattern wants an implication (modus ponens, Assume, Apply, any → in a machine), a
+ * ∧ / ∨ / ⊤ is read as its definition; a machine about ∨ never matches a plain ¬A → B until it is folded. A goal
+ * counts as reached by a block that is the same once both are unfolded (`sameDef`).
  * A path is a list of child indexes (0-based), so [1, 0] in an equation is the first child of the right side.
  *
  * A variable means two different things depending on where it sits:
@@ -33,7 +37,18 @@
  *                                             used up and the conclusion replaces b; fill gives slots of the
  *                                             conclusion that the premises don't fix (⊥ gives P, for any P)
  *   { op: "induct", at, v }                   split the goal by induction on the number v: workshops for 0 and S(v)
- *   { op: "assume", at }                      for a goal A → B: a workshop that holds A and has goal B
+ *   { op: "assume", at }                      for a goal A → B: a workshop that holds A (already on its bench) with
+ *                                             goal B
+ *   { op: "apply", at, b | m, fill }          work backwards: block b (or held fact m = "h0") of the form P → goal,
+ *                                             used up, leaves the goal P; a rule m whose conclusion fits the goal
+ *                                             leaves one workshop per premise ("1", "2", ...); fill = open slots
+ *   { op: "have", at, s }                     a lemma mid-proof: workshop "l" with goal s, then "c" with the old goal
+ *                                             that holds s
+ *   { op: "rwg", at, path, m, dir, fill }     rewrite the goal itself with an equality (the Goal lever upgrade)
+ *   { op: "unfold", at, b, path, as }         free: replace a ∧ / ∨ / ⊤ by its definition, or with `as` fold a
+ *                                             definition back into that connective
+ * New workshops start with a copy of the bench they split from (with 0 for v in an induction's base case): those
+ * blocks hold for every value of v, since induction refuses a v that a hypothesis mentions.
  *   { op: "dup", at, b }                      a copy of block b next to it (a step: rules use blocks up)
  *   { op: "del", at, b }                      throw block b away, not counted as a step
  * A workshop is done when a block on its bench equals its goal, or its sub-workshops are all done.
@@ -81,6 +96,7 @@
   /* match pattern against a term; with slots, pattern variables bind (consistently, numbers to lowercase and
      statements to capitals); without, they must be identical */
   function match(pat, t, b, slots) {
+    if (pat[0] === "→" && DEFS.includes(t[0])) t = unfold(t);           // a definition is read as what it stands for
     if (isVar(pat)) {
       if (!slots) return isVar(t) && t[1] === pat[1] ? b : null;
       if (upper(pat[1]) !== isForm(t)) return null;
@@ -91,6 +107,31 @@
     for (let i = 1; i < pat.length && b; i++) b = match(pat[i], t[i], b, slots);
     return b;
   }
+
+  /* ---------- definitions ---------- */
+  const DEFS = "∧∨⊤", F = ["⊥"], isF = t => t[0] === "⊥";
+  function unfold(t) {
+    if (t[0] === "∨") return ["→", ["→", t[1], F], t[2]];
+    if (t[0] === "∧") return ["→", ["→", t[1], ["→", t[2], F]], F];
+    if (t[0] === "⊤") return ["→", F, F];
+    return null;
+  }
+  /* the connectives a statement can be folded back into, as terms (¬¬A is both A ∨ ⊥ and nothing else) */
+  function folds(t) {
+    const out = [];
+    if (t[0] !== "→") return out;
+    const [a, b] = [t[1], t[2]];
+    if (isF(b) && a[0] === "→" && a[2][0] === "→" && isF(a[2][2])) out.push(["∧", a[1], a[2][1]]);
+    if (a[0] === "→" && isF(a[2])) out.push(["∨", a[1], b]);
+    if (isF(a) && isF(b)) out.push(["⊤"]);
+    return out;
+  }
+  function expand(t) {
+    const u = unfold(t);
+    if (u) return expand(u);
+    return isVar(t) || t[0] === "0" ? t : [t[0], ...kids(t).map(expand)];
+  }
+  const sameDef = (a, b) => same(a, b) || same(expand(a), expand(b));
 
   /* ---------- text ---------- */
   function show(t) {
@@ -185,7 +226,9 @@
     return { quest, machines: machines.slice(), root: newCtx(goal, hyps), names, steps: [] };
   }
   /* the sub-workshops of a split workshop, as [letter, workshop] */
-  const subs = c => (!c.kids ? [] : c.kids.assume ? [["a", c.kids.assume]] : [["b", c.kids.base], ["s", c.kids.step]]);
+  const subs = c => (c.kids ? c.kids.list : []);
+  const carry = (bench, f = s => s) => bench.map(b => ({ s: f(b.s), deps: b.deps }));
+  const child = (goal, hyps, bench) => Object.assign(newCtx(goal, hyps), { bench });
   function ctxAt(game, where) {
     let c = game.root;
     for (const ch of where || "") {
@@ -198,7 +241,7 @@
   function refresh(c) {
     const ss = subs(c);
     ss.forEach(x => refresh(x[1]));
-    c.done = c.bench.some(b => same(b.s, c.goal)) || (ss.length > 0 && ss.every(x => x[1].done));
+    c.done = c.bench.some(b => sameDef(b.s, c.goal)) || (ss.length > 0 && ss.every(x => x[1].done));
   }
   const union = (a, b) => [...new Set([...a, ...b])].sort((x, y) => x - y);
 
@@ -260,8 +303,10 @@
         for (const v of vars(e.s)) fill[v] = supplied(game, v, st.fill && st.fill[v]);
         return () => c.bench.push({ s: subst(e.s, fill), deps: [] });
       }
-      case "rw": {
-        const b = block(st.b), e = equation(game, c, st.m);
+      case "rw": case "rwg": {
+        const goal = st.op === "rwg";
+        if (goal && c.kids) throw new Error("this workshop is already split");
+        const b = goal ? { s: c.goal, deps: [] } : block(st.b), e = equation(game, c, st.m);
         if (!st.path || !st.path.length) throw new Error("pick a part of one side");
         const sub = at(b.s, st.path);
         if (!sub) throw new Error("no such part");
@@ -274,6 +319,7 @@
           bind = { ...bind, [v]: supplied(game, v, st.fill[v]) };
         }
         const s = put(b.s, st.path, e.slots ? subst(to, bind) : to);
+        if (goal) return () => { c.goal = s; };
         return () => { c.bench[st.b] = { s, deps: union(b.deps, e.dep) }; };
       }
       case "rule": {
@@ -297,14 +343,68 @@
         if (!st.v || upper(st.v)) throw new Error("induction runs over a number: give a small letter");
         if (!vars(c.goal).has(st.v)) throw new Error(st.v + " isn't in the goal");
         if (c.hyps.some(h => vars(h).has(st.v))) throw new Error("a hypothesis already says something about " + st.v + ", so it can't vary");
-        const v = V(st.v);
-        return () => { c.kids = { v: st.v, base: newCtx(subst(c.goal, { [st.v]: Z }), c.hyps), step: newCtx(subst(c.goal, { [st.v]: S(v) }), [...c.hyps, c.goal]) }; };
+        const v = V(st.v), zero = s => subst(s, { [st.v]: Z });
+        return () => {
+          c.kids = { kind: "induct", v: st.v, list: [
+            ["b", child(zero(c.goal), c.hyps, carry(c.bench, zero))],
+            ["s", child(subst(c.goal, { [st.v]: S(v) }), [...c.hyps, c.goal], carry(c.bench))]] };
+        };
       }
       case "assume": {
         if (!have("assume")) throw new Error("you don't have the Assume machine yet");
         if (c.kids) throw new Error("this workshop is already split");
-        if (c.goal[0] !== "→") throw new Error("Assume needs a goal of the form A → B");
-        return () => { c.kids = { assume: newCtx(c.goal[2], [...c.hyps, c.goal[1]]) }; };
+        const g = DEFS.includes(c.goal[0]) ? unfold(c.goal) : c.goal;
+        if (g[0] !== "→") throw new Error("Assume needs a goal of the form A → B");
+        return () => { c.kids = { kind: "assume", list: [["a", child(g[2], [...c.hyps, g[1]], [...carry(c.bench), { s: g[1], deps: [c.hyps.length] }])]] }; };
+      }
+      case "apply": {
+        if (!have("apply")) throw new Error("you don't have the Apply machine yet");
+        if (c.kids) throw new Error("this workshop is already split");
+        let goals, used = -1;
+        const h = st.m != null && /^h(\d+)$/.exec(st.m);
+        if (st.b != null || h) {
+          let s;
+          if (h) { s = c.hyps[+h[1]]; if (!s) throw new Error("no such hypothesis"); }
+          else { s = block(st.b).s; used = st.b; }
+          if (DEFS.includes(s[0])) s = unfold(s);
+          if (s[0] !== "→") throw new Error("Apply works backwards from a block of the form P → Q");
+          if (!sameDef(s[2], c.goal)) throw new Error("that ends in " + show(s[2]) + ", not in the goal");
+          goals = [s[1]];
+        } else {
+          const m = game.machines.find(x => x.id === st.m);
+          if (!m || !m.premises) throw new Error("Apply takes a block, a fact you hold, or a rule");
+          let bind = match(m.concl, c.goal, {}, true);
+          if (!bind) throw new Error(m.name + " doesn't conclude anything shaped like the goal");
+          const seen = vars(m.concl);
+          for (const p of m.premises) for (const v of vars(p)) if (!seen.has(v) && !(v in bind)) {
+            if (!st.fill || st.fill[v] == null || st.fill[v] === "") throw new Error("working backwards, " + m.name + " needs to be told what " + v + " is");
+            bind = { ...bind, [v]: supplied(game, v, st.fill[v]) };
+          }
+          goals = m.premises.map(p => subst(p, bind));
+        }
+        const rest = c.bench.filter((_, i) => i !== used);
+        const f = () => { c.kids = { kind: "apply", list: goals.map((g, k) => [String(k + 1), child(g, c.hyps, carry(rest))]) }; };
+        f.goals = goals;
+        return f;
+      }
+      case "have": {
+        if (!have("have")) throw new Error("you don't have the Lemma machine yet");
+        if (c.kids) throw new Error("this workshop is already split");
+        const s = term(st.s);
+        if (!isForm(s)) throw new Error("a lemma is a statement, like a+0 = 0+a or P → Q");
+        for (const v of vars(s)) if (!game.names.has(v)) throw new Error("there is nothing called " + v + " here");
+        return () => {
+          c.kids = { kind: "have", list: [["l", child(s, c.hyps, carry(c.bench))],
+            ["c", child(c.goal, [...c.hyps, s], [...carry(c.bench), { s, deps: [c.hyps.length] }])]] };
+        };
+      }
+      case "unfold": {
+        const b = block(st.b), sub = at(b.s, st.path || []);
+        if (!sub || !isForm(sub)) throw new Error("only statements have definitions to unfold");
+        const to = st.as ? folds(sub).find(f => f[0] === st.as) : unfold(sub);
+        if (!to) throw new Error(st.as ? "that isn't the definition of " + st.as : "only ∧, ∨ and ⊤ unfold");
+        const s = put(b.s, st.path || [], to);
+        return () => { c.bench[st.b] = { s, deps: b.deps }; };
       }
       case "dup": { const b = block(st.b); return () => c.bench.splice(st.b + 1, 0, { s: b.s, deps: b.deps }); }
       case "del": { block(st.b); return () => c.bench.splice(st.b, 1); }
@@ -322,7 +422,7 @@
     for (const st of steps) step(g, st);
     return g;
   }
-  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup"]);
+  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg"]);
   const count = steps => steps.filter(s => COUNTED.has(s.op)).length;
 
   /* every move available on the selection in block b: a part (path non-empty) offers the equality machines that
@@ -355,6 +455,12 @@
       out.push({ step: st, result, ...info, ...(open.length ? { open } : {}) });
     };
     const left = (to, from) => [...vars(to)].filter(v => !from.some(f => vars(f).has(v))).sort();
+    const node = at(blk.s, path || []);
+    if (node && isForm(node)) {
+      const to = [unfold(node), ...folds(node)].filter(Boolean);
+      for (const t of to) add({ op: "unfold", at: where || "", b, path: path || [], ...(DEFS.includes(node[0]) ? {} : { as: t[0] }) },
+        { name: DEFS.includes(node[0]) ? "unfold the definition" : "fold into " + t[0], from: node, to: t, free: true }, []);
+    }
     if (path && path.length) {
       const sub = at(blk.s, path);
       if (!sub || isForm(sub)) return out;
@@ -372,6 +478,29 @@
     }
     return out.sort((x, y) => (x.loose ? 1 : 0) - (y.loose ? 1 : 0));
   }
+  /* the ways to work backwards from this workshop's goal: [{ step, goals, name, open?, loose? }]. A rule whose
+     conclusion is a bare slot (Double negation, modus ponens) fits any goal: `loose`. */
+  function applies(game, where) {
+    const c = ctxAt(game, where), out = [];
+    if (!c || c.kids || !game.machines.some(m => m.id === "apply")) return out;
+    const tryIt = (st, info) => {
+      let goals;
+      try { goals = plan(game, st).goals; } catch (e) { return; }
+      if (goals.length === 1 && sameDef(goals[0], c.goal)) return;          // no progress (Identity backwards)
+      out.push({ step: st, goals, ...info });
+    };
+    c.bench.forEach((blk, b) => tryIt({ op: "apply", at: where, b }, { name: "block " + (b + 1) }));
+    for (const m of game.machines.filter(x => x.premises)) {
+      const bind = match(m.concl, c.goal, {}, true);
+      if (!bind) continue;
+      const seen = vars(m.concl), open = [...new Set(m.premises.flatMap(p => [...vars(p)]))].filter(v => !seen.has(v) && !(v in bind)).sort();
+      tryIt({ op: "apply", at: where, m: m.id, ...(open.length ? { fill: Object.fromEntries(open.map(v => [v, guess(game, v)])) } : {}) },
+        { name: m.name, ...(open.length ? { open } : {}), loose: isVar(m.concl) });
+    }
+    return out.sort((x, y) => (x.loose ? 1 : 0) - (y.loose ? 1 : 0));
+  }
+  /* the goals an apply step would leave, without doing it */
+  const applyGoals = (game, st) => plan(game, st).goals;
   function paths(t, p = [], out = []) {
     if (p.length) out.push(p);
     kids(t).forEach((k, i) => paths(k, [...p, i], out));
@@ -417,6 +546,6 @@
 
   root.MathcraftLogic = {
     Z, S, plus, V, eq, same, vars, at, put, subst, match, show, parse, term, isForm, upper, machine, questMachine,
-    start, ctxAt, subs, shops, step, replay, count, options, preview, guess, fits, paths, value, holds,
+    start, ctxAt, subs, shops, step, replay, count, options, preview, guess, applies, applyGoals, unfold, folds, expand, sameDef, fits, paths, value, holds,
   };
 })(typeof window !== "undefined" ? window : globalThis);
