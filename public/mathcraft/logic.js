@@ -4,6 +4,10 @@
  * and numerals ["#", k] for k ≥ 1: a numeral is a definition, like ∨ (airetho): 1 is S(0), 2 is S(1). A typed 2 stays
  * a 2 (a·1 = a reads as it should); a pattern S(b) sees through it, a pattern 1 never matches a plain S(0) until
  * it is folded, and folding or unfolding one is a free `unfold` step.
+ * Quantifiers (#33): ["∀", ["v", "a"], A] and ["∃", ["v", "a"], A] bind a number; ["@", ["v", "P"], t, …] is a
+ * predicate P(t, …) about numbers. ∃a. A is a definition, ¬∀a. ¬A. Statements are the same up to the names of
+ * bound variables (`same`), `subst` never captures, and `vars` are the free ones. In a machine a predicate is a
+ * slot too: P(a) under a ∀a takes whatever statement about a stands there (`match`).
  * Statements: ["=", l, r] between numbers; ["→", A, B], ["∧", A, B], ["∨", A, B], ["↔", A, B] between statements; ["⊥"] (false),
  * ["⊤"] (true); ["v", "P"] (capital letter). "not A" is A → ⊥ and has no node of its own: `show` (and the page)
  * just write A → ⊥ as ¬A, as notation (#33), so ¬(P → ¬Q) is how the definition of P ∧ Q reads.
@@ -58,6 +62,12 @@
  *   { op: "unfoldg", at, path, as }           free: the same on the goal
  *   { op: "byc", at }                         proof by contradiction: a workshop "x" that holds ¬goal with goal ⊥
  *                                             (Apply Double negation + Assume in one go; one step, airetho)
+ *   { op: "fix", at, v }                      for a goal ∀a. A: a workshop "f" whose goal is A about one fixed, arbitrary
+ *                                             number (named v, by default the bound letter, fresh if that is taken)
+ *   { op: "spec", at, b, t }                  a block ∀a. A becomes A with the number t for a
+ *   { op: "witness", at, t }                  for a goal ∃a. A: a workshop "w" whose goal is A with t for a
+ *   { op: "obtain", at, b, v }                a block ∃a. A: a workshop "o" with the same goal that holds A about a
+ *                                             number v nothing else is known about (fresh)
  *   { op: "cases", at, b }                    take block b apart: P ∧ Q (or P ↔ Q) becomes two blocks; P ∨ Q splits
  *                                             the workshop in two with the same goal, "p" holding P and "q" Q
  *   { op: "qed", at, b }                      free: block b is the goal, so this workshop is done. Nothing finishes
@@ -81,57 +91,130 @@
   const isVar = t => t[0] === "v";
   const upper = n => n >= "A" && n <= "Z";
   /* statements (as opposed to numbers) */
-  const CONNECTIVES = "→∧∨↔";
-  const isForm = t => t[0] === "=" || CONNECTIVES.includes(t[0]) || t[0] === "⊥" || t[0] === "⊤" || (isVar(t) && upper(t[1]));
-  const kids = t => (isVar(t) || t[0] === "0" || t[0] === "#" ? [] : t.slice(1));
+  const CONNECTIVES = "→∧∨↔", QUANT = "∀∃";
+  const isForm = t => t[0] === "=" || CONNECTIVES.includes(t[0]) || QUANT.includes(t[0]) || t[0] === "@" || t[0] === "⊥" || t[0] === "⊤" || (isVar(t) && upper(t[1]));
+  /* the parts of a term, which is what paths count: a quantifier has one (its body, not the variable it binds), a
+     predicate P(a, b) has its arguments (not its name) */
+  const off = t => (QUANT.includes(t[0]) || t[0] === "@" ? 2 : 1);
+  const kids = t => (isVar(t) || t[0] === "0" || t[0] === "#" ? [] : t.slice(off(t)));
+  const rebuild = (t, f) => [...t.slice(0, off(t)), ...kids(t).map(f)];
   /* ¬A, i.e. A → ⊥ */
   const neg = t => t[0] === "→" && t[2][0] === "⊥";
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
-  function same(a, b) {
-    if (a[0] !== b[0]) return false;
-    if (isVar(a) || a[0] === "#") return a[1] === b[1];
-    for (let i = 1; i < a.length; i++) if (!same(a[i], b[i])) return false;
-    return a.length === b.length;
+  /* the same statement, up to the names of bound variables: ∀a. P(a) is ∀b. P(b) */
+  function same(a, b, ea = [], eb = []) {
+    if (a[0] !== b[0] || a.length !== b.length) return false;
+    if (a[0] === "#") return a[1] === b[1];
+    if (isVar(a)) { const i = ea.lastIndexOf(a[1]), j = eb.lastIndexOf(b[1]); return i === j && (i >= 0 || a[1] === b[1]); }
+    if (QUANT.includes(a[0])) return same(a[2], b[2], [...ea, a[1][1]], [...eb, b[1][1]]);
+    if (a[0] === "@" && a[1][1] !== b[1][1]) return false;
+    for (let i = off(a); i < a.length; i++) if (!same(a[i], b[i], ea, eb)) return false;
+    return true;
   }
-  function vars(t, out = new Set()) {
-    if (isVar(t)) out.add(t[1]); else for (const k of kids(t)) vars(k, out);
+  /* the free variables of a term: letters for numbers, capitals for statements and for predicates (P in P(a)) */
+  function vars(t, out = new Set(), bound = []) {
+    if (isVar(t)) { if (!bound.includes(t[1])) out.add(t[1]); }
+    else if (QUANT.includes(t[0])) vars(t[2], out, [...bound, t[1][1]]);
+    else { if (t[0] === "@") out.add(t[1][1]); for (const k of kids(t)) vars(k, out, bound); }
+    return out;
+  }
+  /* the predicates a statement applies, with how many arguments: { P: 1, R: 2 } */
+  function preds(t, out = {}) {
+    if (t[0] === "@") out[t[1][1]] = t.length - 2;
+    for (const k of kids(t)) preds(k, out);
     return out;
   }
   function at(t, path) {
     for (const i of path) { t = kids(t)[i]; if (!t) return null; }
     return t;
   }
+  /* the variables bound around the part at path (by the quantifiers on the way down to it) */
+  function boundAt(t, path) {
+    const out = [];
+    for (const i of path) { if (QUANT.includes(t[0])) out.push(t[1][1]); t = kids(t)[i]; if (!t) break; }
+    return out;
+  }
   function put(t, path, sub) {
     if (!path.length) return sub;
-    const c = t.slice();
-    c[path[0] + 1] = put(t[path[0] + 1], path.slice(1), sub);
+    const c = t.slice(), k = path[0] + off(t);
+    c[k] = put(t[k], path.slice(1), sub);
     return c;
   }
+  const LETTERS = "abcdefghijklmnopqrstuvwxyz";
+  const fresh = (want, taken) => (taken.has(want) ? [...LETTERS].find(x => !taken.has(x)) || want + "'" : want);
+  /* Replace free variables: b maps a name to a term, or (for a predicate) to { lam: [names], body } or to another
+     predicate's variable. Never captures: a bound variable that would catch something put under it is renamed. */
   function subst(t, b) {
-    if (isVar(t)) return Object.prototype.hasOwnProperty.call(b, t[1]) ? b[t[1]] : t;
+    if (isVar(t)) return own(b, t[1]) && !b[t[1]].lam ? b[t[1]] : t;
     if (t[0] === "0" || t[0] === "#") return t;
-    return [t[0], ...kids(t).map(k => subst(k, b))];
+    if (QUANT.includes(t[0])) {
+      const x = t[1][1], inner = {}, incoming = new Set();
+      for (const k of vars(t[2])) if (k !== x && own(b, k)) { inner[k] = b[k]; vars(b[k].lam ? b[k].body : b[k], incoming, b[k].lam || []); }
+      if (!Object.keys(inner).length) return t;
+      if (!incoming.has(x)) return [t[0], t[1], subst(t[2], inner)];
+      const y = fresh(x, new Set([...incoming, ...vars(t[2])]));
+      return [t[0], V(y), subst(subst(t[2], { [x]: V(y) }), inner)];
+    }
+    if (t[0] === "@") {
+      const args = t.slice(2).map(k => subst(k, b)), h = own(b, t[1][1]) ? b[t[1][1]] : null;
+      if (h && h.lam) return subst(h.body, Object.fromEntries(h.lam.map((x, i) => [x, args[i]])));
+      return ["@", h && isVar(h) ? h : t[1], ...args];
+    }
+    return rebuild(t, k => subst(k, b));
   }
-  /* match pattern against a term; with slots, pattern variables bind (consistently, numbers to lowercase and
-     statements to capitals); without, they must be identical */
-  function match(pat, t, b, slots) {
+  /* Match a pattern against a term. With slots, the pattern's free variables bind, consistently: letters to numbers,
+     capitals to statements, and a predicate P(x) whose arguments are variables the pattern binds takes whatever
+     stands there, as a statement about x ({ lam, body }); P(…) elsewhere is then checked against that. Without
+     slots (a fact held in a workshop) every variable must be itself. Bound variables match by position, and
+     nothing bound in the term may leak into a slot. */
+  function match(pat, t, b, slots, ep = [], et = []) {
+    if (!b) return null;
     if (pat[0] === "→") while (DEFS.includes(t[0])) t = unfold(t);       // a definition is read as what it stands for
     else if (pat[0] === "∧" && t[0] === "↔") t = unfold(t);
     else if (pat[0] === "S" && t[0] === "#") t = unfold(t);              // S(b) fits 2, with b = 1
+    const leaks = x => { for (const v of vars(x)) if (et.includes(v)) return true; return false; };
     if (isVar(pat)) {
-      if (!slots) return isVar(t) && t[1] === pat[1] ? b : null;
-      if (upper(pat[1]) !== isForm(t)) return null;
-      if (Object.prototype.hasOwnProperty.call(b, pat[1])) return same(b[pat[1]], t) ? b : null;
+      const i = ep.lastIndexOf(pat[1]);
+      if (i >= 0) return isVar(t) && et.lastIndexOf(t[1]) === i ? b : null;      // bound in the pattern: the same position
+      if (!slots) return isVar(t) && t[1] === pat[1] && !et.includes(t[1]) ? b : null;
+      if (upper(pat[1]) !== isForm(t) || leaks(t)) return null;
+      if (own(b, pat[1])) return !b[pat[1]].lam && same(b[pat[1]], t) ? b : null;
       return { ...b, [pat[1]]: t };
     }
+    if (pat[0] === "@") {
+      const P = pat[1][1], args = pat.slice(2);
+      if (!slots || ep.includes(P)) {
+        if (t[0] !== "@" || t[1][1] !== P || t.length !== pat.length) return null;
+        for (let i = 2; i < pat.length && b; i++) b = match(pat[i], t[i], b, slots, ep, et);
+        return b;
+      }
+      if (!isForm(t)) return null;
+      const here = args.map(a => (isVar(a) ? ep.lastIndexOf(a[1]) : -1));
+      if (own(b, P)) {                                                    // known: put the arguments in and compare
+        if (!b[P].lam) return null;
+        const ren = {};
+        ep.forEach((x, i) => { ren[x] = V(et[i]); });
+        const filled = args.map(a => subst(subst(a, ren), b));
+        for (const a of args) for (const v of vars(a)) if (!ep.includes(v) && !own(b, v)) return null;
+        return same(subst(b[P].body, Object.fromEntries(b[P].lam.map((x, i) => [x, filled[i]]))), t) ? b : null;
+      }
+      if (here.some(i => i < 0) || new Set(here).size !== here.length) return null;   // P(x, y) with x, y bound and different
+      const lam = here.map(i => et[i]);
+      for (const v of vars(t)) if (et.includes(v) && !lam.includes(v)) return null;   // something else bound would leak
+      return { ...b, [P]: { lam, body: t } };
+    }
     if (pat[0] !== t[0] || pat.length !== t.length) return null;
-    for (let i = 1; i < pat.length && b; i++) b = match(pat[i], t[i], b, slots);
+    if (pat[0] === "#") return pat[1] === t[1] ? b : null;
+    if (QUANT.includes(pat[0])) return match(pat[2], t[2], b, slots, [...ep, pat[1][1]], [...et, t[1][1]]);
+    for (let i = 1; i < pat.length && b; i++) b = match(pat[i], t[i], b, slots, ep, et);
     return b;
   }
 
   /* ---------- definitions ---------- */
-  const DEFS = "∧∨⊤↔", F = ["⊥"], isF = t => t[0] === "⊥";
+  const DEFS = "∧∨⊤↔∃", F = ["⊥"], isF = t => t[0] === "⊥";
   function unfold(t) {
+    if (t[0] === "∃") return ["→", ["∀", t[1], ["→", t[2], F]], F];
     if (t[0] === "#") return S(t[1] > 1 ? ["#", t[1] - 1] : Z);
     if (t[0] === "↔") return ["∧", ["→", t[1], t[2]], ["→", t[2], t[1]]];
     if (t[0] === "∨") return ["→", ["→", t[1], F], t[2]];
@@ -146,6 +229,7 @@
     if (t[0] === "∧" && t[1][0] === "→" && t[2][0] === "→" && same(t[1][1], t[2][2]) && same(t[1][2], t[2][1])) out.push(["↔", t[1][1], t[1][2]]);
     if (t[0] !== "→") return out;
     const [a, b] = [t[1], t[2]];
+    if (isF(b) && a[0] === "∀" && neg(a[2])) out.push(["∃", a[1], a[2][1]]);
     if (isF(b) && a[0] === "→" && a[2][0] === "→" && isF(a[2][2])) out.push(["∧", a[1], a[2][1]]);
     if (a[0] === "→" && isF(a[2])) out.push(["∨", a[1], b]);
     if (isF(a) && isF(b)) out.push(["⊤"]);
@@ -154,13 +238,13 @@
   function expand(t) {
     const u = unfold(t);
     if (u) return expand(u);
-    return isVar(t) || t[0] === "0" ? t : [t[0], ...kids(t).map(expand)];   // numerals unfold all the way to S(…S(0))
+    return isVar(t) || t[0] === "0" ? t : rebuild(t, expand);   // numerals unfold all the way to S(…S(0))
   }
   const sameDef = (a, b) => same(a, b) || same(expand(a), expand(b));
 
   /* ---------- text ---------- */
   function show(t) {
-    const wrap = (k, ops) => (ops.includes(k[0]) && !neg(k) ? "(" + show(k) + ")" : show(k));
+    const wrap = (k, ops) => ((ops.includes(k[0]) && !neg(k)) || (QUANT.includes(k[0]) && ops !== "") ? "(" + show(k) + ")" : show(k));
     if (neg(t)) return "¬" + wrap(t[1], "=" + CONNECTIVES);
     switch (t[0]) {
       case "0": return "0";
@@ -176,11 +260,13 @@
       case "∧": return wrap(t[1], CONNECTIVES) + " ∧ " + wrap(t[2], CONNECTIVES);
       case "∨": return wrap(t[1], CONNECTIVES) + " ∨ " + wrap(t[2], CONNECTIVES);
       case "⊥": case "⊤": return t[0];
+      case "∀": case "∃": return t[0] + t[1][1] + ". " + show(t[2]);     // reaches as far right as it can; bracketed inside anything else
+      case "@": return t[1][1] + "(" + t.slice(2).map(show).join(", ") + ")";
     }
     throw new Error("bad term");
   }
   function parse(src) {
-    const s = String(src).replace(/<->|<=>|⇔|\biff\b/gi, "↔").replace(/\band\b/gi, "∧").replace(/\bor\b/gi, "∨").replace(/\bnot\b/gi, "¬").replace(/\bfalse\b/gi, "⊥").replace(/\btrue\b/gi, "⊤")
+    const s = String(src).replace(/\b(forall|all|every)\b/gi, "∀").replace(/\b(exists|some)\b/gi, "∃").replace(/<->|<=>|⇔|\biff\b/gi, "↔").replace(/\band\b/gi, "∧").replace(/\bor\b/gi, "∨").replace(/\bnot\b/gi, "¬").replace(/\bfalse\b/gi, "⊥").replace(/\btrue\b/gi, "⊤")
       .replace(/\s+/g, "").replace(/->|⇒|=>/g, "→").replace(/[·×]/g, "*").replace(/&+|\/\\/g, "∧").replace(/\|+|\\\//g, "∨").replace(/[~!]/g, "¬");
     let i = 0;
     const fail = msg => { throw new Error(msg); };
@@ -203,6 +289,24 @@
       }
       if (c === "⊥" || c === "⊤") { i++; return [c]; }
       if (c === "¬") { i++; const e = atom(); if (!isForm(e)) fail("not takes a statement"); return ["→", e, ["⊥"]]; }
+      if (c === "∀" || c === "∃") {                                       // ∀a. … : everything to the right, up to a closing bracket
+        i++;
+        const x = s[i];
+        if (!x || !/[a-z]/.test(x)) fail(c + " needs a small letter: " + c + "a. …");
+        i++;
+        if (s[i] === "." || s[i] === "," || s[i] === ":") i++;
+        const e = iff();
+        if (!isForm(e)) fail(c + x + ". has to be followed by a statement");
+        return [c, V(x), e];
+      }
+      if (/[A-Z]/.test(c) && s[i + 1] === "(") {                          // a predicate: P(a), R(a, b)
+        i += 2;
+        const args = [num(iff(), "a predicate")];
+        while (s[i] === ",") { i++; args.push(num(iff(), "a predicate")); }
+        if (s[i] !== ")") fail("missing )");
+        i++;
+        return ["@", V(c), ...args];
+      }
       if (/[a-zA-Z]/.test(c)) { i++; return V(c); }
       fail("I can't read “" + c + "”");
     }
@@ -303,13 +407,28 @@
     return { l: e.s[1], r: e.s[2], slots: e.slots, dep: e.dep, iff: e.s[0] === "↔" };
   }
   /* a term the player supplies for slot v: right kind, and only about the numbers and statements in play */
-  function supplied(game, v, raw) {
+  function supplied(game, v, raw, also = []) {
     if (raw == null || raw === "") throw new Error("give a term for " + v);
     const t = term(raw);
     if (upper(v) !== isForm(t)) throw new Error(upper(v) ? v + " stands for a statement" : "give a number for " + v + ", not a statement");
-    for (const x of vars(t)) if (!game.names.has(x)) throw new Error("there is nothing called " + x + " here");
+    for (const x of vars(t)) if (!game.names.has(x) && !also.includes(x)) throw new Error("there is nothing called " + x + " here");
     return t;
   }
+  /* ... or, for a slot that stmt uses as a predicate, the name of a predicate in play */
+  function suppliedFor(game, stmt, v, raw, also) {
+    if (!own(preds(stmt), v)) return supplied(game, v, raw, also);
+    const name = String(raw == null ? "" : raw).trim();
+    if (!/^[A-Z]$/.test(name) || !game.names.has(name)) throw new Error(v + " is a predicate here: give the letter of one in play");
+    return V(name);
+  }
+  /* the names a workshop speaks about: free in what it holds, in its goal or on its bench */
+  function spoken(c) {
+    const out = new Set();
+    for (const t of [...c.hyps, c.goal, ...c.bench.map(b => b.s)]) vars(t, out);
+    return out;
+  }
+  /* a letter for a new fixed number: the one asked for if this workshop doesn't speak about it, else the first free one */
+  const newName = (c, want) => fresh(want && /^[a-z]$/.test(want) ? want : "a", spoken(c));
 
   /* the definition of a statement part, or with `as` what it folds into */
   function translate(sub, as) {
@@ -344,7 +463,7 @@
         const e = statement(game, c, st.m);
         if (!e.slots) throw new Error("a given fact goes on the bench as it is");
         const fill = {};
-        for (const v of vars(e.s)) fill[v] = supplied(game, v, st.fill && st.fill[v]);
+        for (const v of vars(e.s)) fill[v] = suppliedFor(game, e.s, v, st.fill && st.fill[v]);
         return () => c.bench.push({ s: subst(e.s, fill), deps: [] });
       }
       case "rw": case "rwg": {
@@ -357,11 +476,14 @@
         if (!e.iff && isForm(sub)) throw new Error("equalities rewrite numbers, not whole statements");
         if (e.iff && !isForm(sub)) throw new Error("a ↔ rewrites statements, not numbers");
         const [from, to] = st.dir === "rl" ? [e.r, e.l] : [e.l, e.r];
+        // under a ∀a the letter a is the bound one: a fact about some other a doesn't speak about it
+        const around = boundAt(b.s, st.path || []);
+        if (!e.slots) for (const v of [...vars(e.l), ...vars(e.r)]) if (around.includes(v)) throw new Error("the " + v + " there is bound by a quantifier: it isn't the " + v + " that fact is about");
         let bind = match(from, sub, {}, e.slots);
         if (!bind) throw new Error("that machine doesn't fit there");
         if (e.slots) for (const v of vars(to)) if (!(v in bind)) {
           if (!st.fill || st.fill[v] == null || st.fill[v] === "") throw new Error("that direction needs a term for " + v);
-          bind = { ...bind, [v]: supplied(game, v, st.fill[v]) };
+          bind = { ...bind, [v]: suppliedFor(game, to, v, st.fill[v], around) };
         }
         const s = put(b.s, st.path || [], e.slots ? subst(to, bind) : to);
         if (goal) return () => { c.goal = s; };
@@ -377,7 +499,7 @@
         if (!bind) throw new Error("those blocks don't fit " + m.name);
         for (const v of vars(m.concl)) if (!(v in bind)) {
           if (!st.fill || st.fill[v] == null || st.fill[v] === "") throw new Error(m.name + " needs to be told what " + v + " is");
-          bind = { ...bind, [v]: supplied(game, v, st.fill[v]) };
+          bind = { ...bind, [v]: suppliedFor(game, m.concl, v, st.fill[v]) };
         }
         const s = subst(m.concl, bind), used = idx.slice(1);
         return () => { c.bench = c.bench.map((x, i) => (i === st.b ? { s, deps } : x)).filter((x, i) => !used.includes(i)); };
@@ -460,6 +582,42 @@
         const n = ["→", c.goal, F];
         return () => { c.kids = { kind: "byc", list: [["x", child(F, [...c.hyps, n], [...carry(c.bench), { s: n, deps: [c.hyps.length] }])]] }; };
       }
+      case "fix": {
+        if (!have("fix")) throw new Error("you don't have the Fix machine yet");
+        if (c.kids) throw new Error("this workshop is already split");
+        if (c.goal[0] !== "∀") throw new Error("Fix needs a goal of the form ∀a. …");
+        const v = st.v || newName(c, c.goal[1][1]);
+        if (!/^[a-z]$/.test(v)) throw new Error("name the number with a small letter");
+        // the fixed number has to be arbitrary: nothing held, and nothing else in the goal, may speak about it
+        if (c.hyps.some(h => vars(h).has(v)) || vars(c.goal).has(v)) throw new Error("something here already speaks about " + v + ": pick a letter that is new");
+        const goal = subst(c.goal[2], { [c.goal[1][1]]: V(v) });
+        return () => { game.names.add(v); c.kids = { kind: "fix", v, list: [["f", child(goal, c.hyps, carry(c.bench))]] }; };
+      }
+      case "spec": {
+        if (!have("spec")) throw new Error("you don't have the Specialise machine yet");
+        const b = block(st.b);
+        if (b.s[0] !== "∀") throw new Error("Specialise takes a block of the form ∀a. …");
+        const s = subst(b.s[2], { [b.s[1][1]]: supplied(game, b.s[1][1], st.t) });
+        return () => { c.bench[st.b] = { s, deps: b.deps }; };
+      }
+      case "witness": {
+        if (!have("witness")) throw new Error("you don't have the Witness machine yet");
+        if (c.kids) throw new Error("this workshop is already split");
+        if (c.goal[0] !== "∃") throw new Error("Witness needs a goal of the form ∃a. …");
+        const goal = subst(c.goal[2], { [c.goal[1][1]]: supplied(game, c.goal[1][1], st.t) });
+        return () => { c.kids = { kind: "witness", list: [["w", child(goal, c.hyps, carry(c.bench))]] }; };
+      }
+      case "obtain": {
+        if (!have("obtain")) throw new Error("you don't have the Take a witness machine yet");
+        if (c.kids) throw new Error("this workshop is already split");
+        const b = block(st.b);
+        if (b.s[0] !== "∃") throw new Error("Take a witness takes a block of the form ∃a. …");
+        const v = st.v || newName(c, b.s[1][1]);
+        // the witness is a number nothing else is known about: a letter this workshop doesn't speak about
+        if (!/^[a-z]$/.test(v) || spoken(c).has(v)) throw new Error("the witness needs a letter that is new here");
+        const s = subst(b.s[2], { [b.s[1][1]]: V(v) }), rest = c.bench.filter((_, i) => i !== st.b), n = c.hyps.length;
+        return () => { game.names.add(v); c.kids = { kind: "obtain", v, list: [["o", child(c.goal, [...c.hyps, s], [...carry(rest), { s, deps: [n] }])]] }; };
+      }
       case "cases": {
         if (!have("cases")) throw new Error("you don't have the Cases machine yet");
         const b = block(st.b), s = b.s[0] === "↔" ? unfold(b.s) : b.s;
@@ -491,7 +649,7 @@
     for (const st of steps) step(g, st);
     return g;
   }
-  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg", "byc", "cases"]);
+  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg", "byc", "cases", "fix", "spec", "witness", "obtain"]);
   const count = steps => steps.reduce((n, s) => n + (COUNTED.has(s.op) ? 1 : 0), 0);
   /* close every open workshop that has its goal on the bench (tests, and step lists from before qed) */
   function closeAll(game) {
@@ -639,34 +797,44 @@
     return { ...st, ...(st.b != null ? { b: map[st.b] } : {}), ...(st.others ? { others: st.others.map(o => map[o]) } : {}) };
   }
 
-  /* numbers (as BigInt, powers get large) and truth under an assignment (numbers for small letters, booleans for
-     capitals): the tests use this to check that every block is true whenever its workshop's hypotheses are */
-  function value(t, env) {
+  /* Numbers (as BigInt, powers get large) and truth under an assignment (numbers for small letters, booleans for
+     capitals, functions for predicates): the tests use this to check that every block is true whenever its
+     workshop's hypotheses are. With mod, numbers are counted modulo it: the integers mod 5 satisfy every axiom
+     here and induction too, and a quantifier can simply try all five (powers have no meaning there). */
+  function value(t, env, mod) {
+    const m = x => (mod ? ((x % BigInt(mod)) + BigInt(mod)) % BigInt(mod) : x);
     switch (t[0]) {
       case "0": return 0n;
-      case "#": return BigInt(t[1]);
-      case "v": return BigInt(env[t[1]]);
-      case "S": return value(t[1], env) + 1n;
-      case "+": return value(t[1], env) + value(t[2], env);
-      case "*": return value(t[1], env) * value(t[2], env);
-      case "^": { const e = value(t[2], env); if (e > 64n) throw new Error("too big"); return value(t[1], env) ** e; }
+      case "#": return m(BigInt(t[1]));
+      case "v": return m(BigInt(env[t[1]]));
+      case "S": return m(value(t[1], env, mod) + 1n);
+      case "+": return m(value(t[1], env, mod) + value(t[2], env, mod));
+      case "*": return m(value(t[1], env, mod) * value(t[2], env, mod));
+      case "^": { if (mod) throw new Error("no powers modulo"); const e = value(t[2], env); if (e > 64n) throw new Error("too big"); return value(t[1], env) ** e; }
     }
     throw new Error("not a number");
   }
-  function holds(s, env) {
-    if (s[0] === "=") return value(s[1], env) === value(s[2], env);
-    if (s[0] === "→") return !holds(s[1], env) || holds(s[2], env);
-    if (s[0] === "∧") return holds(s[1], env) && holds(s[2], env);
-    if (s[0] === "∨") return holds(s[1], env) || holds(s[2], env);
-    if (s[0] === "↔") return holds(s[1], env) === holds(s[2], env);
+  function holds(s, env, mod) {
+    const h = x => holds(x, env, mod);
+    if (s[0] === "=") return value(s[1], env, mod) === value(s[2], env, mod);
+    if (s[0] === "→") return !h(s[1]) || h(s[2]);
+    if (s[0] === "∧") return h(s[1]) && h(s[2]);
+    if (s[0] === "∨") return h(s[1]) || h(s[2]);
+    if (s[0] === "↔") return h(s[1]) === h(s[2]);
     if (s[0] === "⊥") return false;
     if (s[0] === "⊤") return true;
+    if (s[0] === "@") return !!env[s[1][1]](...s.slice(2).map(a => Number(value(a, env, mod))));
+    if (QUANT.includes(s[0])) {
+      if (!mod) throw new Error("a quantifier needs a finite model");
+      const all = [...Array(mod).keys()].map(k => holds(s[2], { ...env, [s[1][1]]: k }, mod));
+      return s[0] === "∀" ? all.every(Boolean) : all.some(Boolean);
+    }
     if (isVar(s) && upper(s[1])) return !!env[s[1]];
     throw new Error("not a statement");
   }
 
   root.MathcraftLogic = {
-    Z, S, plus, V, eq, same, vars, at, put, subst, match, show, parse, term, isForm, upper, neg, machine, questMachine,
+    Z, S, plus, V, eq, same, vars, preds, at, boundAt, put, subst, match, show, parse, term, isForm, upper, neg, machine, questMachine,
     start, ctxAt, subs, shops, step, replay, count, closeAll, withQed, follow, options, preview, guess, applies, applyGoals, unfold, folds, expand, sameDef, fits, paths, value, holds,
   };
 })(typeof window !== "undefined" ? window : globalThis);

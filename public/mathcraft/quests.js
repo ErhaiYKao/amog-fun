@@ -18,7 +18,8 @@
  * Worlds branch (Pope Amog's choice): addition is the trunk; implication opens after Zero plus zero, equality
  * (Symmetry and Transitivity as implications between equations, airetho) after Identity, logic (and, or, false,
  * true) after the third implication quest, equivalence (↔ and the laws of logic, proved by rewriting) after Or
- * commutes, multiplication after Associativity, powers after Associativity of ·, each started by buying its
+ * commutes, quantifiers (∀, ∃ and predicates) after Double negation both ways and Zero on the left,
+ * multiplication after Associativity, powers after Associativity of ·, each started by buying its
  * machines. A world only sees machines from the worlds in SEES (logic sees implication, equivalence sees logic,
  * multiplication sees addition, powers see multiplication, the number worlds see equality); bounties and the
  * playground see everything. A world's quests need
@@ -50,17 +51,21 @@
     ["logic", { id: "apply", name: "Apply" }],
     ["logic", { id: "byc", name: "Contradiction" }],
     ["logic", { id: "cases", name: "Cases" }],
+    ["quant", { id: "fix", name: "Fix" }],
+    ["quant", { id: "spec", name: "Specialise" }],
+    ["quant", { id: "witness", name: "Witness" }],
+    ["quant", { id: "obtain", name: "Take a witness" }],
     ["mul", L.machine({ id: "mul0", name: "Times zero", stmt: "a*0=0" })],
     ["mul", L.machine({ id: "mulS", name: "Times a successor", stmt: "a*S(b)=a*b+a" })],
     ["pow", L.machine({ id: "pow0", name: "Power zero", stmt: "a^0=1" })],
     ["pow", L.machine({ id: "powS", name: "Power of a successor", stmt: "a^S(b)=a^b*a" })],
   ].map(([w, m]) => ({ ...m, w }));
-  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["iff", "Equivalence"], ["mul", "Multiplication"], ["pow", "Powers"]];
-  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], iff: ["prop", "logic", "iff"], mul: ["add", "mul", "eq"], pow: ["add", "mul", "eq", "pow"] };
+  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["iff", "Equivalence"], ["quant", "Quantifiers"], ["mul", "Multiplication"], ["pow", "Powers"]];
+  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], iff: ["prop", "logic", "iff"], quant: ["prop", "logic", "iff", "add", "eq", "quant"], mul: ["add", "mul", "eq"], pow: ["add", "mul", "eq", "pow"] };
   /* does a quest in `world` see things from world w? (no world = bounties and the playground: everything) */
   const sees = (world, w) => !world || w === "any" || SEES[world].includes(w);
   /* tactics open workshops instead of stating something */
-  const TACTICS = ["induct", "assume", "apply", "have", "byc", "cases"];
+  const TACTICS = ["induct", "assume", "apply", "have", "byc", "cases", "fix", "spec", "witness", "obtain"];
 
   const rw = (at, path, m, dir = "lr", fill) => ({ op: "rw", at, b: 0, path, m, dir, ...(fill ? { fill } : {}) });
   const refl = (at, t) => ({ op: "refl", at, t });
@@ -76,6 +81,10 @@
   const unf = (at, path, as) => ({ op: "unfold", at, b: 0, path, ...(as ? { as } : {}) });
   const cases = (at, b) => ({ op: "cases", at, b });
   const byc = at => ({ op: "byc", at });
+  const fix = at => ({ op: "fix", at });
+  const spec = (at, b, t) => ({ op: "spec", at, b, t });
+  const witness = (at, t) => ({ op: "witness", at, t });
+  const obtain = (at, b) => ({ op: "obtain", at, b });
   const both = (m, a, b) => [make("", m, a), make("", m, b), rule("", 0, "landi", [1])];   // each direction stamped, then And: make
 
   const QUESTS = [
@@ -375,6 +384,70 @@
         cases("2aq", 0), rule("2aq", 1, "lre", [], { P: "Q" }), rule("2aq", 0, "landi", [1])],
     },
 
+    /* ---- quantifiers (airetho): ∀ and ∃ over numbers, and predicates P(a). ∃a. A is short for ¬∀a. ¬A. Four tactics:
+       Fix and Specialise for ∀, Witness and Take a witness for ∃. ---- */
+    {
+      id: "qa", world: "quant", after: ["idn", "zadd"], name: "For every number", pay: 3, needs: ["fix"], goal: "forall a. a+0=a", guide: true,
+      intro: "$\\forall a$ reads \"for every number $a$\". Every theorem about numbers so far was secretly for every $a$; now the block says so, and the $a$ belongs to the $\\forall$: nothing outside it is called $a$. To craft a $\\forall$ you buy <b>Fix</b>. It opens a workshop about one number, fixed but arbitrary: nothing is known about it, so whatever you craft for it holds for all of them.",
+      hint: "Run Fix. In the workshop the goal is $a+0 = a$ about one number $a$, and you have had a machine for that since quest 1.",
+      proof: [fix(""), refl("f", "a+0"), rw("f", [1], "add0")],
+    },
+    {
+      id: "qs", world: "quant", name: "A right identity is zero", pay: 3, needs: ["spec"], goal: "(forall a. a+b=a)->b=0", guide: true,
+      intro: "The other direction: using a $\\forall$ you hold. <b>Specialise</b> turns a block $\\forall a.\\ \\ldots$ into the same statement about one number of your choice. Here $b$ leaves every number alone when added to it; which number should you ask it about?",
+      hint: "Assume. Specialise the assumption to $0$: it says $0+b = 0$, and <i>Zero on the left</i> turns $0+b$ into $b$.",
+      proof: [assume(""), spec("a", 0, "0"), rw("a", [0], "zadd")],
+    },
+    {
+      id: "qsw", world: "quant", name: "The order of ∀", pay: 4, goal: "(forall a. forall b. R(a,b))->forall b. forall a. R(a,b)",
+      intro: "$R(a, b)$ is a predicate: some statement about $a$ and $b$, you are not told which. Like $P$ and $Q$ in Implication it stands for anything, and what you craft with it becomes a machine for every statement of that shape.",
+      hint: "Assume, then Fix twice: the goal is $R(a, b)$ for two fixed numbers. Specialise the assumption to $a$, then to $b$.",
+      proof: [assume(""), fix("a"), fix("af"), spec("aff", 0, "a"), spec("aff", 0, "b")],
+    },
+    {
+      id: "qand", world: "quant", name: "∀ and ∧", pay: 4, goal: "(forall a. P(a)&Q(a))->(forall a. P(a))&(forall a. Q(a))",
+      intro: "A $\\forall$ over an $\\land$ splits in two. Everything from Logic works on quantified blocks: they are statements like any other.",
+      hint: "Assume, then Apply <i>And: make</i> for the two halves. In each: Fix, Specialise the assumption to the fixed number, and take the $\\land$ apart with Cases.",
+      proof: [assume(""), applyR("a", "landi"), fix("a1"), spec("a1f", 0, "a"), cases("a1f", 0), fix("a2"), spec("a2f", 0, "a"), cases("a2f", 0)],
+    },
+    {
+      id: "qex", world: "quant", name: "There is one", pay: 4, goal: "exists a. a+a=a",
+      intro: "$\\exists a$ reads \"there is a number $a$\". It is a definition, like $\\lor$: $\\exists a.\\ A$ is short for $\\lnot \\forall a.\\ \\lnot A$, \"not every number fails\". So Assume works on it: you hold that every number fails, and the goal is $\\bot$. Find one that doesn't.",
+      hint: "Assume. Specialise what you hold to $0$: it says $\\lnot(0+0 = 0)$. Craft $0+0 = 0$ and feed both to modus ponens.",
+      proof: [assume(""), spec("a", 0, "0"), refl("a", "0+0"), { ...rw("a", [1], "add0"), b: 1 }, mp("a", 0, 1)],
+    },
+    {
+      id: "qw", world: "quant", name: "Every number has a next one", pay: 3, needs: ["witness"], goal: "forall a. exists b. b=S(a)",
+      intro: "That was the long way. A machine to buy: <b>Witness</b>. On a goal $\\exists b.\\ \\ldots$ you name the number, and the goal becomes the statement about it.",
+      hint: "Fix, then give $S(a)$ as the witness. What is left is refl.",
+      proof: [fix(""), witness("f", "S(a)"), refl("fw", "S(a)")],
+    },
+    {
+      id: "qzs", world: "quant", name: "Zero or a successor", pay: 5, goal: "forall a. a=0|exists b. a=S(b)",
+      intro: "Every number is $0$ or comes after another. Induction works inside a Fix: the fixed number is arbitrary, so it can be the one to induct on. Oddly, the step never needs its hypothesis.",
+      hint: "Fix, then induct on $a$. Base: $0 = 0$, put into an $\\lor$ from the left. Step: Apply <i>Or: from the right</i> to the goal, so that what is left is $\\exists b.\\ S(a) = S(b)$, and give $a$ as the witness.",
+      proof: [fix(""), { op: "induct", at: "f", v: "a" }, refl("fb", "0"), rule("fb", 0, "le", [], { Q: "exists b. 0=S(b)" }), applyR("fs", "lre"), witness("fs1", "a"), refl("fs1w", "S(a)")],
+    },
+    {
+      id: "qo", world: "quant", name: "Whoever it is", pay: 4, needs: ["obtain"], goal: "(exists a. P(a))->exists a. P(a)|Q(a)",
+      intro: "Using an $\\exists$ you hold: you know some number does it, but not which. A machine to buy: <b>Take a witness</b> gives that number a name. You get a workshop that holds the statement about it, and nothing else is known about that number.",
+      hint: "Assume, take a witness from the assumption, and give the same number as the witness for the goal. <i>Or: from the left</i> finishes.",
+      proof: [assume(""), obtain("a", 0), witness("ao", "a"), rule("aow", 0, "le", [], { Q: "Q(a)" })],
+    },
+    {
+      id: "qdm", world: "quant", name: "Not all", pay: 4, goal: "not (forall a. P(a))<->exists a. not P(a)",
+      intro: "De Morgan for quantifiers: \"not all are $P$\" is \"one is not $P$\". Equivalences rewrite inside a $\\forall$ too, and here that is nearly all there is to do.",
+      hint: "Write out $\\exists a.\\ \\lnot P(a)$ with its definition and compare it with the left side. They differ by a double negation.",
+      amog: "Stamp <i>If and only if</i> with $\\lnot \\forall a.\\ P(a)$. On the right side, turn the $P(a)$ inside the $\\forall$ into $\\lnot\\lnot P(a)$ with <i>Double negation, both ways</i> run backwards. What is left, $\\lnot \\forall a.\\ \\lnot\\lnot P(a)$, is $\\exists a.\\ \\lnot P(a)$ written out.",
+      proof: [make("", "ir", { P: "not forall a. P(a)" }), rw("", [1, 0, 0], "idn", "rl")],
+    },
+    {
+      id: "qen", world: "quant", name: "None", pay: 3, goal: "not (exists a. P(a))<->forall a. not P(a)",
+      intro: "And the other one: \"there is no $P$\" is \"every one is not $P$\". Unfold it in your head first.",
+      hint: "Written out, $\\lnot \\exists a.\\ P(a)$ is $\\lnot\\lnot \\forall a.\\ \\lnot P(a)$. You have a machine that says exactly this.",
+      proof: [make("", "idn", { P: "forall a. not P(a)" })],
+    },
+
     /* ---- multiplication: two more axioms, on top of all of addition ---- */
     {
       id: "mz", world: "mul", after: ["assoc"], name: "Zero times", pay: 3, needs: ["mul0", "mulS"], goal: "0*a=0",
@@ -512,13 +585,17 @@
     { id: "apply", gate: true, price: 3, after: ["landi"] },
     { id: "byc", gate: true, price: 2, after: ["landr"] },
     { id: "cases", gate: true, price: 3, after: ["lore"] },
+    { id: "fix", gate: true, price: 3, after: ["idn", "zadd"] },
+    { id: "spec", gate: true, price: 3, after: ["qa"] },
+    { id: "witness", gate: true, price: 3, after: ["qex"] },
+    { id: "obtain", gate: true, price: 3, after: ["qzs"] },
     { id: "mul0", gate: true, price: 2, after: ["assoc"] },
     { id: "mulS", gate: true, price: 3, after: ["assoc"] },
     { id: "pow0", gate: true, price: 2, after: ["t1"] },
     { id: "powS", gate: true, price: 3, after: ["t1"] },
     { id: "autofill", name: "Autofill", price: 2, text: "refl offers the two sides of the goal, and Induction offers the letters, so you type less." },
     { id: "press", name: "Block press", price: 2, text: "Any equality machine can stamp its own statement onto the bench, with the slots filled in as you like." },
-    { id: "quick", name: "Goal buttons", price: 2, text: "When the goal reads t = t (or P ↔ P), a refl button on it crafts that block and uses it. When the goal is an implication or a ¬, an assume button runs Assume. One tap instead of opening the machine." },
+    { id: "quick", name: "Goal buttons", price: 2, text: "When the goal reads t = t (or P ↔ P), a refl button on it crafts that block and uses it. When the goal is an implication or a ¬, an assume button runs Assume; when it is a ∀, a fix button runs Fix. One tap instead of opening the machine." },
     { id: "scanner", name: "Scanner", price: 4, text: "Tap a part of a block with no machine open to list every machine that fits it, and see where the open machine fits." },
     { id: "goalrw", name: "Goal lever", price: 4, after: ["assoc"], text: "Equality machines rewrite the goal too: with one open, tap a part of the goal. Craft towards the goal and the goal towards you." },
   ];

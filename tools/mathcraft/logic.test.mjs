@@ -548,6 +548,100 @@ test("Amog's proof is the natural one; where a trick is shorter it is kept as th
   assert.equal(Q.canBuy("have", d, owned), "", "one quest left and plenty of ∎");
 });
 
+test("quantifiers: bound letters, substitution without capture, predicates as slots", () => {
+  const show = L.show, P = L.parse;
+  assert.ok(L.same(P("forall a. R(a,c)"), P("forall b. R(b,c)")) && !L.same(P("forall a. R(a,c)"), P("forall c. R(c,c)")), "the same up to bound names");
+  assert.deepEqual([...L.vars(P("forall a. R(a,b) & exists b. Q(b)"))].sort(), ["Q", "R", "b"], "only the free ones");
+  assert.deepEqual(L.preds(P("forall a. R(a,b) & Q(b)")), { R: 2, Q: 1 });
+  assert.equal(show(L.subst(P("exists b. R(a,b)"), { a: P("b") })), "∃c. R(b, c)", "the bound b steps aside");
+  assert.equal(show(L.subst(P("forall a. R(a,b)"), { a: P("0"), b: P("S(c)") })), "∀a. R(a, S(c))", "a bound letter is not replaced");
+  assert.equal(show(L.unfold(P("exists a. P(a)"))), "¬(∀a. ¬P(a))");
+  assert.deepEqual(L.folds(P("not forall a. not P(a)")).map(show), ["∃a. P(a)"]);
+  assert.ok(L.sameDef(P("exists a. not P(a)"), P("not forall b. not not P(b)")));
+  assert.deepEqual(L.paths(P("forall a. R(a,S(b))")), [[0], [0, 0], [0, 1], [0, 1, 0]], "paths count the body and the arguments, not the bound letter or the predicate's name");
+  assert.deepEqual(L.boundAt(P("P -> forall a. exists b. R(a,b)"), [1, 0, 0, 1]), ["a", "b"]);
+  // a predicate under its quantifier takes any statement about the bound number
+  const m = L.match(P("forall a. P(a) & Q(a)"), P("forall x. x+0=x & c=c"), {}, true);
+  assert.equal(show(L.subst(P("(forall a. P(a)) & (forall c. Q(c))"), m)), "(∀a. a+0 = a) ∧ (∀a. c = c)", "and putting it back never captures: the bound c stepped aside for the free one");
+  assert.equal(L.match(P("forall a. P(a) & P(0)"), P("forall x. x+0=x & 0+0=0"), {}, true) && "fits", "fits", "P(0) is checked against what P was found to be");
+  assert.equal(L.match(P("forall a. P(a) & P(0)"), P("forall x. x+0=x & 0+0=1"), {}, true), null);
+  assert.equal(L.match(P("forall a. forall b. R(a,b)"), P("forall x. forall y. y=x"), {}, true).R.lam.join(), "x,y");
+  assert.equal(L.match(P("forall a. R(a,a)"), P("forall x. x=x"), {}, true), null, "R(a, a) doesn't say which x is which");
+  assert.equal(L.match(P("forall a. forall b. Q(a)"), P("forall x. forall y. x=y"), {}, true), null, "Q(a) can't take y along: it would leave its quantifier");
+  assert.equal(L.match(P("forall a. forall b. Q(a)"), P("forall x. forall y. x=c"), {}, true).Q.lam.join(), "x");
+  // a slot may not take something bound out of its quantifier
+  const leak = L.machine({ id: "leak", name: "leak", premises: ["forall a. P(a)->Q"], concl: "(exists a. P(a))->Q" });
+  const g = L.start({ goal: "(forall x. x=0->x=x)->P" }, [...everything(), leak]);
+  L.step(g, { op: "assume", at: "" });
+  assert.throws(() => L.step(g, { op: "rule", at: "a", b: 0, m: "leak" }), /don't fit/);
+  const ok = L.start({ goal: "(forall x. x=0->c=c)->P" }, [...everything(), leak]);
+  L.step(ok, { op: "assume", at: "" }); L.step(ok, { op: "rule", at: "a", b: 0, m: "leak" });
+  assert.deepEqual(bench(ok, "a"), ["(∃a. a = 0) → c = c"]);
+  // a fact held about one a says nothing about the a of a ∀
+  const h = L.start({ goal: "a=0->((forall a. R(a,a))->forall a. R(a,0))" }, everything());
+  L.step(h, { op: "assume", at: "" }); L.step(h, { op: "assume", at: "a" });
+  assert.throws(() => L.step(h, { op: "rw", at: "aa", b: 1, path: [0, 1], m: "h0", dir: "lr" }), /bound by a quantifier/);
+  // but a machine with slots rewrites under a quantifier, and may be told a term that mentions the bound letter
+  const r = L.start({ goal: "(forall a. a+0=0+a)->P" }, everything());
+  L.step(r, { op: "assume", at: "" });
+  L.step(r, { op: "rw", at: "a", b: 0, path: [0, 0], m: "add0", dir: "lr" });
+  assert.deepEqual(bench(r, "a"), ["∀a. a = 0+a"]);
+  L.step(r, { op: "rw", at: "a", b: 0, path: [0, 1, 0], m: "mul0", dir: "rl", fill: { a: "a" } });
+  assert.deepEqual(bench(r, "a"), ["∀a. a = a·0+a"]);
+  assert.throws(() => L.step(r, { op: "rw", at: "a", b: 0, path: [0, 1, 0, 1], m: "mul0", dir: "rl", fill: { a: "z" } }), /nothing called z/);
+});
+
+test("the four quantifier tactics, and what they refuse", () => {
+  const all = everything();
+  // Fix: the number must be arbitrary
+  const f = L.start({ goal: "R(a,b)->forall a. R(a,b)" }, all);
+  L.step(f, { op: "assume", at: "" });
+  assert.throws(() => L.step(f, { op: "fix", at: "a", v: "a" }), /already speaks about a/);
+  assert.throws(() => L.step(f, { op: "fix", at: "a", v: "b" }), /already speaks about b/);
+  L.step(f, { op: "fix", at: "a" });
+  assert.equal(L.show(L.ctxAt(f, "af").goal), "R(c, b)", "a fresh letter when the bound one is taken");
+  assert.ok(!L.closeAll(f).root.done, "and the false statement stays unproved");
+  assert.throws(() => L.step(L.start({ goal: "P->Q" }, all), { op: "fix", at: "" }), /form ∀a/);
+  assert.throws(() => L.step(L.start({ goal: "forall a. P(a)" }, all.filter(m => m.id !== "fix")), { op: "fix", at: "" }), /don't have/);
+  // two workshops may each fix their own a
+  const two = L.start({ goal: "(forall a. P(a)&Q(a))->(forall a. P(a))&(forall a. Q(a))" }, all);
+  for (const st of [{ op: "assume", at: "" }, { op: "apply", at: "a", m: "landi" }, { op: "fix", at: "a1" }, { op: "fix", at: "a2" }]) L.step(two, st);
+  assert.deepEqual(["a1f", "a2f"].map(w => L.show(L.ctxAt(two, w).goal)), ["P(a)", "Q(a)"]);
+  // Specialise: any number in play, and nothing gets captured
+  const s = L.start({ goal: "(forall a. exists b. R(a,b))->(Q(b)->exists b. R(b,b))" }, all);
+  L.step(s, { op: "assume", at: "" }); L.step(s, { op: "assume", at: "a" });
+  assert.throws(() => L.step(s, { op: "spec", at: "aa", b: 1, t: "0" }), /form ∀a/);
+  assert.throws(() => L.step(s, { op: "spec", at: "aa", b: 0, t: "z" }), /nothing called z/);
+  assert.throws(() => L.step(s, { op: "spec", at: "aa", b: 0, t: "P" }), /number/);
+  L.step(s, { op: "spec", at: "aa", b: 0, t: "b" });
+  assert.deepEqual(bench(s, "aa"), ["∃c. R(b, c)", "Q(b)"]);
+  assert.ok(!L.closeAll(s).root.done);
+  // Witness and Take a witness
+  const w = L.start({ goal: "(exists a. R(a,b))->R(b,b)" }, all);
+  L.step(w, { op: "assume", at: "" });
+  assert.throws(() => L.step(w, { op: "obtain", at: "a", b: 0, v: "b" }), /new here/);
+  assert.throws(() => L.step(w, { op: "witness", at: "a", t: "b" }), /form ∃a/);
+  L.step(w, { op: "obtain", at: "a", b: 0 });
+  assert.deepEqual([L.show(L.ctxAt(w, "ao").goal), L.ctxAt(w, "ao").hyps.map(L.show).join("; "), bench(w, "ao").join()], ["R(b, b)", "∃a. R(a, b); R(a, b)", "R(a, b)"]);
+  assert.deepEqual(L.ctxAt(w, "ao").bench[0].deps, [1], "what the witness satisfies is held, not proved");
+  assert.ok(!L.closeAll(w).root.done);
+  const e = L.start({ goal: "exists a. a+a=a" }, all);
+  L.step(e, { op: "witness", at: "", t: "0" });
+  assert.equal(L.show(L.ctxAt(e, "w").goal), "0+0 = 0");
+  // the definition still works by hand: Assume reads ∃ as ¬∀¬
+  const d = L.start({ goal: "exists a. a+a=a" }, all);
+  L.step(d, { op: "assume", at: "" });
+  assert.deepEqual([L.show(L.ctxAt(d, "a").goal), bench(d, "a").join()], ["⊥", "∀a. ¬(a+a = a)"]);
+  // induction inside a Fix, and substituting 0 under a quantifier
+  const z = L.start(Q.QUESTS[idx("qzs")], Q.machinesFor(idx("qzs"), allDone(idx("qzs"))));
+  L.step(z, { op: "fix", at: "" }); L.step(z, { op: "induct", at: "f", v: "a" });
+  assert.deepEqual(["fb", "fs"].map(x => L.show(L.ctxAt(z, x).goal)), ["0 = 0 ∨ (∃b. 0 = S(b))", "S(a) = 0 ∨ (∃b. S(a) = S(b))"]);
+  // truth in the integers mod 5, where quantifiers can be checked
+  assert.ok(L.holds(L.parse("forall a. exists b. a+b=0"), {}, 5) && !L.holds(L.parse("exists a. forall b. a*b=1"), {}, 5));
+  assert.ok(L.holds(L.parse("(forall a. P(a))->P(3)"), { P: x => x !== 2 }, 5) && !L.holds(L.parse("forall a. P(a)"), { P: x => x !== 2 }, 5));
+  assert.throws(() => L.holds(L.parse("forall a. a=a"), {}), /finite model/);
+});
+
 test("a world only sees the machines of the worlds it builds on", () => {
   const all = allDone(Q.QUESTS.length), ids = id => Q.machinesFor(idx(id), all).map(m => m.id);
   assert.ok(ids("massoc").includes("comm") && ids("massoc").includes("mul0") && !ids("massoc").includes("assume") && !ids("massoc").includes("pid"));
@@ -657,42 +751,63 @@ test("the shop has no dead ends: whatever is bought, in any order, every quest c
 test("random play only ever makes true statements", () => {
   let seed = 12345;
   const rnd = n => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
-  const size = t => (t[0] === "v" || t[0] === "0" || t[0] === "#" ? 1 : 1 + t.slice(1).reduce((a, k) => a + size(k), 0));
-  const sides = t => (t[0] === "=" ? [t[1], t[2]] : t[0] === "→" ? [...sides(t[1]), ...sides(t[2])] : []);
-  let checked = 0, conditional = 0;
+  const sides = t => (t[0] === "=" ? [t[1], t[2]] : "→∧∨↔".includes(t[0]) ? [...sides(t[1]), ...sides(t[2])] : "∀∃".includes(t[0]) ? sides(t[2]) : []);
+  let checked = 0, conditional = 0, quantified = 0;
+  // quantifiers and predicates are checked in the integers mod 5: every axiom and induction hold there, and ∀ can
+  // try all five numbers (no powers: they mean nothing modulo 5)
+  const noPow = Q.playMachines(allDone(Q.QUESTS.length), undefined, ["add", "mul", "eq", "prop", "logic", "iff", "quant", "any"]);
   const items = [...Q.QUESTS.map((q, i) => [q, Q.machinesFor(i, allDone(i))]), [{ id: "mix", goal: "(a+b=b+a)->((P->Q)->(a*b=b*a))" }, everything()], [{ id: "mix2", goal: "(P&Q->R)->((P|Q)->((Q->P)->(R|false)))" }, everything()],
-    [{ id: "mix3", goal: "(P<->Q|R)->((a^b=b)->((P&Q<->R)|(a*b=a^S(b))))" }, everything()]];
+    [{ id: "mix3", goal: "(P<->Q|R)->((a^b=b)->((P&Q<->R)|(a*b=a^S(b))))" }, everything()],
+    [{ id: "qmix", world: "quant", goal: "(forall a. P(a)->Q(a))->((exists a. P(a))->exists b. Q(b)|R(b,b))" }, noPow],
+    [{ id: "qmix2", world: "quant", goal: "(forall a. exists b. a=b+c)->forall a. exists b. S(a)=S(b)+c" }, noPow],
+    [{ id: "qmix3", world: "quant", goal: "(forall a. a+b=a)->((exists c. R(c,b))->(forall a. R(a,a)|a*b=0))" }, noPow],
+    // traps: each of these is false, and one careless rule away from "proved" (a fixed number that isn't arbitrary, a
+    // witness that isn't new, a substitution that captures, a held fact rewriting a bound letter)
+    [{ id: "trap1", world: "quant", trap: true, goal: "R(a,b)->forall a. R(a,b)" }, noPow],
+    [{ id: "trap2", world: "quant", trap: true, goal: "(exists a. R(a,b))->R(b,b)" }, noPow],
+    [{ id: "trap3", world: "quant", trap: true, goal: "(forall a. exists b. R(a,b))->(Q(b)->exists b. R(b,b))" }, noPow],
+    [{ id: "trap4", world: "quant", trap: true, goal: "a=0->((forall a. R(a,a))->forall a. R(a,0))" }, noPow]];
   for (const [q, machines] of items) {
-    for (let run = 0; run < 30; run++) {
-      const g = L.start(q, machines), names = [...g.names], nums = names.filter(n => !L.upper(n));
+    const mod = q.world === "quant" ? 5 : undefined, pr = L.preds(L.term(q.goal));
+    const letters = [...L.vars(L.term(q.goal))].filter(n => !L.upper(n)).concat(["a", "b", "x"]);
+    for (let run = 0; run < (q.trap ? 120 : 30); run++) {
+      const g = L.start(q, machines);
       for (let move = 0; move < 30; move++) {
-        const ws = L.shops(g).filter(x => !x.c.kids), at = ws[rnd(ws.length)].at, c = L.ctxAt(g, at), r = rnd(13);
+        const ws = L.shops(g).filter(x => !x.c.kids), at = ws[rnd(ws.length)].at, c = L.ctxAt(g, at), r = rnd(mod ? 17 : 13);
+        const nums = [...g.names].filter(n => !L.upper(n)), num = () => { const k = rnd(nums.length + 2); return k < nums.length ? nums[k] : k === nums.length ? "0" : nums.length ? "S(" + nums[rnd(nums.length)] + ")" : "1"; };
         try {
           if (r === 0 && nums.length) L.step(g, { op: "induct", at, v: nums[rnd(nums.length)] });
           else if (r === 12) { const o = L.options(g, at, "g", rnd(2) ? [] : [rnd(2)]); L.step(g, o.length && rnd(3) ? o[rnd(o.length)].step : rnd(2) && c.bench.length ? { op: "cases", at, b: rnd(c.bench.length) } : { op: "byc", at }); }
+          else if (r === 13 || r === 14) L.step(g, rnd(2) ? { op: "fix", at, ...(rnd(2) ? {} : { v: letters[rnd(letters.length)] }) } : { op: "witness", at, t: num() });
+          else if (r >= 15 && c.bench.length) L.step(g, rnd(2) ? { op: "spec", at, b: rnd(c.bench.length), t: num() } : { op: "obtain", at, b: rnd(c.bench.length), ...(rnd(2) ? {} : { v: letters[rnd(letters.length)] }) });
           else if (r === 1) L.step(g, rnd(3) ? { op: "assume", at } : rnd(2) ? { op: "have", at, s: L.show(c.bench.length ? c.bench[rnd(c.bench.length)].s : c.goal) } : (() => { const a = L.applies(g, at); return a.length ? a[rnd(a.length)].step : { op: "assume", at }; })());
           else if (r <= 3 && c.hyps.length) L.step(g, { op: "hyp", at, i: rnd(c.hyps.length) });
-          else if (r <= 5 || !c.bench.length) { const ts = sides(c.goal); if (ts.length) L.step(g, { op: "refl", at, t: ts[rnd(ts.length)] }); }
+          else if (r <= 5 || !c.bench.length) { const ts = sides(c.goal); if (ts.length) L.step(g, { op: "refl", at, t: rnd(3) || !mod ? ts[rnd(ts.length)] : num() }); }
           else {
             const b = rnd(c.bench.length);
-            if (size(c.bench[b].s) > 40) { L.step(g, { op: "del", at, b }); continue; }
+            if (L.show(c.bench[b].s).length > 90) { L.step(g, { op: "del", at, b }); continue; }
             const ps = [[], ...L.paths(c.bench[b].s)], o = L.options(g, at, b, ps[rnd(ps.length)]);
             if (o.length) L.step(g, o[rnd(o.length)].step);
           }
         } catch (e) { /* refused moves are fine; unsound ones are what we're hunting */ }
-        if (rnd(4) === 0) L.closeAll(g);                                       // qed whatever is ready
-        for (const w of L.shops(g)) for (const blk of w.c.bench) for (let k = 0; k < 6; k++) {
+        if (rnd(4) === 0 || q.trap) L.closeAll(g);                            // qed whatever is ready
+        const names = [...g.names];
+        for (const w of L.shops(g)) for (const blk of [...w.c.bench, ...(w.c.done ? [{ s: w.c.goal, goal: true }] : [])]) for (let k = 0; k < (mod ? 3 : 6); k++) {
           const env = {}, x = rnd(5);
-          for (const v of names) env[v] = L.upper(v) ? rnd(2) === 1 : k < 2 ? x : rnd(5);
+          for (const v of names) {
+            if (!L.upper(v)) env[v] = k < 2 ? x : rnd(5);
+            else if (v in pr) { const tbl = Array.from({ length: 25 }, () => rnd(2) === 1); env[v] = (...a) => tbl[a.reduce((h, y) => (h * 5 + y) % 25, 0)]; }
+            else env[v] = rnd(2) === 1;
+          }
           let ok;
-          try { if (!w.c.hyps.every(h => L.holds(h, env))) continue; ok = L.holds(blk.s, env); } catch (e) { continue; }   // a power too big to compute
+          try { if (!w.c.hyps.every(h => L.holds(h, env, mod))) continue; ok = L.holds(blk.s, env, mod); } catch (e) { continue; }   // a power: too big, or not there modulo 5
           if (w.c.hyps.length) conditional++;
-          assert.ok(ok, `${q.id}: false block ${L.show(blk.s)} at ${JSON.stringify(env)} in workshop "${w.at}"`);
-          if (w.c.done) assert.ok(L.holds(w.c.goal, env), `${q.id}: workshop "${w.at}" done with a false goal`);
+          if (mod) quantified++;
+          assert.ok(ok, `${q.id}: false ${blk.goal ? "goal of a finished workshop" : "block"} ${L.show(blk.s)} in workshop "${w.at}" holding ${w.c.hyps.map(L.show).join("; ")} at ${JSON.stringify(env, (key, val) => (typeof val === "function" ? "pred" : val))}`);
           checked++;
         }
       }
     }
   }
-  assert.ok(checked > 20000 && conditional > 2000, `${checked} checks, ${conditional} under hypotheses`);
+  assert.ok(checked > 20000 && conditional > 2000 && quantified > 5000, `${checked} checks, ${conditional} under hypotheses, ${quantified} with quantifiers`);
 });
