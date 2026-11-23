@@ -1,13 +1,14 @@
 /* Mathcraft proof engine (#33). Pure: no DOM, runs in the page and in Node.
  *
- * Terms are arrays. Numbers: ["0"], ["S", t], ["+", a, b], ["*", a, b], ["v", "a"] (lowercase letter).
- * Statements: ["=", l, r] between numbers; ["→", A, B], ["∧", A, B], ["∨", A, B] between statements; ["⊥"] (false),
+ * Terms are arrays. Numbers: ["0"], ["S", t], ["+", a, b], ["*", a, b], ["^", a, b], ["v", "a"] (lowercase letter).
+ * Statements: ["=", l, r] between numbers; ["→", A, B], ["∧", A, B], ["∨", A, B], ["↔", A, B] between statements; ["⊥"] (false),
  * ["⊤"] (true); ["v", "P"] (capital letter). "not A" is A → ⊥ and has no node of its own: `show` (and the page)
  * just write A → ⊥ as ¬A, as notation (#33), so ¬(P → ¬Q) is how the definition of P ∧ Q reads.
- * Definitions (#33): A ∨ B is ¬A → B, A ∧ B is ¬(A → ¬B), ⊤ is ⊥ → ⊥ (`unfold`, `folds`). The engine sees through
- * them one way only: wherever a pattern wants an implication (modus ponens, Assume, Apply, any → in a machine), a
- * ∧ / ∨ / ⊤ is read as its definition; a machine about ∨ never matches a plain ¬A → B until it is folded. A goal
- * counts as reached by a block that is the same once both are unfolded (`sameDef`).
+ * Definitions (#33): A ∨ B is ¬A → B, A ∧ B is ¬(A → ¬B), ⊤ is ⊥ → ⊥, A ↔ B is (A → B) ∧ (B → A) (`unfold`,
+ * `folds`). The engine sees through them one way only: wherever a pattern wants an implication (modus ponens,
+ * Assume, Apply, any → in a machine), a ∧ / ∨ / ⊤ / ↔ is read as its definition, and where it wants an ∧ so is a
+ * ↔ (the and-machines take it apart and make it); a machine about ∨ never matches a plain ¬A → B until it is
+ * folded. A goal counts as reached by a block that is the same once both are unfolded (`sameDef`).
  * A path is a list of child indexes (0-based), so [1, 0] in an equation is the first child of the right side.
  *
  * A variable means two different things depending on where it sits:
@@ -17,7 +18,9 @@
  * quest is done it becomes a machine with a slot.
  *
  * Machines: { id, name, stmt } states a theorem. If it is an equation it rewrites numbers in either direction on
- *             any subterm; any stmt can be put on the bench with its slots filled (`make`).
+ *             any subterm; if it is a biconditional A ↔ B it rewrites statements the same way (a part that reads
+ *             A becomes B, anywhere, or the whole block); any stmt can be put on the bench with its slots filled
+ *             (`make`).
  *           { id, name, premises: [stmt], concl } is a rule: blocks matching the premises, in order, are used up
  *             and the conclusion takes the first one's place. A proved implication A → (B → C) becomes the rule
  *             A, B gives C (questMachine), and keeps `stmt` so the implication itself can still be made as a block.
@@ -31,9 +34,10 @@
  *   { op: "hyp", at, i }                      copy hypothesis i onto the bench (tagged as depending on it)
  *   { op: "make", at, m, fill }               put machine m's statement on the bench, its slots filled from
  *                                             fill = { a: term, ... } ("stamp" is the old name for the slotless case)
- *   { op: "rw", at, b, path, m, dir, fill }   rewrite block b at path with equality m ("h0" = hypothesis 0),
- *                                             dir "lr" | "rl"; fill gives the slots that direction leaves open
- *                                             (0 → a·0 needs an a)
+ *   { op: "rw", at, b, path, m, dir, fill }   rewrite block b at path with equality or biconditional m ("h0" =
+ *                                             hypothesis 0), dir "lr" | "rl"; fill gives the slots that direction
+ *                                             leaves open (0 → a·0 needs an a); path [] (the whole block) only
+ *                                             for a biconditional
  *   { op: "rule", at, b, m, others, fill }    apply rule m to block b (+ other blocks, in premise order): they are
  *                                             used up and the conclusion replaces b; fill gives slots of the
  *                                             conclusion that the premises don't fix (⊥ gives P, for any P)
@@ -51,6 +55,8 @@
  *   { op: "unfoldg", at, path, as }           free: the same on the goal
  *   { op: "byc", at }                         proof by contradiction: a workshop "x" that holds ¬goal with goal ⊥
  *                                             (Apply Double negation + Assume in one go, so it counts as 2 steps)
+ *   { op: "cases", at, b }                    take block b apart: P ∧ Q (or P ↔ Q) becomes two blocks; P ∨ Q splits
+ *                                             the workshop in two with the same goal, "p" holding P and "q" Q
  *   { op: "qed", at, b }                      free: block b is the goal, so this workshop is done. Nothing finishes
  *                                             by itself (airetho): the player says when. `withQed` adds these to
  *                                             step lists written before it existed.
@@ -72,7 +78,7 @@
   const isVar = t => t[0] === "v";
   const upper = n => n >= "A" && n <= "Z";
   /* statements (as opposed to numbers) */
-  const CONNECTIVES = "→∧∨";
+  const CONNECTIVES = "→∧∨↔";
   const isForm = t => t[0] === "=" || CONNECTIVES.includes(t[0]) || t[0] === "⊥" || t[0] === "⊤" || (isVar(t) && upper(t[1]));
   const kids = t => (isVar(t) || t[0] === "0" ? [] : t.slice(1));
   /* ¬A, i.e. A → ⊥ */
@@ -106,7 +112,8 @@
   /* match pattern against a term; with slots, pattern variables bind (consistently, numbers to lowercase and
      statements to capitals); without, they must be identical */
   function match(pat, t, b, slots) {
-    if (pat[0] === "→" && DEFS.includes(t[0])) t = unfold(t);           // a definition is read as what it stands for
+    if (pat[0] === "→") while (DEFS.includes(t[0])) t = unfold(t);       // a definition is read as what it stands for
+    else if (pat[0] === "∧" && t[0] === "↔") t = unfold(t);
     if (isVar(pat)) {
       if (!slots) return isVar(t) && t[1] === pat[1] ? b : null;
       if (upper(pat[1]) !== isForm(t)) return null;
@@ -119,8 +126,9 @@
   }
 
   /* ---------- definitions ---------- */
-  const DEFS = "∧∨⊤", F = ["⊥"], isF = t => t[0] === "⊥";
+  const DEFS = "∧∨⊤↔", F = ["⊥"], isF = t => t[0] === "⊥";
   function unfold(t) {
+    if (t[0] === "↔") return ["∧", ["→", t[1], t[2]], ["→", t[2], t[1]]];
     if (t[0] === "∨") return ["→", ["→", t[1], F], t[2]];
     if (t[0] === "∧") return ["→", ["→", t[1], ["→", t[2], F]], F];
     if (t[0] === "⊤") return ["→", F, F];
@@ -129,6 +137,7 @@
   /* the connectives a statement can be folded back into, as terms (¬¬A is both A ∨ ⊥ and nothing else) */
   function folds(t) {
     const out = [];
+    if (t[0] === "∧" && t[1][0] === "→" && t[2][0] === "→" && same(t[1][1], t[2][2]) && same(t[1][2], t[2][1])) out.push(["↔", t[1][1], t[1][2]]);
     if (t[0] !== "→") return out;
     const [a, b] = [t[1], t[2]];
     if (isF(b) && a[0] === "→" && a[2][0] === "→" && isF(a[2][2])) out.push(["∧", a[1], a[2][1]]);
@@ -153,8 +162,10 @@
       case "S": return "S(" + show(t[1]) + ")";
       case "+": return wrap(t[1], "+") + "+" + wrap(t[2], "+");
       case "*": return wrap(t[1], "+*") + "·" + wrap(t[2], "+*");
+      case "^": return wrap(t[1], "+*^") + "^" + wrap(t[2], "+*^");
       case "=": return show(t[1]) + " = " + show(t[2]);
-      case "→": return wrap(t[1], "→") + " → " + wrap(t[2], "→");
+      case "→": return wrap(t[1], "→↔") + " → " + wrap(t[2], "→↔");
+      case "↔": return wrap(t[1], "→↔") + " ↔ " + wrap(t[2], "→↔");
       case "∧": return wrap(t[1], CONNECTIVES) + " ∧ " + wrap(t[2], CONNECTIVES);
       case "∨": return wrap(t[1], CONNECTIVES) + " ∨ " + wrap(t[2], CONNECTIVES);
       case "⊥": case "⊤": return t[0];
@@ -162,7 +173,7 @@
     throw new Error("bad term");
   }
   function parse(src) {
-    const s = String(src).replace(/\band\b/gi, "∧").replace(/\bor\b/gi, "∨").replace(/\bnot\b/gi, "¬").replace(/\bfalse\b/gi, "⊥").replace(/\btrue\b/gi, "⊤")
+    const s = String(src).replace(/<->|<=>|⇔|\biff\b/gi, "↔").replace(/\band\b/gi, "∧").replace(/\bor\b/gi, "∨").replace(/\bnot\b/gi, "¬").replace(/\bfalse\b/gi, "⊥").replace(/\btrue\b/gi, "⊤")
       .replace(/\s+/g, "").replace(/->|⇒|=>/g, "→").replace(/[·×]/g, "*").replace(/&+|\/\\/g, "∧").replace(/\|+|\\\//g, "∨").replace(/[~!]/g, "¬");
     let i = 0;
     const fail = msg => { throw new Error(msg); };
@@ -170,11 +181,11 @@
     function atom() {
       const c = s[i];
       if (c === undefined) fail("that ends too early");
-      if (c === "(") { i++; const e = imp(); if (s[i] !== ")") fail("missing )"); i++; return e; }
+      if (c === "(") { i++; const e = iff(); if (s[i] !== ")") fail("missing )"); i++; return e; }
       if (c === "S") {
         i++;
         if (s[i] !== "(") fail("write S(…) with brackets");
-        i++; const e = num(imp(), "S"); if (s[i] !== ")") fail("missing )"); i++;
+        i++; const e = num(iff(), "S"); if (s[i] !== ")") fail("missing )"); i++;
         return S(e);
       }
       if (/[0-9]/.test(c)) {
@@ -189,7 +200,8 @@
       if (/[a-zA-Z]/.test(c)) { i++; return V(c); }
       fail("I can't read “" + c + "”");
     }
-    function prod() { let t = atom(); while (s[i] === "*") { i++; t = ["*", num(t, "·"), num(atom(), "·")]; } return t; }
+    function pow() { const t = atom(); if (s[i] !== "^") return t; i++; return ["^", num(t, "^"), num(pow(), "^")]; }
+    function prod() { let t = pow(); while (s[i] === "*") { i++; t = ["*", num(t, "·"), num(pow(), "·")]; } return t; }
     function sum() { let t = prod(); while (s[i] === "+") { i++; t = plus(num(t, "+"), num(prod(), "+")); } return t; }
     function cmp() { const t = sum(); if (s[i] !== "=") return t; i++; return eq(num(t, "="), num(sum(), "=")); }
     const join = (next, op, word) => function level() {
@@ -206,7 +218,15 @@
       if (!isForm(t) || !isForm(r)) fail("→ joins statements, not numbers");
       return ["→", t, r];
     }
-    const t = imp();
+    function iff() {
+      const t = imp();
+      if (s[i] !== "↔") return t;
+      i++;
+      const r = imp();
+      if (!isForm(t) || !isForm(r)) fail("↔ joins statements, not numbers");
+      return ["↔", t, r];
+    }
+    const t = iff();
     if (i < s.length) fail("I can't read “" + s[i] + "”");
     return t;
   }
@@ -270,11 +290,11 @@
     if (m.premises && m.stmt[0] === "=") throw new Error(m.name + " is a rule, not an equality");
     return { s: m.stmt, slots: true, dep: [], name: m.name };
   }
-  /* ... as an equation { l, r, slots, dep } */
+  /* ... as something that rewrites, { l, r, slots, dep, iff }: an equation (numbers) or a biconditional (statements) */
   function equation(game, c, id) {
     const e = statement(game, c, id);
-    if (e.s[0] !== "=") throw new Error(e.name + " isn't an equality, so it can't rewrite");
-    return { l: e.s[1], r: e.s[2], slots: e.slots, dep: e.dep };
+    if (e.s[0] !== "=" && e.s[0] !== "↔") throw new Error(e.name + " isn't an equality or a ↔, so it can't rewrite");
+    return { l: e.s[1], r: e.s[2], slots: e.slots, dep: e.dep, iff: e.s[0] === "↔" };
   }
   /* a term the player supplies for slot v: right kind, and only about the numbers and statements in play */
   function supplied(game, v, raw) {
@@ -289,7 +309,7 @@
   function translate(sub, as) {
     if (!sub || !isForm(sub)) throw new Error("only statements have definitions to unfold");
     const to = as ? folds(sub).find(f => f[0] === as) : unfold(sub);
-    if (!to) throw new Error(as ? "that isn't the definition of " + as : "only ∧, ∨ and ⊤ unfold");
+    if (!to) throw new Error(as ? "that isn't the definition of " + as : "only ∧, ∨, ↔ and ⊤ unfold");
     return to;
   }
   /* work out what a step does without doing it: returns a function that applies it */
@@ -311,7 +331,7 @@
       }
       case "stamp": {
         const e = equation(game, c, st.m);
-        if (vars(e.l).size || vars(e.r).size) throw new Error("that machine needs inputs");
+        if (e.iff || vars(e.l).size || vars(e.r).size) throw new Error("that machine needs inputs");
         return () => c.bench.push({ s: eq(e.l, e.r), deps: [] });
       }
       case "make": {
@@ -325,10 +345,11 @@
         const goal = st.op === "rwg";
         if (goal && c.kids) throw new Error("this workshop is already split");
         const b = goal ? { s: c.goal, deps: [] } : block(st.b), e = equation(game, c, st.m);
-        if (!st.path || !st.path.length) throw new Error("pick a part of one side");
-        const sub = at(b.s, st.path);
+        if (!e.iff && (!st.path || !st.path.length)) throw new Error("pick a part of one side");
+        const sub = at(b.s, st.path || []);
         if (!sub) throw new Error("no such part");
-        if (isForm(sub)) throw new Error("equalities rewrite numbers, not whole statements");
+        if (!e.iff && isForm(sub)) throw new Error("equalities rewrite numbers, not whole statements");
+        if (e.iff && !isForm(sub)) throw new Error("a ↔ rewrites statements, not numbers");
         const [from, to] = st.dir === "rl" ? [e.r, e.l] : [e.l, e.r];
         let bind = match(from, sub, {}, e.slots);
         if (!bind) throw new Error("that machine doesn't fit there");
@@ -336,7 +357,7 @@
           if (!st.fill || st.fill[v] == null || st.fill[v] === "") throw new Error("that direction needs a term for " + v);
           bind = { ...bind, [v]: supplied(game, v, st.fill[v]) };
         }
-        const s = put(b.s, st.path, e.slots ? subst(to, bind) : to);
+        const s = put(b.s, st.path || [], e.slots ? subst(to, bind) : to);
         if (goal) return () => { c.goal = s; };
         return () => { c.bench[st.b] = { s, deps: union(b.deps, e.dep) }; };
       }
@@ -371,7 +392,8 @@
       case "assume": {
         if (!have("assume")) throw new Error("you don't have the Assume machine yet");
         if (c.kids) throw new Error("this workshop is already split");
-        const g = DEFS.includes(c.goal[0]) ? unfold(c.goal) : c.goal;
+        let g = c.goal;
+        while (DEFS.includes(g[0])) g = unfold(g);
         if (g[0] !== "→") throw new Error("Assume needs a goal of the form A → B");
         return () => { c.kids = { kind: "assume", list: [["a", child(g[2], [...c.hyps, g[1]], [...carry(c.bench), { s: g[1], deps: [c.hyps.length] }])]] }; };
       }
@@ -384,7 +406,7 @@
           let s;
           if (h) { s = c.hyps[+h[1]]; if (!s) throw new Error("no such hypothesis"); }
           else { s = block(st.b).s; used = st.b; }
-          if (DEFS.includes(s[0])) s = unfold(s);
+          while (DEFS.includes(s[0])) s = unfold(s);
           if (s[0] !== "→") throw new Error("Apply works backwards from a block of the form P → Q");
           if (!sameDef(s[2], c.goal)) throw new Error("that ends in " + show(s[2]) + ", not in the goal");
           goals = [s[1]];
@@ -432,6 +454,15 @@
         const n = ["→", c.goal, F];
         return () => { c.kids = { kind: "byc", list: [["x", child(F, [...c.hyps, n], [...carry(c.bench), { s: n, deps: [c.hyps.length] }])]] }; };
       }
+      case "cases": {
+        if (!have("cases")) throw new Error("you don't have the Cases machine yet");
+        const b = block(st.b), s = b.s[0] === "↔" ? unfold(b.s) : b.s;
+        if (s[0] === "∧") return () => { c.bench.splice(st.b, 1, { s: s[1], deps: b.deps }, { s: s[2], deps: b.deps }); };
+        if (s[0] !== "∨") throw new Error("Cases takes apart a block of the form P ∧ Q, P ∨ Q or P ↔ Q");
+        if (c.kids) throw new Error("this workshop is already split");
+        const rest = c.bench.filter((_, i) => i !== st.b), n = c.hyps.length;
+        return () => { c.kids = { kind: "cases", list: [1, 2].map(k => ["pq"[k - 1], child(c.goal, [...c.hyps, s[k]], [...carry(rest), { s: s[k], deps: [n] }])]) }; };
+      }
       case "qed": {
         if (c.kids) throw new Error("this workshop is split: finish its parts");
         if (c.closed) throw new Error("this workshop is already done");
@@ -454,7 +485,7 @@
     for (const st of steps) step(g, st);
     return g;
   }
-  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg", "byc"]);
+  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg", "byc", "cases"]);
   const WEIGHT = { byc: 2 };                                              // a convenience: it is two steps in one
   const count = steps => steps.reduce((n, s) => n + (COUNTED.has(s.op) ? WEIGHT[s.op] || 1 : 0), 0);
   /* close every open workshop that has its goal on the bench (tests, and step lists from before qed) */
@@ -510,16 +541,16 @@
       for (const t of to) add({ op: onGoal ? "unfoldg" : "unfold", at: where || "", ...(onGoal ? {} : { b }), path: path || [], ...(DEFS.includes(node[0]) ? {} : { as: t[0] }) },
         { name: DEFS.includes(node[0]) ? "unfold the definition" : "fold into " + t[0], from: node, to: t, free: true }, []);
     }
-    if (path && path.length) {
-      const sub = at(blk.s, path);
-      if (!sub || isForm(sub)) return out;
-      const isEq = s => s && s[0] === "=";
-      const eqs = [...c.hyps.map((h, i) => ({ id: "h" + i, name: "given", stmt: h, hyp: true })), ...game.machines].filter(m => isEq(m.stmt));
-      for (const m of eqs) for (const dir of ["lr", "rl"]) {
+    // rewrites: equalities on a number part, biconditionals on a statement part (or on the whole block)
+    if (node) {
+      const kind = isForm(node) ? "↔" : "=";
+      const ms = [...c.hyps.map((h, i) => ({ id: "h" + i, name: "given", stmt: h, hyp: true })), ...game.machines].filter(m => m.stmt && !m.premises && m.stmt[0] === kind);
+      for (const m of ms) for (const dir of ["lr", "rl"]) {
         const [from, to] = dir === "lr" ? [m.stmt[1], m.stmt[2]] : [m.stmt[2], m.stmt[1]];
-        add(onGoal ? { op: "rwg", at: where || "", path, m: m.id, dir } : { op: "rw", at: where || "", b, path, m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) }, m.hyp ? [] : left(to, [from]));
+        add(onGoal ? { op: "rwg", at: where || "", path: path || [], m: m.id, dir } : { op: "rw", at: where || "", b, path: path || [], m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) }, m.hyp ? [] : left(to, [from]));
       }
-    } else if (!onGoal) for (const m of game.machines.filter(x => x.premises)) {
+    }
+    if (!(path && path.length) && !onGoal) for (const m of game.machines.filter(x => x.premises)) {
       const n = m.premises.length;
       const rest = c.bench.map((_, i) => i).filter(i => i !== b);
       const picks = n === 1 ? [[]] : n === 2 ? rest.map(i => [i]) : n === 3 ? rest.flatMap(i => rest.filter(j => j !== i).map(j => [i, j])) : [];
@@ -603,15 +634,16 @@
     return { ...st, ...(st.b != null ? { b: map[st.b] } : {}), ...(st.others ? { others: st.others.map(o => map[o]) } : {}) };
   }
 
-  /* numbers and truth under an assignment (numbers for small letters, booleans for capitals): the tests use this
-     to check that every block is true whenever its workshop's hypotheses are */
+  /* numbers (as BigInt, powers get large) and truth under an assignment (numbers for small letters, booleans for
+     capitals): the tests use this to check that every block is true whenever its workshop's hypotheses are */
   function value(t, env) {
     switch (t[0]) {
-      case "0": return 0;
-      case "v": return env[t[1]];
-      case "S": return value(t[1], env) + 1;
+      case "0": return 0n;
+      case "v": return BigInt(env[t[1]]);
+      case "S": return value(t[1], env) + 1n;
       case "+": return value(t[1], env) + value(t[2], env);
       case "*": return value(t[1], env) * value(t[2], env);
+      case "^": { const e = value(t[2], env); if (e > 64n) throw new Error("too big"); return value(t[1], env) ** e; }
     }
     throw new Error("not a number");
   }
@@ -620,6 +652,7 @@
     if (s[0] === "→") return !holds(s[1], env) || holds(s[2], env);
     if (s[0] === "∧") return holds(s[1], env) && holds(s[2], env);
     if (s[0] === "∨") return holds(s[1], env) || holds(s[2], env);
+    if (s[0] === "↔") return holds(s[1], env) === holds(s[2], env);
     if (s[0] === "⊥") return false;
     if (s[0] === "⊤") return true;
     if (isVar(s) && upper(s[1])) return !!env[s[1]];

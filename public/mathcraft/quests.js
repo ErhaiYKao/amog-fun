@@ -13,9 +13,11 @@
  *
  * Worlds branch (Pope Amog's choice): addition is the trunk; implication opens after Zero plus zero, equality
  * (Symmetry and Transitivity as implications between equations, airetho) after Identity, logic (and, or, false,
- * true) after the third implication quest, multiplication after Associativity, each started by buying its
- * machines. A world only sees machines from the worlds in SEES (logic sees implication, multiplication sees
- * addition, both number worlds see equality); bounties and the playground see everything. A world's quests need
+ * true) after the third implication quest, equivalence (↔ and the laws of logic, proved by rewriting) after Or
+ * commutes, multiplication after Associativity, powers after Associativity of ·, each started by buying its
+ * machines. A world only sees machines from the worlds in SEES (logic sees implication, equivalence sees logic,
+ * multiplication sees addition, powers see multiplication, the number worlds see equality); bounties and the
+ * playground see everything. A world's quests need
  * not sit together in QUESTS: the order of the list is what a quest may use (the finished quests before it), so
  * the equality quests sit before Zero on the left.
  *
@@ -43,15 +45,18 @@
     ["logic", thm("dne", "Double negation", "((P->false)->false)->P")],
     ["logic", { id: "apply", name: "Apply" }],
     ["logic", { id: "byc", name: "Contradiction" }],
+    ["iff", { id: "cases", name: "Cases" }],
     ["mul", L.machine({ id: "mul0", name: "Times zero", stmt: "a*0=0" })],
     ["mul", L.machine({ id: "mulS", name: "Times a successor", stmt: "a*S(b)=a*b+a" })],
+    ["pow", L.machine({ id: "pow0", name: "Power zero", stmt: "a^0=1" })],
+    ["pow", L.machine({ id: "powS", name: "Power of a successor", stmt: "a^S(b)=a^b*a" })],
   ].map(([w, m]) => ({ ...m, w }));
-  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["mul", "Multiplication"]];
-  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], mul: ["add", "mul", "eq"] };
+  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["iff", "Equivalence"], ["mul", "Multiplication"], ["pow", "Powers"]];
+  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], iff: ["prop", "logic", "iff"], mul: ["add", "mul", "eq"], pow: ["add", "mul", "eq", "pow"] };
   /* does a quest in `world` see things from world w? (no world = bounties and the playground: everything) */
   const sees = (world, w) => !world || w === "any" || SEES[world].includes(w);
   /* tactics open workshops instead of stating something */
-  const TACTICS = ["induct", "assume", "apply", "have", "byc"];
+  const TACTICS = ["induct", "assume", "apply", "have", "byc", "cases"];
 
   const rw = (at, path, m, dir = "lr", fill) => ({ op: "rw", at, b: 0, path, m, dir, ...(fill ? { fill } : {}) });
   const refl = (at, t) => ({ op: "refl", at, t });
@@ -64,6 +69,9 @@
   const dup = (at, b) => ({ op: "dup", at, b });
   const applyB = (at, b) => ({ op: "apply", at, b });
   const applyR = (at, m, fill) => ({ op: "apply", at, m, ...(fill ? { fill } : {}) });
+  const unf = (at, path, as) => ({ op: "unfold", at, b: 0, path, ...(as ? { as } : {}) });
+  const cases = (at, b) => ({ op: "cases", at, b });
+  const both = (m, a, b) => [make("", m, a), make("", m, b), rule("", 0, "landi", [1])];   // each direction stamped, then And: make
 
   const QUESTS = [
     {
@@ -260,6 +268,87 @@
       proof: [assume(""), applyR("a", "dne"), assume("a1"), dup("a1a", 1), applyB("a1a", 1), applyB("a1a1", 0), assume("a1a11"), mp("a1a11a", 0, 1), rule("a1a11a", 0, "lefq", [], { P: "Q" })],
     },
 
+    /* ---- equivalence (airetho): A ↔ B is (A → B) ∧ (B → A), and a proved ↔ rewrites statements the way an equation
+       rewrites numbers. The laws of logic, most of them crafted by rewriting instead of by assuming. ---- */
+    {
+      id: "ir", world: "iff", after: ["lo"], name: "If and only if", pay: 2, goal: "P<->P", guide: true,
+      intro: "$P \\leftrightarrow Q$, \"$P$ if and only if $Q$\", is short for $(P \\to Q) \\land (Q \\to P)$: each gives the other. The $\\land$ machines see through it, so a $\\leftrightarrow$ is crafted like an $\\land$: one workshop for each direction. Once crafted, a $\\leftrightarrow$ is a machine with a lever, like an equation: it rewrites any part of a block that reads like one side into the other. This first one, $P \\leftrightarrow P$, is the refl of statements: stamp it with any statement to start from.",
+      hint: "Apply <i>And: make</i> to the goal. It leaves two workshops, both with the goal $P \\to P$: Assume in each.",
+      proof: [applyR("", "landi"), assume("1"), assume("2")],
+    },
+    {
+      id: "idn", world: "iff", name: "Double negation, both ways", pay: 2, goal: "not not P<->P",
+      intro: "You hold both directions already: the axiom <i>Double negation</i> and the theorem <i>Double negation in</i>. Stamp each and join them. The machine you get adds or removes $\\lnot\\lnot$ anywhere inside a block.",
+      hint: "Stamp <i>Double negation</i> and <i>Double negation in</i> (both with $P$), then feed the two blocks to <i>And: make</i>.",
+      proof: both("dne", { P: "P" }, { P: "P" }).map((st, k) => (k === 1 ? { ...st, m: "lnn" } : st)),
+    },
+    {
+      id: "idm", world: "iff", name: "De Morgan: not or", pay: 3, goal: "not (P|Q)<->not P&not Q", guide: true,
+      intro: "Now the new way of crafting: start from a block that says a statement is equivalent to itself, then rewrite one side until it is the goal. Translating is free, so the only real step is one rewrite.",
+      hint: "Stamp <i>If and only if</i> with $\\lnot(P \\lor Q)$. On the right side, unfold the $\\lor$: it reads $\\lnot(\\lnot P \\to Q)$. Turn that $Q$ into $\\lnot\\lnot Q$ with <i>Double negation, both ways</i> run backwards. What is left, $\\lnot(\\lnot P \\to \\lnot\\lnot Q)$, is $\\lnot P \\land \\lnot Q$ written out: the block is the goal (fold it with the Translator to see it).",
+      proof: [make("", "ir", { P: "not (P|Q)" }), unf("", [1, 0]), rw("", [1, 0, 1], "idn", "rl")],
+    },
+    {
+      id: "idm2", world: "iff", name: "De Morgan: not and", pay: 3, goal: "not (P&Q)<->not P|not Q",
+      intro: "The other De Morgan law, the same way.",
+      hint: "Stamp <i>If and only if</i> with $\\lnot(P \\land Q)$ and unfold the $\\land$ on the right: $\\lnot\\lnot(P \\to \\lnot Q)$. Remove that $\\lnot\\lnot$ and put one on the $P$ instead: $\\lnot\\lnot P \\to \\lnot Q$ is $\\lnot P \\lor \\lnot Q$ written out.",
+      proof: [make("", "ir", { P: "not (P&Q)" }), unf("", [1, 0]), rw("", [1], "idn"), rw("", [1, 0], "idn", "rl")],
+    },
+    {
+      id: "iac", world: "iff", name: "And commutes, both ways", pay: 2, goal: "P&Q<->Q&P",
+      intro: "<i>And commutes</i> is an implication, so it only works on a whole block. As a $\\leftrightarrow$ it swaps an $\\land$ anywhere inside one.",
+      hint: "Stamp <i>And commutes</i> twice, once with $P$ and $Q$ the other way round, and join them with <i>And: make</i>.",
+      proof: both("la", { P: "P", Q: "Q" }, { P: "Q", Q: "P" }),
+    },
+    {
+      id: "ioc", world: "iff", name: "Or commutes, both ways", pay: 2, goal: "P|Q<->Q|P",
+      intro: "And the same for $\\lor$.",
+      hint: "Stamp <i>Or commutes</i> twice and join them.",
+      proof: both("lo", { P: "P", Q: "Q" }, { P: "Q", Q: "P" }),
+    },
+    {
+      id: "icur", world: "iff", name: "Currying, both ways", pay: 2, goal: "(P&Q->R)<->(P->(Q->R))",
+      intro: "<i>Currying</i> and <i>Uncurrying</i> are the two directions of one equivalence. It is the machine that moves an $\\land$ in and out of an implication.",
+      hint: "Stamp <i>Currying</i> and <i>Uncurrying</i> and join them.",
+      proof: both("lc", { P: "P", Q: "Q", R: "R" }, { P: "P", Q: "Q", R: "R" }).map((st, k) => (k === 1 ? { ...st, m: "lu" } : st)),
+    },
+    {
+      id: "iaa", world: "iff", name: "And associates", pay: 4, goal: "(P&Q)&R<->P&(Q&R)",
+      intro: "Brackets in a chain of $\\land$ don't matter. You could take both sides apart block by block; Amog rewrites instead. Unfolded, an $\\land$ has an implication inside it, and <i>Currying, both ways</i> moves brackets there.",
+      hint: "Stamp <i>If and only if</i> with $(P \\land Q) \\land R$ and unfold the outer $\\land$ on the right: $\\lnot(P \\land Q \\to \\lnot R)$. Curry the inside to $P \\to (Q \\to \\lnot R)$, then uncurry its second half, $Q \\to \\lnot R$, to $\\lnot(Q \\land R)$. What is left, $\\lnot(P \\to \\lnot(Q \\land R))$, is $P \\land (Q \\land R)$ written out.",
+      proof: [make("", "ir", { P: "(P&Q)&R" }), unf("", [1]), rw("", [1, 0], "icur"), rw("", [1, 0, 1], "icur", "rl")],
+    },
+    {
+      id: "ioa", world: "iff", name: "Or associates", pay: 4, goal: "(P|Q)|R<->P|(Q|R)",
+      intro: "The same for $\\lor$, and shorter than it looks: unfolded, the two sides are a De Morgan law and a currying apart.",
+      hint: "Stamp <i>If and only if</i> with $(P \\lor Q) \\lor R$ and unfold the outer $\\lor$ on the right: $\\lnot(P \\lor Q) \\to R$. De Morgan makes that $\\lnot P \\land \\lnot Q \\to R$, currying makes it $\\lnot P \\to (\\lnot Q \\to R)$, and that is $P \\lor (Q \\lor R)$ written out.",
+      proof: [make("", "ir", { P: "(P|Q)|R" }), unf("", [1]), rw("", [1, 0], "idm"), rw("", [1], "icur")],
+    },
+    {
+      id: "iof", world: "iff", name: "Or with false", pay: 2, goal: "P|false<->P",
+      intro: "The simplification laws: $\\bot$ does nothing to an $\\lor$. Unfold $P \\lor \\bot$ in your head before you start.",
+      hint: "$P \\lor \\bot$ is short for $\\lnot P \\to \\bot$, which is $\\lnot\\lnot P$. So the goal is <i>Double negation, both ways</i> in disguise: stamp it.",
+      proof: [make("", "idn", { P: "P" })],
+    },
+    {
+      id: "iat", world: "iff", name: "And with true", pay: 3, goal: "P&true<->P",
+      intro: "And $\\top$ does nothing to an $\\land$. This one is crafted a direction at a time.",
+      hint: "Apply <i>And: make</i> to the goal. One direction is <i>And: left</i>, stamped. For the other, assume $P$, make $\\top$ (it is <i>Identity</i> stamped with $\\bot$) and join them.",
+      proof: [applyR("", "landi"), make("1", "landl", { P: "P", Q: "true" }), assume("2"), make("2a", "pid", { P: "false" }), rule("2a", 0, "landi", [1])],
+    },
+    {
+      id: "idist", world: "iff", name: "Distributivity", pay: 6, needs: ["cases"], goal: "P&(Q|R)<->(P&Q)|(P&R)",
+      intro: "The law that ties $\\land$ to $\\lor$, and the longest craft in logic. A new machine to buy: <b>Cases</b> takes a block apart. A block $P \\land Q$ becomes the two blocks $P$ and $Q$. A block $P \\lor Q$ splits the workshop in two: one where you hold $P$, one where you hold $Q$, with the same goal in both. No more unfolding into implications.",
+      hint: "Apply <i>And: make</i> for the two directions and Assume in each. Left to right: take $P \\land (Q \\lor R)$ apart, then the $\\lor$; in each case make the $\\land$ you can and put it into an $\\lor$ with <i>Or: from the left</i> or <i>from the right</i>. Right to left: take the $\\lor$ apart first, then the $\\land$ in each case.",
+      proof: [applyR("", "landi"),
+        assume("1"), cases("1a", 0), cases("1a", 1),
+        rule("1ap", 0, "landi", [1]), rule("1ap", 0, "le", [], { Q: "P&R" }),
+        rule("1aq", 0, "landi", [1]), rule("1aq", 0, "lre", [], { P: "P&Q" }),
+        assume("2"), cases("2a", 0),
+        cases("2ap", 0), rule("2ap", 1, "le", [], { Q: "R" }), rule("2ap", 0, "landi", [1]),
+        cases("2aq", 0), rule("2aq", 1, "lre", [], { P: "Q" }), rule("2aq", 0, "landi", [1])],
+    },
+
     /* ---- multiplication: two more axioms, on top of all of addition ---- */
     {
       id: "mz", world: "mul", after: ["assoc"], name: "Zero times", pay: 3, needs: ["mul0", "mulS"], goal: "0*a=0",
@@ -301,6 +390,43 @@
         refl("b", "(a*b)*0"), rw("b", [1], "mul0"), rw("b", [1], "mul0", "rl", { a: "a" }), rw("b", [1, 1], "mul0", "rl", { a: "b" }),
         refl("s", "(a*b)*S(c)"), rw("s", [1], "mulS"), rw("s", [1, 0], "h0"), rw("s", [1], "mdist", "rl"), rw("s", [1, 1], "mulS", "rl")],
     },
+
+    /* ---- powers: two more axioms, on top of multiplication ---- */
+    {
+      id: "t1", world: "pow", after: ["massoc"], name: "Times one", pay: 2, goal: "a*1=a",
+      intro: "Powers are repeated multiplication, and the empty product is $1$, so $1$ had better do nothing. A warm-up with the machines you have: $1$ is $S(0)$.",
+      hint: "Start from $a \\cdot S(0)$: <i>Times a successor</i>, then <i>Times zero</i>, then <i>Zero on the left</i>.",
+      proof: [refl("", "a*1"), rw("", [1], "mulS"), rw("", [1, 0], "mul0"), rw("", [1], "zadd")],
+    },
+    {
+      id: "pone", world: "pow", name: "First power", pay: 3, needs: ["pow0", "powS"], goal: "a^1=a",
+      intro: "Two more axioms to buy: $a^0 = 1$ and $a^{S(b)} = a^b \\cdot a$. Type a power as a^b.",
+      hint: "$a^{S(0)}$ is $a^0 \\cdot a$, which is $S(0) \\cdot a$. Swap it round and <i>Times one</i> finishes.",
+      proof: [refl("", "a^1"), rw("", [1], "powS"), rw("", [1, 0], "pow0"), rw("", [1], "mcomm"), rw("", [1], "t1")],
+    },
+    {
+      id: "p1", world: "pow", name: "One to any power", pay: 3, goal: "1^a=1",
+      intro: "The exponent is the number that counts, so that is the one to induct on.",
+      hint: "Induct on $a$. In the step, $S(0)^{S(a)}$ is $S(0)^a \\cdot S(0)$: <i>Times one</i>, then the induction hypothesis.",
+      proof: [induct("a"), refl("b", "1^0"), rw("b", [1], "pow0"),
+        refl("s", "1^S(a)"), rw("s", [1], "powS"), rw("s", [1], "t1"), rw("s", [1], "h0")],
+    },
+    {
+      id: "padd", world: "pow", name: "Adding exponents", pay: 5, goal: "a^(b+c)=a^b*a^c",
+      intro: "The law everyone remembers: multiplying powers adds the exponents.",
+      hint: "Induct on $c$. Base: $a^{b+0}$ is $a^b$, and <i>Times one</i> run backwards turns that into $a^b \\cdot S(0)$. Step: <i>Adding a successor</i> in the exponent, then <i>Power of a successor</i>, the induction hypothesis and associativity of $\\cdot$.",
+      proof: [induct("c"),
+        refl("b", "a^(b+0)"), rw("b", [1, 1], "add0"), rw("b", [1], "t1", "rl"), rw("b", [1, 1], "pow0", "rl", { a: "a" }),
+        refl("s", "a^(b+S(c))"), rw("s", [1, 1], "addS"), rw("s", [1], "powS"), rw("s", [1, 0], "h0"), rw("s", [1], "massoc"), rw("s", [1, 1], "powS", "rl")],
+    },
+    {
+      id: "ppow", world: "pow", name: "Power of a power", pay: 5, goal: "(a^b)^c=a^(b*c)",
+      intro: "The last one for powers: a power of a power multiplies the exponents.",
+      hint: "Induct on $c$. The step ends with <i>Adding exponents</i> run backwards, then <i>Times a successor</i> run backwards in the exponent.",
+      proof: [induct("c"),
+        refl("b", "(a^b)^0"), rw("b", [1], "pow0"), rw("b", [1], "pow0", "rl", { a: "a" }), rw("b", [1, 1], "mul0", "rl", { a: "b" }),
+        refl("s", "(a^b)^S(c)"), rw("s", [1], "powS"), rw("s", [1, 0], "h0"), rw("s", [1], "padd", "rl"), rw("s", [1, 1], "mulS", "rl")],
+    },
   ].map(q => ({ world: "add", ...q }));
 
   /* optional theorems that pay once; they use every quest finished so far */
@@ -318,6 +444,27 @@
     { id: "ln", name: "Triple negation", goal: "(((P->false)->false)->false)->(P->false)", pay: 4, worlds: ["prop"],
       intro: "$\\lnot\\lnot\\lnot P \\to \\lnot P$, with implication only: no Double negation axiom and nothing from logic.",
       proof: [assume(""), assume("a"), rule("aa", 1, "pmp", [], { Q: "false" }), mp("aa", 0, 1)] },
+    { id: "bdbl", name: "Doubling", goal: "a*2=a+a", pay: 3,
+      proof: [refl("", "a*2"), rw("", [1], "mulS"), rw("", [1, 0], "mulS"), rw("", [1, 0, 0], "mul0"), rw("", [1, 0], "zadd")] },
+    { id: "b2x2", name: "Two times two", goal: "2*2=4", pay: 3,
+      proof: [refl("", "2*2"), rw("", [1], "mulS"), rw("", [1, 0], "mulS"), rw("", [1, 0, 0], "mul0"), rw("", [1, 0], "zadd"), rw("", [1], "addS"), rw("", [1, 0], "addS"), rw("", [1, 0, 0], "add0")] },
+    { id: "brd", name: "Distributing from the right", goal: "(a+b)*c=a*c+b*c", pay: 3,
+      proof: [refl("", "(a+b)*c"), rw("", [1], "mcomm"), rw("", [1], "mdist"), rw("", [1, 0], "mcomm"), rw("", [1, 1], "mcomm")] },
+    { id: "bz", name: "Zero to a power", goal: "0^S(a)=0", pay: 2,
+      proof: [refl("", "0^S(a)"), rw("", [1], "powS"), rw("", [1], "mul0")] },
+    { id: "bsq", name: "Squaring", goal: "a^2=a*a", pay: 2,
+      proof: [refl("", "a^2"), rw("", [1], "powS"), rw("", [1, 0], "pone")] },
+    { id: "beq", name: "Symmetry, both ways", goal: "a=b<->b=a", pay: 2,
+      intro: "A $\\leftrightarrow$ between equations rewrites an equation inside a block.",
+      proof: both("sym", { a: "a", b: "b" }, { a: "b", b: "a" }) },
+    { id: "bimp", name: "Implication as or", goal: "(P->Q)<->(not P|Q)", pay: 3,
+      proof: [make("", "ir", { P: "P->Q" }), rw("", [1, 0], "idn", "rl")] },
+    { id: "bcontra", name: "A contradiction is false", goal: "P&not P<->false", pay: 3,
+      proof: [applyR("", "landi"), assume("1"), cases("1a", 0), mp("1a", 1, 0), make("2", "lefq", { P: "P&not P" })] },
+    { id: "bdist", name: "The other distributivity", goal: "P|(Q&R)<->(P|Q)&(P|R)", pay: 5,
+      intro: "$\\lor$ distributes over $\\land$ too. No cases needed: it is <i>Distributivity</i> seen through De Morgan's laws.",
+      proof: [make("", "ir", { P: "P|(Q&R)" }), rw("", [1], "idn", "rl"), rw("", [1, 0], "idm"), rw("", [1, 0, 1], "idm2"), rw("", [1, 0], "idist"),
+        rw("", [1, 0, 0], "idm", "rl"), rw("", [1, 0, 1], "idm", "rl"), rw("", [1, 0], "idm2", "rl"), rw("", [1], "idn")] },
   ].map(b => ({ ...b, bounty: true }));
 
   /* a workshop finishes only when the player says so (a qed step, free): add those to the reference proofs */
@@ -337,8 +484,11 @@
     { id: "dne", gate: true, price: 3, after: ["lnn"] },
     { id: "apply", gate: true, price: 3, after: ["landi"] },
     { id: "byc", gate: true, extra: true, price: 2, after: ["landr"] },
+    { id: "cases", gate: true, price: 3, after: ["iat"] },
     { id: "mul0", gate: true, price: 2, after: ["assoc"] },
     { id: "mulS", gate: true, price: 3, after: ["assoc"] },
+    { id: "pow0", gate: true, price: 2, after: ["t1"] },
+    { id: "powS", gate: true, price: 3, after: ["t1"] },
     { id: "autofill", name: "Autofill", price: 2, text: "refl offers the two sides of the goal, and Induction offers the letters, so you type less." },
     { id: "press", name: "Block press", price: 2, text: "Any equality machine can stamp its own statement onto the bench, with the slots filled in as you like." },
     { id: "quick", name: "Goal buttons", price: 2, text: "When the goal reads t = t, a refl button on it crafts that block and uses it. When the goal is an implication, an assume button runs Assume. One tap instead of opening the machine." },
@@ -370,25 +520,31 @@
   /* what the machines a quest still needs would cost */
   const missing = (q, owned) => (q.needs || []).filter(id => !owned.has(id)).reduce((a, id) => a + price(id), 0);
   /* Can every quest still be finished from here, even with no bonuses and no bounties? prog = quests finished per
-     world, mask = gates owned, bal = ∎ in hand. Upgrades only ever cost, so they don't appear. */
+     world, mask = gates owned, bal = ∎ in hand. Upgrades only ever cost, so they don't appear. Finishing a quest
+     never hurts (it pays, and only ever opens things), so every quest that can be done is done first; what is
+     left to search is the order of purchases. */
   const CHAINS = WORLDS.map(w => QUESTS.filter(q => q.world === w[0]));
   const GATE_IDS = SHOP.filter(x => x.gate).map(x => x.id);
+  const NEEDED = new Set(QUESTS.flatMap(q => q.needs || []));
   const memo = new Map();
   function alive(prog, mask, bal) {
+    prog = prog.slice();
+    const done = {}, owns = id => mask >> GATE_IDS.indexOf(id) & 1;
+    CHAINS.forEach((qs, w) => qs.slice(0, prog[w]).forEach(q => { done[q.id] = 1; }));
+    for (let moved = true; moved;) {
+      moved = false;
+      CHAINS.forEach((qs, w) => {
+        const q = qs[prog[w]];
+        if (q && isOpen(q, done) && (q.needs || []).every(owns)) { done[q.id] = 1; prog[w]++; bal += q.pay; moved = true; }
+      });
+    }
     if (CHAINS.every((qs, w) => prog[w] >= qs.length)) return true;
     const key = prog.join(",") + "|" + mask + "|" + bal;
     if (memo.has(key)) return memo.get(key);
-    const done = {};
-    CHAINS.forEach((qs, w) => qs.slice(0, prog[w]).forEach(q => { done[q.id] = 1; }));
-    const owns = id => mask >> GATE_IDS.indexOf(id) & 1;
     let ok = false;
-    for (let w = 0; w < CHAINS.length && !ok; w++) {
-      const q = CHAINS[w][prog[w]];
-      if (q && isOpen(q, done) && (q.needs || []).every(owns)) ok = alive(prog.map((n, k) => n + (k === w)), mask, bal + q.pay);
-    }
     for (let k = 0; k < GATE_IDS.length && !ok; k++) {
       const id = GATE_IDS[k];
-      if (!(mask >> k & 1) && onSale(id, done) && price(id) <= bal) ok = alive(prog, mask | 1 << k, bal - price(id));
+      if (!(mask >> k & 1) && NEEDED.has(id) && onSale(id, done) && price(id) <= bal) ok = alive(prog, mask | 1 << k, bal - price(id));
     }
     memo.set(key, ok);
     return ok;
