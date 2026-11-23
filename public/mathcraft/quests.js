@@ -1,13 +1,17 @@
 /* Mathcraft quests (#33): the shop machines, the quest worlds and Amog's reference proof of each quest.
  * Needs logic.js first. Pure (page and Node).
  *
- * A quest: { id, world, name, goal, given?, takes?, pay, needs?, after?, intro, hint, proof, guide? }. Finishing it adds its
+ * A quest: { id, world, name, goal, given?, takes?, pay, needs?, after?, intro, hint, proof, guide?, amog?, short? }. Finishing it adds its
  * theorem to the library as a machine (a rule if it has `given` premises); a quest may only use the shop machines
  * owned and the finished quests listed before it (machinesFor), so nothing is ever circular. `proof` is a list of
  * engine steps (see logic.js); its length is the par shown to the player, and the tests replay it, so every quest
  * is known to be provable. A quest opens when every quest in `after` is finished (default: the one before it in its
  * world), `needs` lists the shop machines its proof uses, and `guide` makes the page point at each next step
  * without being asked (the first use of a mechanic; everywhere else the hint button does it on request).
+ * Amog's proof is the natural one, not always the shortest (airetho): where a trick is shorter, `short` holds it,
+ * { proof, hint }; the page shows the hint as Amog's once the quest is done and the step count once the player
+ * ties or beats Amog. `amog` is a spelled-out hint for Amog's own proof, also shown once the quest is done, so
+ * `hint` can stay a nudge.
  * `takes` is how many arrows of an implication are hypotheses of its rule (logic.js questMachine): read the goal as
  * a theorem, "from these, that", so Chain is "P → Q, Q → R give P → R" rather than a disguised modus ponens.
  *
@@ -45,7 +49,7 @@
     ["logic", thm("dne", "Double negation", "((P->false)->false)->P")],
     ["logic", { id: "apply", name: "Apply" }],
     ["logic", { id: "byc", name: "Contradiction" }],
-    ["iff", { id: "cases", name: "Cases" }],
+    ["logic", { id: "cases", name: "Cases" }],
     ["mul", L.machine({ id: "mul0", name: "Times zero", stmt: "a*0=0" })],
     ["mul", L.machine({ id: "mulS", name: "Times a successor", stmt: "a*S(b)=a*b+a" })],
     ["pow", L.machine({ id: "pow0", name: "Power zero", stmt: "a^0=1" })],
@@ -71,6 +75,7 @@
   const applyR = (at, m, fill) => ({ op: "apply", at, m, ...(fill ? { fill } : {}) });
   const unf = (at, path, as) => ({ op: "unfold", at, b: 0, path, ...(as ? { as } : {}) });
   const cases = (at, b) => ({ op: "cases", at, b });
+  const byc = at => ({ op: "byc", at });
   const both = (m, a, b) => [make("", m, a), make("", m, b), rule("", 0, "landi", [1])];   // each direction stamped, then And: make
 
   const QUESTS = [
@@ -183,6 +188,13 @@
       proof: [assume(""), rule("a", 0, "pk", [], { Q: "P->false" }), rule("a", 0, "dne")],
     },
     {
+      id: "lcp", takes: 1, world: "logic", name: "Contrapositive", pay: 3, goal: "(P->Q)->((Q->false)->(P->false))",
+      intro: "If $P$ gives $Q$, then not $Q$ gives not $P$. Once crafted it is a rule: it turns a block $P \\to Q$ into $\\lnot Q \\to \\lnot P$.",
+      hint: "Assume three times: you hold $P \\to Q$, $\\lnot Q$ and $P$. Modus ponens twice.",
+      proof: [assume(""), assume("a"), assume("aa"), mp("aaa", 0, 2), mp("aaa", 1, 0)],
+      short: { hint: "stamping a theorem from Implication with $\\bot$ in one of its slots", proof: [make("", "pchain", { P: "P", Q: "Q", R: "false" })] },
+    },
+    {
       id: "le", world: "logic", name: "Or: from the left", pay: 3, goal: "P->P|Q",
       intro: "$P \\lor Q$ is short for $\\lnot P \\to Q$: if it isn't $P$, it's $Q$. A block or goal with $\\lor$ behaves like its definition wherever an implication is wanted, so Assume works on $P \\lor Q$ straight away. The other way round needs translating: tap a part of a block with the Scanner (or open the <i>Translator</i>) to fold or unfold a definition, for free.",
       hint: "Assume twice: you hold $P$ and $\\lnot P$. That's $\\bot$, and $\\bot$ gives anything.",
@@ -190,9 +202,10 @@
     },
     {
       id: "lre", world: "logic", name: "Or: from the right", pay: 2, goal: "Q->P|Q",
-      intro: "The other half. Unfolded, $Q \\to P \\lor Q$ is $Q \\to (\\lnot P \\to Q)$, and you may have seen that before.",
-      hint: "Assume twice, or stamp a theorem you already have with the right slots.",
-      proof: [make("", "pk", { P: "Q", Q: "P->false" })],
+      intro: "The other half.",
+      hint: "Assume twice: you hold $Q$, and the goal is $Q$.",
+      proof: [assume(""), assume("a")],
+      short: { hint: "unfolding the goal and stamping a theorem you already have", proof: [make("", "pk", { P: "Q", Q: "P->false" })] },
     },
     {
       id: "landi", takes: 2, world: "logic", name: "And: make", pay: 3, goal: "P->(Q->P&Q)",
@@ -213,16 +226,16 @@
       proof: [assume(""), applyR("a", "dne"), assume("a1"), applyB("a1a", 0), assume("a1a1")],
     },
     {
-      id: "lore", world: "logic", name: "Or: by cases", pay: 5, goal: "(P->R)->((Q->R)->(P|Q->R))",
-      intro: "If $P$ gives $R$ and $Q$ gives $R$, then $P \\lor Q$ gives $R$. The longest craft in logic. New on the floor: <b>Contradiction</b>. Applying Double negation and then assuming $\\lnot P$ is what you did in both $\\land$ proofs: that is proof by contradiction, and the tactic does both at once. It still counts as the two steps it is.",
-      hint: "Assume three times and apply Double negation, so you hold $\\lnot R$ and the goal is $\\bot$. Keep a copy of $\\lnot R$, then work backwards: $\\lnot R$, then $Q \\to R$, then $P \\lor Q$ leave the goal $\\lnot P$.",
-      proof: [assume(""), assume("a"), assume("aa"), applyR("aaa", "dne"), assume("aaa1"), dup("aaa1a", 3), applyB("aaa1a", 3), applyB("aaa1a1", 1), applyB("aaa1a11", 1), assume("aaa1a111"), mp("aaa1a111a", 0, 2), mp("aaa1a111a", 1, 0)],
+      id: "lore", world: "logic", name: "Or: by cases", pay: 5, needs: ["byc"], goal: "(P->R)->((Q->R)->(P|Q->R))",
+      intro: "If $P$ gives $R$ and $Q$ gives $R$, then $P \\lor Q$ gives $R$. The longest craft in logic, and a machine to buy for it: <b>Contradiction</b>. Applying Double negation and then assuming $\\lnot P$ is what you did in both $\\land$ proofs. That is proof by contradiction, and the tactic does it in one step: on a goal $P$ you get a workshop that holds $\\lnot P$, with the goal $\\bot$.",
+      hint: "Assume three times, then Contradiction: you hold $\\lnot R$ and the goal is $\\bot$. Keep a copy of $\\lnot R$, then work backwards: $\\lnot R$, then $Q \\to R$, then $P \\lor Q$ leave the goal $\\lnot P$.",
+      proof: [assume(""), assume("a"), assume("aa"), byc("aaa"), dup("aaax", 3), applyB("aaax", 3), applyB("aaax1", 1), applyB("aaax11", 1), assume("aaax111"), mp("aaax111a", 0, 2), mp("aaax111a", 1, 0)],
     },
     {
-      id: "la", world: "logic", name: "And commutes", pay: 3, goal: "P&Q->Q&P",
-      intro: "With the three $\\land$ machines crafted, this is just plumbing.",
-      hint: "Assume, copy the assumption, take $Q$ from one copy and $P$ from the other, then build $Q \\land P$. Amog takes a shortcut through <i>Swapping assumptions</i> and <i>Chain</i>.",
-      proof: [assume(""), make("a", "pswap", { P: "Q", Q: "P", R: "false" }), rule("a", 1, "pchain", [0])],
+      id: "la", world: "logic", name: "And commutes", pay: 3, needs: ["cases"], goal: "P&Q->Q&P",
+      intro: "You have earned the familiar way of using $\\land$ and $\\lor$. A machine to buy: <b>Cases</b> takes a block apart. A block $P \\land Q$ becomes the two blocks $P$ and $Q$ (that is <i>And: left</i> and <i>And: right</i> in one move). A block $P \\lor Q$ splits the workshop in two, one where you hold $P$ and one where you hold $Q$, with the same goal in both (that is <i>Or: by cases</i>).",
+      hint: "Assume, take the assumption apart with Cases, and feed $Q$ and $P$ to <i>And: make</i>, in that order.",
+      proof: [assume(""), cases("a", 0), rule("a", 1, "landi", [0])],
     },
     {
       id: "lc", takes: 1, world: "logic", name: "Currying", pay: 3, goal: "(P&Q->R)->(P->(Q->R))",
@@ -233,26 +246,28 @@
     {
       id: "lu", takes: 1, world: "logic", name: "Uncurrying", pay: 4, goal: "(P->(Q->R))->(P&Q->R)",
       intro: "And the other way round.",
-      hint: "Assume twice. Take $P \\land Q$ apart (you need it twice), then modus ponens twice.",
-      proof: [assume(""), assume("a"), dup("aa", 1), rule("aa", 1, "landl"), rule("aa", 2, "landr"), mp("aa", 0, 1), mp("aa", 0, 1)],
+      hint: "Assume twice. Take $P \\land Q$ apart, then modus ponens twice.",
+      proof: [assume(""), assume("a"), cases("aa", 1), mp("aa", 0, 1), mp("aa", 0, 1)],
     },
     {
       id: "lo", world: "logic", name: "Or commutes", pay: 4, goal: "P|Q->Q|P",
-      intro: "Unfolded, this is $(\\lnot P \\to Q) \\to (\\lnot Q \\to P)$.",
-      hint: "Assume twice, apply Double negation and assume $\\lnot P$. $P \\lor Q$ and $\\lnot P$ go into modus ponens as they are.",
-      proof: [assume(""), assume("a"), applyR("aa", "dne"), assume("aa1"), mp("aa1a", 0, 2), mp("aa1a", 1, 0)],
+      intro: "The first craft by cases: whichever of $P$ and $Q$ you hold, you can make $Q \\lor P$.",
+      hint: "Assume, then Cases on $P \\lor Q$. In each workshop one of the two <i>Or</i> machines finishes; it has to be told the other side.",
+      proof: [assume(""), cases("a", 0), rule("ap", 0, "lre", [], { P: "Q" }), rule("aq", 0, "le", [], { Q: "P" })],
     },
     {
       id: "lt", world: "logic", name: "True can be dropped", pay: 2, goal: "(true->P)->P",
       intro: "$\\top$, the statement that is simply true, is short for $\\bot \\to \\bot$.",
-      hint: "Assume, then apply the assumption to the goal. Amog does it without assuming: <i>Using an implication</i> works backwards too.",
-      proof: [make("", "pid", { P: "false" }), applyR("", "pmp")],
+      hint: "Assume. Make $\\top$: it is <i>Identity</i> stamped with $\\bot$, folded with the Translator. Then modus ponens.",
+      proof: [assume(""), make("a", "pid", { P: "false" }), { op: "unfold", at: "a", b: 1, path: [], as: "⊤" }, mp("a", 0, 1)],
+      short: { hint: "running <i>Using an implication</i> backwards on the goal", proof: [make("", "pid", { P: "false" }), applyR("", "pmp")] },
     },
     {
       id: "lk", takes: 1, world: "logic", name: "Modus tollens", pay: 4, goal: "(P->Q)&(Q->false)->(P->false)",
-      intro: "If $P$ implies $Q$ and $Q$ is false, then $P$ is false. Amog's proof is two steps long, and neither of them is Assume.",
-      hint: "Assume twice. Take the $\\land$ apart (you need it twice), get $Q$ from $P$, then $\\bot$.",
-      proof: [make("", "pchain", { P: "P", Q: "Q", R: "false" }), applyR("", "lu")],
+      intro: "If $P$ implies $Q$ and $Q$ is false, then $P$ is false.",
+      hint: "Assume and take the $\\land$ apart. The goal $\\lnot P$ is an implication too: assume $P$, then modus ponens twice.",
+      proof: [assume(""), cases("a", 0), assume("a"), mp("aa", 0, 2), mp("aa", 1, 0)],
+      short: { hint: "stamping <i>Chain</i> and working backwards with <i>Uncurrying</i>", proof: [make("", "pchain", { P: "P", Q: "Q", R: "false" }), applyR("", "lu")] },
     },
     {
       id: "lem", world: "logic", name: "Excluded middle", pay: 2, goal: "P|(P->false)",
@@ -264,8 +279,8 @@
     {
       id: "lpeirce", world: "logic", name: "Peirce's law", pay: 5, goal: "((P->Q)->P)->P",
       intro: "A law with no $\\lnot$ in it that still needs the classical axiom.",
-      hint: "Assume, apply Double negation, assume $\\lnot P$, keep a copy. Apply $\\lnot P$, then the assumption: the goal becomes $P \\to Q$.",
-      proof: [assume(""), applyR("a", "dne"), assume("a1"), dup("a1a", 1), applyB("a1a", 1), applyB("a1a1", 0), assume("a1a11"), mp("a1a11a", 0, 1), rule("a1a11a", 0, "lefq", [], { P: "Q" })],
+      hint: "Assume, then Contradiction: you hold $\\lnot P$ and the goal is $\\bot$. Keep a copy of $\\lnot P$. Apply $\\lnot P$, then the assumption: the goal becomes $P \\to Q$.",
+      proof: [assume(""), byc("a"), dup("ax", 1), applyB("ax", 1), applyB("ax1", 0), assume("ax11"), mp("ax11a", 0, 1), rule("ax11a", 0, "lefq", [], { P: "Q" })],
     },
 
     /* ---- equivalence (airetho): A ↔ B is (A → B) ∧ (B → A), and a proved ↔ rewrites statements the way an equation
@@ -273,61 +288,72 @@
     {
       id: "ir", world: "iff", after: ["lo"], name: "If and only if", pay: 2, goal: "P<->P", guide: true,
       intro: "$P \\leftrightarrow Q$, \"$P$ if and only if $Q$\", is short for $(P \\to Q) \\land (Q \\to P)$: each gives the other. The $\\land$ machines see through it, so a $\\leftrightarrow$ is crafted like an $\\land$: one workshop for each direction. Once crafted, a $\\leftrightarrow$ is a machine with a lever, like an equation: it rewrites any part of a block that reads like one side into the other. This first one, $P \\leftrightarrow P$, is the refl of statements: stamp it with any statement to start from.",
-      hint: "Apply <i>And: make</i> to the goal. It leaves two workshops, both with the goal $P \\to P$: Assume in each.",
-      proof: [applyR("", "landi"), assume("1"), assume("2")],
+      hint: "Each direction is $P \\to P$, and you have a theorem that says exactly that. A block made before a workshop splits comes along into every part.",
+      proof: [make("", "pid", { P: "P" }), applyR("", "landi")],
     },
     {
       id: "idn", world: "iff", name: "Double negation, both ways", pay: 2, goal: "not not P<->P",
       intro: "You hold both directions already: the axiom <i>Double negation</i> and the theorem <i>Double negation in</i>. Stamp each and join them. The machine you get adds or removes $\\lnot\\lnot$ anywhere inside a block.",
-      hint: "Stamp <i>Double negation</i> and <i>Double negation in</i> (both with $P$), then feed the two blocks to <i>And: make</i>.",
+      hint: "You have crafted each direction already, as two separate theorems.",
+      amog: "Stamp <i>Double negation</i> and <i>Double negation in</i> (both with $P$), then feed the two blocks to <i>And: make</i>.",
       proof: both("dne", { P: "P" }, { P: "P" }).map((st, k) => (k === 1 ? { ...st, m: "lnn" } : st)),
     },
     {
-      id: "idm", world: "iff", name: "De Morgan: not or", pay: 3, goal: "not (P|Q)<->not P&not Q", guide: true,
+      id: "idm", world: "iff", name: "De Morgan: not or", pay: 3, goal: "not (P|Q)<->not P&not Q",
       intro: "Now the new way of crafting: start from a block that says a statement is equivalent to itself, then rewrite one side until it is the goal. Translating is free, so the only real step is one rewrite.",
-      hint: "Stamp <i>If and only if</i> with $\\lnot(P \\lor Q)$. On the right side, unfold the $\\lor$: it reads $\\lnot(\\lnot P \\to Q)$. Turn that $Q$ into $\\lnot\\lnot Q$ with <i>Double negation, both ways</i> run backwards. What is left, $\\lnot(\\lnot P \\to \\lnot\\lnot Q)$, is $\\lnot P \\land \\lnot Q$ written out: the block is the goal (fold it with the Translator to see it).",
+      hint: "Start from a block that says $\\lnot(P \\lor Q)$ is equivalent to itself, and try unfolding the and/or statements. Written out, how do the two sides of the goal differ?",
+      amog: "Stamp <i>If and only if</i> with $\\lnot(P \\lor Q)$. On the right side, unfold the $\\lor$: it reads $\\lnot(\\lnot P \\to Q)$. Turn that $Q$ into $\\lnot\\lnot Q$ with <i>Double negation, both ways</i> run backwards. What is left, $\\lnot(\\lnot P \\to \\lnot\\lnot Q)$, is $\\lnot P \\land \\lnot Q$ written out: the block is the goal (fold it with the Translator to see it).",
       proof: [make("", "ir", { P: "not (P|Q)" }), unf("", [1, 0]), rw("", [1, 0, 1], "idn", "rl")],
     },
     {
       id: "idm2", world: "iff", name: "De Morgan: not and", pay: 3, goal: "not (P&Q)<->not P|not Q",
       intro: "The other De Morgan law, the same way.",
-      hint: "Stamp <i>If and only if</i> with $\\lnot(P \\land Q)$ and unfold the $\\land$ on the right: $\\lnot\\lnot(P \\to \\lnot Q)$. Remove that $\\lnot\\lnot$ and put one on the $P$ instead: $\\lnot\\lnot P \\to \\lnot Q$ is $\\lnot P \\lor \\lnot Q$ written out.",
+      hint: "The same idea as the first De Morgan law: unfold the $\\land$ and compare with the $\\lor$ written out.",
+      amog: "Stamp <i>If and only if</i> with $\\lnot(P \\land Q)$ and unfold the $\\land$ on the right: $\\lnot\\lnot(P \\to \\lnot Q)$. Remove that $\\lnot\\lnot$ and put one on the $P$ instead: $\\lnot\\lnot P \\to \\lnot Q$ is $\\lnot P \\lor \\lnot Q$ written out.",
       proof: [make("", "ir", { P: "not (P&Q)" }), unf("", [1, 0]), rw("", [1], "idn"), rw("", [1, 0], "idn", "rl")],
     },
     {
       id: "iac", world: "iff", name: "And commutes, both ways", pay: 2, goal: "P&Q<->Q&P",
       intro: "<i>And commutes</i> is an implication, so it only works on a whole block. As a $\\leftrightarrow$ it swaps an $\\land$ anywhere inside one.",
-      hint: "Stamp <i>And commutes</i> twice, once with $P$ and $Q$ the other way round, and join them with <i>And: make</i>.",
+      hint: "Each direction is a theorem you have, with the letters the other way round.",
+      amog: "Stamp <i>And commutes</i> twice, once with $P$ and $Q$ the other way round, and join them with <i>And: make</i>.",
       proof: both("la", { P: "P", Q: "Q" }, { P: "Q", Q: "P" }),
     },
     {
       id: "ioc", world: "iff", name: "Or commutes, both ways", pay: 2, goal: "P|Q<->Q|P",
       intro: "And the same for $\\lor$.",
-      hint: "Stamp <i>Or commutes</i> twice and join them.",
+      hint: "As for $\\land$.",
+      amog: "Stamp <i>Or commutes</i> twice and join them.",
       proof: both("lo", { P: "P", Q: "Q" }, { P: "Q", Q: "P" }),
     },
     {
       id: "icur", world: "iff", name: "Currying, both ways", pay: 2, goal: "(P&Q->R)<->(P->(Q->R))",
       intro: "<i>Currying</i> and <i>Uncurrying</i> are the two directions of one equivalence. It is the machine that moves an $\\land$ in and out of an implication.",
-      hint: "Stamp <i>Currying</i> and <i>Uncurrying</i> and join them.",
+      hint: "Two theorems you have are the two directions.",
+      amog: "Stamp <i>Currying</i> and <i>Uncurrying</i> and join them.",
       proof: both("lc", { P: "P", Q: "Q", R: "R" }, { P: "P", Q: "Q", R: "R" }).map((st, k) => (k === 1 ? { ...st, m: "lu" } : st)),
     },
     {
       id: "iaa", world: "iff", name: "And associates", pay: 4, goal: "(P&Q)&R<->P&(Q&R)",
-      intro: "Brackets in a chain of $\\land$ don't matter. You could take both sides apart block by block; Amog rewrites instead. Unfolded, an $\\land$ has an implication inside it, and <i>Currying, both ways</i> moves brackets there.",
-      hint: "Stamp <i>If and only if</i> with $(P \\land Q) \\land R$ and unfold the outer $\\land$ on the right: $\\lnot(P \\land Q \\to \\lnot R)$. Curry the inside to $P \\to (Q \\to \\lnot R)$, then uncurry its second half, $Q \\to \\lnot R$, to $\\lnot(Q \\land R)$. What is left, $\\lnot(P \\to \\lnot(Q \\land R))$, is $P \\land (Q \\land R)$ written out.",
-      proof: [make("", "ir", { P: "(P&Q)&R" }), unf("", [1]), rw("", [1, 0], "icur"), rw("", [1, 0, 1], "icur", "rl")],
+      intro: "Brackets in a chain of $\\land$ don't matter. Amog does this one the plain way: a workshop for each direction, everything taken apart with Cases and put back together.",
+      hint: "Apply <i>And: make</i> for the two directions and Assume in each. Cases twice gives you $P$, $Q$ and $R$ as three blocks; <i>And: make</i> twice builds the other bracketing.",
+      proof: [applyR("", "landi"),
+        assume("1"), cases("1a", 0), cases("1a", 0), rule("1a", 1, "landi", [2]), rule("1a", 0, "landi", [1]),
+        assume("2"), cases("2a", 0), cases("2a", 1), rule("2a", 0, "landi", [1]), rule("2a", 0, "landi", [1])],
+      short: { hint: "unfolding the outer $\\land$ on one side and currying inside it", proof: [make("", "ir", { P: "(P&Q)&R" }), unf("", [1]), rw("", [1, 0], "icur"), rw("", [1, 0, 1], "icur", "rl")] },
     },
     {
       id: "ioa", world: "iff", name: "Or associates", pay: 4, goal: "(P|Q)|R<->P|(Q|R)",
       intro: "The same for $\\lor$, and shorter than it looks: unfolded, the two sides are a De Morgan law and a currying apart.",
-      hint: "Stamp <i>If and only if</i> with $(P \\lor Q) \\lor R$ and unfold the outer $\\lor$ on the right: $\\lnot(P \\lor Q) \\to R$. De Morgan makes that $\\lnot P \\land \\lnot Q \\to R$, currying makes it $\\lnot P \\to (\\lnot Q \\to R)$, and that is $P \\lor (Q \\lor R)$ written out.",
+      hint: "Stamp <i>If and only if</i> and unfold the outer $\\lor$ on one side. Two machines from this world turn what you see into the other side written out.",
+      amog: "Stamp <i>If and only if</i> with $(P \\lor Q) \\lor R$ and unfold the outer $\\lor$ on the right: $\\lnot(P \\lor Q) \\to R$. De Morgan makes that $\\lnot P \\land \\lnot Q \\to R$, currying makes it $\\lnot P \\to (\\lnot Q \\to R)$, and that is $P \\lor (Q \\lor R)$ written out.",
       proof: [make("", "ir", { P: "(P|Q)|R" }), unf("", [1]), rw("", [1, 0], "idm"), rw("", [1], "icur")],
     },
     {
       id: "iof", world: "iff", name: "Or with false", pay: 2, goal: "P|false<->P",
       intro: "The simplification laws: $\\bot$ does nothing to an $\\lor$. Unfold $P \\lor \\bot$ in your head before you start.",
-      hint: "$P \\lor \\bot$ is short for $\\lnot P \\to \\bot$, which is $\\lnot\\lnot P$. So the goal is <i>Double negation, both ways</i> in disguise: stamp it.",
+      hint: "Unfold $P \\lor \\bot$ in your head. What is it short for?",
+      amog: "$P \\lor \\bot$ is short for $\\lnot P \\to \\bot$, which is $\\lnot\\lnot P$. So the goal is <i>Double negation, both ways</i> in disguise: stamp it.",
       proof: [make("", "idn", { P: "P" })],
     },
     {
@@ -337,8 +363,8 @@
       proof: [applyR("", "landi"), make("1", "landl", { P: "P", Q: "true" }), assume("2"), make("2a", "pid", { P: "false" }), rule("2a", 0, "landi", [1])],
     },
     {
-      id: "idist", world: "iff", name: "Distributivity", pay: 6, needs: ["cases"], goal: "P&(Q|R)<->(P&Q)|(P&R)",
-      intro: "The law that ties $\\land$ to $\\lor$, and the longest craft in logic. A new machine to buy: <b>Cases</b> takes a block apart. A block $P \\land Q$ becomes the two blocks $P$ and $Q$. A block $P \\lor Q$ splits the workshop in two: one where you hold $P$, one where you hold $Q$, with the same goal in both. No more unfolding into implications.",
+      id: "idist", world: "iff", name: "Distributivity", pay: 6, goal: "P&(Q|R)<->(P&Q)|(P&R)",
+      intro: "The law that ties $\\land$ to $\\lor$, and the longest craft in logic. No unfolding into implications here: it is Cases all the way down.",
       hint: "Apply <i>And: make</i> for the two directions and Assume in each. Left to right: take $P \\land (Q \\lor R)$ apart, then the $\\lor$; in each case make the $\\land$ you can and put it into an $\\lor$ with <i>Or: from the left</i> or <i>from the right</i>. Right to left: take the $\\lor$ apart first, then the $\\land$ in each case.",
       proof: [applyR("", "landi"),
         assume("1"), cases("1a", 0), cases("1a", 1),
@@ -470,6 +496,7 @@
   /* a workshop finishes only when the player says so (a qed step, free): add those to the reference proofs */
   const EVERY = [...GATES, ...QUESTS.map(L.questMachine)];
   for (const q of [...QUESTS, ...BOUNTIES]) q.proof = L.withQed(q, EVERY, q.proof);
+  for (const q of QUESTS) if (q.short) q.short.proof = L.withQed(q, EVERY, q.short.proof);
   /* a bounty opens once the machines Amog's proof of it uses are there (airetho): shop machines owned, theorems crafted */
   for (const b of BOUNTIES) b.tools = [...new Set(b.proof.flatMap(s => [TACTICS.includes(s.op) ? s.op : null, s.m]).filter(m => m && !/^h\d+$/.test(m)))];
 
@@ -483,15 +510,15 @@
     { id: "have", gate: true, extra: true, price: 3, after: ["pmp"] },
     { id: "dne", gate: true, price: 3, after: ["lnn"] },
     { id: "apply", gate: true, price: 3, after: ["landi"] },
-    { id: "byc", gate: true, extra: true, price: 2, after: ["landr"] },
-    { id: "cases", gate: true, price: 3, after: ["iat"] },
+    { id: "byc", gate: true, price: 2, after: ["landr"] },
+    { id: "cases", gate: true, price: 3, after: ["lore"] },
     { id: "mul0", gate: true, price: 2, after: ["assoc"] },
     { id: "mulS", gate: true, price: 3, after: ["assoc"] },
     { id: "pow0", gate: true, price: 2, after: ["t1"] },
     { id: "powS", gate: true, price: 3, after: ["t1"] },
     { id: "autofill", name: "Autofill", price: 2, text: "refl offers the two sides of the goal, and Induction offers the letters, so you type less." },
     { id: "press", name: "Block press", price: 2, text: "Any equality machine can stamp its own statement onto the bench, with the slots filled in as you like." },
-    { id: "quick", name: "Goal buttons", price: 2, text: "When the goal reads t = t, a refl button on it crafts that block and uses it. When the goal is an implication, an assume button runs Assume. One tap instead of opening the machine." },
+    { id: "quick", name: "Goal buttons", price: 2, text: "When the goal reads t = t (or P ↔ P), a refl button on it crafts that block and uses it. When the goal is an implication or a ¬, an assume button runs Assume. One tap instead of opening the machine." },
     { id: "scanner", name: "Scanner", price: 4, text: "Tap a part of a block with no machine open to list every machine that fits it, and see where the open machine fits." },
     { id: "goalrw", name: "Goal lever", price: 4, after: ["assoc"], text: "Equality machines rewrite the goal too: with one open, tap a part of the goal. Craft towards the goal and the goal towards you." },
   ];
@@ -519,32 +546,27 @@
   const balance = (done, owned) => earned(done) - [...owned].reduce((a, id) => a + price(id), 0);
   /* what the machines a quest still needs would cost */
   const missing = (q, owned) => (q.needs || []).filter(id => !owned.has(id)).reduce((a, id) => a + price(id), 0);
-  /* Can every quest still be finished from here, even with no bonuses and no bounties? prog = quests finished per
-     world, mask = gates owned, bal = ∎ in hand. Upgrades only ever cost, so they don't appear. Finishing a quest
-     never hurts (it pays, and only ever opens things), so every quest that can be done is done first; what is
-     left to search is the order of purchases. */
-  const CHAINS = WORLDS.map(w => QUESTS.filter(q => q.world === w[0]));
+  /* Can every quest still be finished from here, even with no bonuses and no bounties? done = the quests finished,
+     mask = gates owned, bal = ∎ in hand. Upgrades only ever cost, so they don't appear. Finishing a quest never
+     hurts (it pays, and only ever opens things), so every quest that can be done is done first; what is left to
+     search is the order of purchases. */
   const GATE_IDS = SHOP.filter(x => x.gate).map(x => x.id);
   const NEEDED = new Set(QUESTS.flatMap(q => q.needs || []));
   const memo = new Map();
-  function alive(prog, mask, bal) {
-    prog = prog.slice();
-    const done = {}, owns = id => mask >> GATE_IDS.indexOf(id) & 1;
-    CHAINS.forEach((qs, w) => qs.slice(0, prog[w]).forEach(q => { done[q.id] = 1; }));
+  function alive(done, mask, bal) {
+    done = { ...done };
+    const owns = id => mask >> GATE_IDS.indexOf(id) & 1;
     for (let moved = true; moved;) {
       moved = false;
-      CHAINS.forEach((qs, w) => {
-        const q = qs[prog[w]];
-        if (q && isOpen(q, done) && (q.needs || []).every(owns)) { done[q.id] = 1; prog[w]++; bal += q.pay; moved = true; }
-      });
+      for (const q of QUESTS) if (!(q.id in done) && isOpen(q, done) && (q.needs || []).every(owns)) { done[q.id] = 1; bal += q.pay; moved = true; }
     }
-    if (CHAINS.every((qs, w) => prog[w] >= qs.length)) return true;
-    const key = prog.join(",") + "|" + mask + "|" + bal;
+    if (QUESTS.every(q => q.id in done)) return true;
+    const key = QUESTS.map(q => (q.id in done ? 1 : 0)).join("") + "|" + mask + "|" + bal;
     if (memo.has(key)) return memo.get(key);
     let ok = false;
     for (let k = 0; k < GATE_IDS.length && !ok; k++) {
       const id = GATE_IDS[k];
-      if (!(mask >> k & 1) && NEEDED.has(id) && onSale(id, done) && price(id) <= bal) ok = alive(prog, mask | 1 << k, bal - price(id));
+      if (!(mask >> k & 1) && NEEDED.has(id) && onSale(id, done) && price(id) <= bal) ok = alive(done, mask | 1 << k, bal - price(id));
     }
     memo.set(key, ok);
     return ok;
@@ -557,9 +579,10 @@
     if (owned.has(id)) return "you own it";
     if (!onSale(id, done)) return it.gate ? "not on sale yet" : "on sale once you've crafted " + it.after.map(a => QUESTS.find(q => q.id === a).name).join(" and ");
     if (have < it.price) return "you need ∎" + (it.price - have) + " more";
-    const prog = CHAINS.map(qs => qs.filter(q => q.id in done).length);
+    const fin = {};
+    for (const q of QUESTS) if (q.id in done) fin[q.id] = 1;
     const mask = GATE_IDS.reduce((m, g, k) => m | (owned.has(g) || g === id ? 1 << k : 0), 0);
-    if (!alive(prog, mask, have - it.price)) return "that would leave too little for the machines the quests ahead need";
+    if (!alive(fin, mask, have - it.price)) return "that would leave too little for the machines the quests ahead need";
     return "";
   }
 

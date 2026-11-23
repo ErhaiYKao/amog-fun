@@ -1,6 +1,9 @@
 /* Mathcraft proof engine (#33). Pure: no DOM, runs in the page and in Node.
  *
- * Terms are arrays. Numbers: ["0"], ["S", t], ["+", a, b], ["*", a, b], ["^", a, b], ["v", "a"] (lowercase letter).
+ * Terms are arrays. Numbers: ["0"], ["S", t], ["+", a, b], ["*", a, b], ["^", a, b], ["v", "a"] (lowercase letter),
+ * and numerals ["#", k] for k ≥ 1: a numeral is a definition, like ∨ (airetho): 1 is S(0), 2 is S(1). A typed 2 stays
+ * a 2 (a·1 = a reads as it should); a pattern S(b) sees through it, a pattern 1 never matches a plain S(0) until
+ * it is folded, and folding or unfolding one is a free `unfold` step.
  * Statements: ["=", l, r] between numbers; ["→", A, B], ["∧", A, B], ["∨", A, B], ["↔", A, B] between statements; ["⊥"] (false),
  * ["⊤"] (true); ["v", "P"] (capital letter). "not A" is A → ⊥ and has no node of its own: `show` (and the page)
  * just write A → ⊥ as ¬A, as notation (#33), so ¬(P → ¬Q) is how the definition of P ∧ Q reads.
@@ -54,7 +57,7 @@
  *                                             definition back into that connective
  *   { op: "unfoldg", at, path, as }           free: the same on the goal
  *   { op: "byc", at }                         proof by contradiction: a workshop "x" that holds ¬goal with goal ⊥
- *                                             (Apply Double negation + Assume in one go, so it counts as 2 steps)
+ *                                             (Apply Double negation + Assume in one go; one step, airetho)
  *   { op: "cases", at, b }                    take block b apart: P ∧ Q (or P ↔ Q) becomes two blocks; P ∨ Q splits
  *                                             the workshop in two with the same goal, "p" holding P and "q" Q
  *   { op: "qed", at, b }                      free: block b is the goal, so this workshop is done. Nothing finishes
@@ -80,13 +83,13 @@
   /* statements (as opposed to numbers) */
   const CONNECTIVES = "→∧∨↔";
   const isForm = t => t[0] === "=" || CONNECTIVES.includes(t[0]) || t[0] === "⊥" || t[0] === "⊤" || (isVar(t) && upper(t[1]));
-  const kids = t => (isVar(t) || t[0] === "0" ? [] : t.slice(1));
+  const kids = t => (isVar(t) || t[0] === "0" || t[0] === "#" ? [] : t.slice(1));
   /* ¬A, i.e. A → ⊥ */
   const neg = t => t[0] === "→" && t[2][0] === "⊥";
 
   function same(a, b) {
     if (a[0] !== b[0]) return false;
-    if (isVar(a)) return a[1] === b[1];
+    if (isVar(a) || a[0] === "#") return a[1] === b[1];
     for (let i = 1; i < a.length; i++) if (!same(a[i], b[i])) return false;
     return a.length === b.length;
   }
@@ -106,7 +109,7 @@
   }
   function subst(t, b) {
     if (isVar(t)) return Object.prototype.hasOwnProperty.call(b, t[1]) ? b[t[1]] : t;
-    if (t[0] === "0") return t;
+    if (t[0] === "0" || t[0] === "#") return t;
     return [t[0], ...kids(t).map(k => subst(k, b))];
   }
   /* match pattern against a term; with slots, pattern variables bind (consistently, numbers to lowercase and
@@ -114,6 +117,7 @@
   function match(pat, t, b, slots) {
     if (pat[0] === "→") while (DEFS.includes(t[0])) t = unfold(t);       // a definition is read as what it stands for
     else if (pat[0] === "∧" && t[0] === "↔") t = unfold(t);
+    else if (pat[0] === "S" && t[0] === "#") t = unfold(t);              // S(b) fits 2, with b = 1
     if (isVar(pat)) {
       if (!slots) return isVar(t) && t[1] === pat[1] ? b : null;
       if (upper(pat[1]) !== isForm(t)) return null;
@@ -128,6 +132,7 @@
   /* ---------- definitions ---------- */
   const DEFS = "∧∨⊤↔", F = ["⊥"], isF = t => t[0] === "⊥";
   function unfold(t) {
+    if (t[0] === "#") return S(t[1] > 1 ? ["#", t[1] - 1] : Z);
     if (t[0] === "↔") return ["∧", ["→", t[1], t[2]], ["→", t[2], t[1]]];
     if (t[0] === "∨") return ["→", ["→", t[1], F], t[2]];
     if (t[0] === "∧") return ["→", ["→", t[1], ["→", t[2], F]], F];
@@ -137,6 +142,7 @@
   /* the connectives a statement can be folded back into, as terms (¬¬A is both A ∨ ⊥ and nothing else) */
   function folds(t) {
     const out = [];
+    if (t[0] === "S" && (t[1][0] === "0" || (t[1][0] === "#" && t[1][1] < 20))) out.push(["#", t[1][0] === "0" ? 1 : t[1][1] + 1]);
     if (t[0] === "∧" && t[1][0] === "→" && t[2][0] === "→" && same(t[1][1], t[2][2]) && same(t[1][2], t[2][1])) out.push(["↔", t[1][1], t[1][2]]);
     if (t[0] !== "→") return out;
     const [a, b] = [t[1], t[2]];
@@ -148,7 +154,7 @@
   function expand(t) {
     const u = unfold(t);
     if (u) return expand(u);
-    return isVar(t) || t[0] === "0" ? t : [t[0], ...kids(t).map(expand)];
+    return isVar(t) || t[0] === "0" ? t : [t[0], ...kids(t).map(expand)];   // numerals unfold all the way to S(…S(0))
   }
   const sameDef = (a, b) => same(a, b) || same(expand(a), expand(b));
 
@@ -158,6 +164,7 @@
     if (neg(t)) return "¬" + wrap(t[1], "=" + CONNECTIVES);
     switch (t[0]) {
       case "0": return "0";
+      case "#": return String(t[1]);
       case "v": return t[1];
       case "S": return "S(" + show(t[1]) + ")";
       case "+": return wrap(t[1], "+") + "+" + wrap(t[2], "+");
@@ -192,8 +199,7 @@
         let j = i; while (/[0-9]/.test(s[j] || "")) j++;
         const n = +s.slice(i, j); i = j;
         if (n > 20) fail("numbers above 20 are a lot of S's; build them yourself");
-        let t = Z; for (let k = 0; k < n; k++) t = S(t);
-        return t;
+        return n ? ["#", n] : Z;
       }
       if (c === "⊥" || c === "⊤") { i++; return [c]; }
       if (c === "¬") { i++; const e = atom(); if (!isForm(e)) fail("not takes a statement"); return ["→", e, ["⊥"]]; }
@@ -307,9 +313,9 @@
 
   /* the definition of a statement part, or with `as` what it folds into */
   function translate(sub, as) {
-    if (!sub || !isForm(sub)) throw new Error("only statements have definitions to unfold");
+    if (!sub) throw new Error("no such part");
     const to = as ? folds(sub).find(f => f[0] === as) : unfold(sub);
-    if (!to) throw new Error(as ? "that isn't the definition of " + as : "only ∧, ∨, ↔ and ⊤ unfold");
+    if (!to) throw new Error(as ? "that isn't the definition of " + (as === "#" ? "a numeral" : as) : "only ∧, ∨, ↔, ⊤ and numerals unfold");
     return to;
   }
   /* work out what a step does without doing it: returns a function that applies it */
@@ -486,8 +492,7 @@
     return g;
   }
   const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg", "byc", "cases"]);
-  const WEIGHT = { byc: 2 };                                              // a convenience: it is two steps in one
-  const count = steps => steps.reduce((n, s) => n + (COUNTED.has(s.op) ? WEIGHT[s.op] || 1 : 0), 0);
+  const count = steps => steps.reduce((n, s) => n + (COUNTED.has(s.op) ? 1 : 0), 0);
   /* close every open workshop that has its goal on the bench (tests, and step lists from before qed) */
   function closeAll(game) {
     for (const { at: w, c } of shops(game)) if (!c.kids && !c.closed) {
@@ -536,10 +541,10 @@
     };
     const left = (to, from) => [...vars(to)].filter(v => !from.some(f => vars(f).has(v))).sort();
     const node = at(blk.s, path || []);
-    if (node && isForm(node)) {
-      const to = [unfold(node), ...folds(node)].filter(Boolean);
-      for (const t of to) add({ op: onGoal ? "unfoldg" : "unfold", at: where || "", ...(onGoal ? {} : { b }), path: path || [], ...(DEFS.includes(node[0]) ? {} : { as: t[0] }) },
-        { name: DEFS.includes(node[0]) ? "unfold the definition" : "fold into " + t[0], from: node, to: t, free: true }, []);
+    if (node) {
+      const def = unfold(node), to = [def, ...folds(node)].filter(Boolean);
+      for (const t of to) add({ op: onGoal ? "unfoldg" : "unfold", at: where || "", ...(onGoal ? {} : { b }), path: path || [], ...(t === def ? {} : { as: t[0] }) },
+        { name: t === def ? "unfold the definition" : "fold into " + (t[0] === "#" ? "a numeral" : t[0]), from: node, to: t, free: true }, []);
     }
     // rewrites: equalities on a number part, biconditionals on a statement part (or on the whole block)
     if (node) {
@@ -639,6 +644,7 @@
   function value(t, env) {
     switch (t[0]) {
       case "0": return 0n;
+      case "#": return BigInt(t[1]);
       case "v": return BigInt(env[t[1]]);
       case "S": return value(t[1], env) + 1n;
       case "+": return value(t[1], env) + value(t[2], env);

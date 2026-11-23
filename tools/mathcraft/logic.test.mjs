@@ -24,11 +24,12 @@ test("parse and show round-trip", () => {
   assert.equal(L.show(L.parse("P<->Q")), "P ↔ Q");
   assert.equal(L.show(L.parse("P -> Q iff not Q -> not P")), "(P → Q) ↔ (¬Q → ¬P)", "↔ binds loosest");
   assert.equal(L.show(L.parse("a^b^c")), "a^(b^c)", "^ groups to the right");
-  assert.equal(L.show(L.parse("2^2")), "S(S(0))^S(S(0))");
+  assert.equal(L.show(L.parse("2^2")), "2^2");
   assert.equal(L.show(L.parse("a+b+c")), "(a+b)+c");
   assert.equal(L.show(L.parse("a*b*c")), "(a·b)·c");
   assert.equal(L.show(L.parse("a+b*c")), "a+b·c");
-  assert.equal(L.show(L.parse("2+1")), "S(S(0))+S(0)");
+  assert.equal(L.show(L.parse("2+1")), "2+1", "a numeral stays a numeral");
+  assert.equal(L.show(L.parse("S(1)+0")), "S(1)+0");
   assert.equal(L.show(L.parse("P->Q->R")), "P → (Q → R)", "→ groups to the right");
   for (const bad of ["", "a+", "S a", "(a", "a)", "a=b=c", "21", "P+a", "S(P)", "P=Q", "a->b", "P->a", "a*P", "?", "P<->Q<->R", "a<->b", "P^a", "a^"]) assert.throws(() => L.parse(bad), bad);
 });
@@ -352,7 +353,7 @@ test("the goal can be scanned, translated and rewritten", () => {
   assert.equal(L.show(g.root.goal), "(¬P → Q) → (¬Q → P)");
   L.step(g, { op: "unfoldg", at: "", path: [0], as: "∨" });
   assert.equal(L.show(g.root.goal), "P ∨ Q → (¬Q → P)");
-  assert.throws(() => L.step(g, { op: "unfoldg", at: "", path: [0, 0] }), /only ∧, ∨, ↔ and ⊤ unfold/);
+  assert.throws(() => L.step(g, { op: "unfoldg", at: "", path: [0, 0] }), /only ∧, ∨, ↔, ⊤ and numerals unfold/);
   assert.equal(L.count(g.steps), 0);
   const r = L.start(Q.QUESTS[idx("comm")], everything());
   assert.ok(L.options(r, "", "g", [1]).some(x => x.step.op === "rwg" && x.step.m === "comm"), "rewrites on a part of the goal");
@@ -361,7 +362,7 @@ test("the goal can be scanned, translated and rewritten", () => {
   assert.deepEqual(L.options(r, "", "g", [1]), [], "a split workshop's goal is fixed");
 });
 
-test("Contradiction: assume the opposite, reach ⊥, two steps' worth", () => {
+test("Contradiction: assume the opposite, reach ⊥, in one step", () => {
   const g = L.start({ goal: "P&Q->P" }, everything());
   L.step(g, { op: "assume", at: "" });
   L.step(g, { op: "byc", at: "a" });
@@ -371,7 +372,7 @@ test("Contradiction: assume the opposite, reach ⊥, two steps' worth", () => {
   L.step(g, { op: "assume", at: "ax1" }); L.step(g, { op: "assume", at: "ax1a" });
   L.step(g, { op: "rule", at: "ax1aa", b: 0, m: "mp", others: [1] });
   assert.ok(L.closeAll(g).root.done);
-  assert.equal(L.count(g.steps), Q.par(Q.QUESTS[idx("landl")]), "the same count as Apply Double negation + Assume");
+  assert.equal(L.count(g.steps), Q.par(Q.QUESTS[idx("landl")]) - 1, "one step, where Apply Double negation + Assume is two (airetho)");
   const p = L.start({ goal: "((P->false)->false)->(P->false)" }, Q.playMachines(allDone(Q.QUESTS.length), undefined, ["prop", "any"]));
   assert.throws(() => L.step(p, { op: "byc", at: "" }), /don't have/);
   const noDne = L.start({ goal: "P" }, [{ id: "byc", name: "Contradiction" }]);
@@ -494,7 +495,57 @@ test("powers", () => {
   const g = L.start({ goal: "a^2=a*a" }, everything());
   L.step(g, { op: "refl", at: "", t: "a^2" });
   rw(g, [1], "powS"); rw(g, [1, 0], "powS"); rw(g, [1, 0, 0], "pow0");
-  assert.deepEqual(bench(g), ["a^S(S(0)) = (S(0)·a)·a"]);
+  assert.deepEqual(bench(g), ["a^2 = (1·a)·a"]);
+});
+
+test("numerals are definitions: 2 is S(1), seen through by S(…) patterns, folded and unfolded for free", () => {
+  const show = L.show;
+  assert.equal(show(L.unfold(L.parse("2"))), "S(1)");
+  assert.equal(show(L.unfold(L.parse("1"))), "S(0)");
+  assert.deepEqual(L.folds(L.parse("S(0)")).map(show), ["1"]);
+  assert.deepEqual(L.folds(L.parse("S(3)")).map(show), ["4"]);
+  assert.deepEqual(L.folds(L.parse("S(a)")), []);
+  assert.ok(L.sameDef(L.parse("2+2=4"), L.parse("S(S(0))+S(1)=S(S(S(S(0))))")) && !L.same(L.parse("1"), L.parse("S(0)")));
+  assert.equal(L.value(L.parse("3*2+1"), {}), 7n);
+  // a machine about S(b) takes a numeral; a machine about 1 doesn't take S(0) until it is folded
+  const g = L.start({ goal: "a*2=a+a" }, everything());
+  L.step(g, { op: "refl", at: "", t: "a*2" });
+  rw(g, [1], "mulS");
+  assert.deepEqual(bench(g), ["a·2 = a·1+a"]);
+  rw(g, [1, 0], "t1");
+  assert.deepEqual(bench(g), ["a·2 = a+a"], "Times one is about the numeral 1");
+  const h = L.start({ goal: "a*S(0)=a" }, everything());
+  L.step(h, { op: "refl", at: "", t: "a*S(0)" });
+  assert.throws(() => rw(h, [1], "t1"), /doesn't fit/);
+  assert.ok(L.options(h, "", 0, [1, 1]).some(o => o.free && o.step.as === "#" && show(o.result) === "a·S(0) = a·1"), "the scanner offers the fold");
+  L.step(h, { op: "unfold", at: "", b: 0, path: [1, 1], as: "#" });
+  rw(h, [1], "t1");
+  L.step(h, { op: "unfold", at: "", b: 0, path: [0, 1], as: "#" });
+  L.step(h, { op: "unfold", at: "", b: 0, path: [0, 1] });
+  assert.deepEqual(bench(h), ["a·S(0) = a"]);
+  assert.equal(L.count(h.steps), 2, "translating is free");
+  assert.ok(L.closeAll(h).root.done);
+  assert.throws(() => L.step(h, { op: "unfold", at: "", b: 0, path: [1] }), /numerals unfold/);
+});
+
+test("Amog's proof is the natural one; where a trick is shorter it is kept as the best known", () => {
+  const all = allDone(Q.QUESTS.length);
+  const shorts = Q.QUESTS.filter(q => q.short);
+  assert.deepEqual(shorts.map(q => q.id), ["lcp", "lre", "lt", "lk", "iaa"]);
+  for (const q of shorts) {
+    const g = L.replay(q, Q.machinesFor(idx(q.id), all), q.short.proof);
+    assert.ok(g.root.done && L.count(q.short.proof) < Q.par(q), q.id);
+    assert.ok(q.short.hint && !/[.]$/.test(q.short.hint), "the hint completes Amog's sentence");
+  }
+  for (const q of Q.QUESTS) assert.ok(q.hint && q.intro, q.id);
+  // the natural proofs use the one-step tactics, bought where they are introduced
+  assert.deepEqual(Q.QUESTS.find(q => q.id === "lore").needs, ["byc"]);
+  assert.deepEqual(Q.QUESTS.find(q => q.id === "la").needs, ["cases"]);
+  assert.ok(Q.onSale("cases", { lore: 1 }) && !Q.onSale("cases", { landr: 1 }) && Q.onSale("byc", { landr: 1 }));
+  // the shop look-ahead goes by the quests actually finished, not by how many (Contrapositive arrived mid-world)
+  const d = Object.fromEntries(Q.QUESTS.filter(q => q.id !== "lcp").map(q => [q.id, 99]));
+  const owned = new Set(Q.GATES.map(m => m.id).filter(id => id !== "have"));
+  assert.equal(Q.canBuy("have", d, owned), "", "one quest left and plenty of ∎");
 });
 
 test("a world only sees the machines of the worlds it builds on", () => {
@@ -606,7 +657,7 @@ test("the shop has no dead ends: whatever is bought, in any order, every quest c
 test("random play only ever makes true statements", () => {
   let seed = 12345;
   const rnd = n => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
-  const size = t => (t[0] === "v" || t[0] === "0" ? 1 : 1 + t.slice(1).reduce((a, k) => a + size(k), 0));
+  const size = t => (t[0] === "v" || t[0] === "0" || t[0] === "#" ? 1 : 1 + t.slice(1).reduce((a, k) => a + size(k), 0));
   const sides = t => (t[0] === "=" ? [t[1], t[2]] : t[0] === "→" ? [...sides(t[1]), ...sides(t[2])] : []);
   let checked = 0, conditional = 0;
   const items = [...Q.QUESTS.map((q, i) => [q, Q.machinesFor(i, allDone(i))]), [{ id: "mix", goal: "(a+b=b+a)->((P->Q)->(a*b=b*a))" }, everything()], [{ id: "mix2", goal: "(P&Q->R)->((P|Q)->((Q->P)->(R|false)))" }, everything()],
