@@ -79,16 +79,26 @@ test("the induction hypothesis is a fact about one number, not a machine", () =>
   assert.ok(!g.root.done);
 });
 
-test("induction is refused where it would be unsound", () => {
-  assert.throws(() => L.step(L.start({ goal: "b=a", given: ["a=b"] }, everything()), { op: "induct", at: "", v: "a" }), /can't vary/);
+test("induction is refused where it would be unsound, and takes what is held about its letter back into the goal", () => {
+  // holding a = b, a is not arbitrary: inducting on a proves a = b → b = a instead (airetho)
+  const h = L.start({ goal: "b=a", given: ["a=b"] }, everything());
+  L.step(h, { op: "hyp", at: "", i: 0 });
+  L.step(h, { op: "refl", at: "", t: "b" });
+  L.step(h, { op: "induct", at: "", v: "a" });
+  assert.equal(L.show(L.ctxAt(h, "b").goal), "0 = b → b = 0");
+  assert.deepEqual(L.ctxAt(h, "b").hyps, []);
+  assert.deepEqual(bench(h, "b"), ["b = b"], "the block made from a = b is put away, the general one stays");
+  assert.equal(L.show(L.ctxAt(h, "s").hyps[0]), "a = b → b = a");
   assert.throws(() => L.step(L.start(Q.QUESTS[idx("zadd")], Q.machinesFor(idx("zadd"), allDone(4), new Set(["add0", "addS"]))), { op: "induct", at: "", v: "a" }), /don't have/);
   const g = fresh(idx("comm"));
   assert.throws(() => L.step(g, { op: "induct", at: "", v: "z" }), /isn't in the goal/);
   assert.throws(() => L.step(g, { op: "induct", at: "", v: "" }), /small letter/);
   L.step(g, { op: "induct", at: "", v: "b" });
   assert.throws(() => L.step(g, { op: "induct", at: "", v: "a" }), /already split/);
-  // inside the step, the hypothesis mentions a and b, so neither can vary any more
-  assert.throws(() => L.step(g, { op: "induct", at: "s", v: "a" }), /can't vary/);
+  // inside the step, the hypothesis mentions a: inducting on a takes it back into the goal
+  L.step(g, { op: "induct", at: "s", v: "a" });
+  assert.equal(L.show(L.ctxAt(g, "ss").goal), "S(a)+b = b+S(a) → S(a)+S(b) = S(b)+S(a)");
+  assert.equal(L.ctxAt(g, "ss").hyps.length, 1);
   // the base case has no hypothesis: a nested induction on a is fine there
   L.step(g, { op: "induct", at: "b", v: "a" });
   assert.equal(L.show(L.ctxAt(g, "bs").goal), "S(a)+0 = 0+S(a)");
@@ -531,7 +541,7 @@ test("numerals are definitions: 2 is S(1), seen through by S(…) patterns, fold
 test("Amog's proof is the natural one; where a trick is shorter it is kept as the best known", () => {
   const all = allDone(Q.QUESTS.length);
   const shorts = Q.QUESTS.filter(q => q.short);
-  assert.deepEqual(shorts.filter(q => !/Block press/.test(q.short.hint)).map(q => q.id), ["lcp", "lre", "lt", "lk", "iaa"]);
+  assert.deepEqual(shorts.filter(q => !/Block press/.test(q.short.hint)).map(q => q.id), ["lnn", "lcp", "lre", "lk", "iaa", "sn10", "sn01", "snself"]);
   // stamping saves a step wherever refl is followed by one rewrite (airetho): those are best known, never the par
   assert.ok(["zz", "zadd", "comm", "assoc", "qex", "mz", "massoc", "p1", "ppow"].every(id => /Block press/.test(Q.QUESTS[idx(id)].short.hint)));
   assert.equal(L.count(Q.QUESTS[idx("p1")].short.proof), 5, "airetho's 1^a = 1 in five");
@@ -671,7 +681,7 @@ test("bounties are provable from the finished quests", () => {
   // a bounty is closed until the machines Amog's proof of it uses are there (airetho)
   const by = id => Q.BOUNTIES.find(b => b.id === id), d = ids => Object.fromEntries(ids.map(id => [id, 1]));
   assert.deepEqual(by("b11").tools.sort(), ["add0", "addS"]);
-  assert.deepEqual(by("ln").tools.sort(), ["assume", "mp", "pmp"]);
+  assert.deepEqual(by("ln").tools.sort(), ["assume", "mp", "pswap"]);
   assert.ok(Q.BOUNTIES.every(b => !Q.bountyOpen(b, {}, new Set())), "none at the start");
   assert.ok(!Q.bountyOpen(by("b11"), {}, new Set(["add0"])) && Q.bountyOpen(by("b11"), {}, new Set(["add0", "addS"])));
   assert.ok(!Q.bountyOpen(by("bswap"), d(["comm"]), new Set(["add0", "addS"])) && Q.bountyOpen(by("bswap"), d(["comm", "assoc"]), new Set()));
@@ -697,7 +707,7 @@ test("quests open in branches and machines go on sale when a quest needs them", 
   assert.deepEqual(open(done(["refl0", "zz", "pid"])), ["sym", "zadd", "pk"], "equality opens once Assume is known");
   assert.deepEqual(open(done(["refl0", "zz", "pid", "sym"])), ["trans", "zadd", "pk"]);
   assert.deepEqual(open(done(Q.QUESTS.filter(q => q.world === "add").map(q => q.id))), ["pid", "mz"]);
-  assert.deepEqual(open(done(["refl0", "zz", "pid", "pk", "pmp"])), ["sym", "zadd", "pchain", "lnn"], "four ways on");
+  assert.deepEqual(open(done(["refl0", "zz", "pid", "pk", "pchain"])), ["sym", "zadd", "pswap", "lnn"], "four ways on");
   const sale = d => Q.SHOP.filter(x => x.gate && Q.onSale(x.id, d)).map(x => x.id);
   assert.deepEqual(sale({}), []);
   assert.deepEqual(sale(done(["refl0"])), ["add0"]);
@@ -836,4 +846,26 @@ test("own lemmas are machines like a quest's theorem: an implication is a rule w
   const h = L.start({ id: "u3", goal: "P" }, [...everything(), lemma]);
   L.step(h, { op: "make", at: "", m: "u1", fill: { P: "P", Q: "P", R: "P" } });
   assert.equal(bench(h)[0], "(P ∧ P) ∧ P → P ∧ (P ∧ P)", "saves that stamped it still replay");
+});
+
+test("airetho's round: held implications are rules, a ↔ stamps one way, mp stamps, retired quests keep paying", () => {
+  // a held A → B takes a block A (the Scanner offers it) and what comes out depends on the hypothesis
+  const g = L.start({ id: "t", goal: "(a+c=b+c->a=b)->(a+c=b+c->a=b)" }, everything());
+  L.step(g, { op: "assume", at: "" }); L.step(g, { op: "assume", at: "a" });
+  const o = L.options(g, "aa", 1, []);
+  assert.ok(o.some(x => x.step.m === "h0" && L.show(x.result) === "a = b"), "modus ponens with what is held");
+  L.step(g, { op: "rule", at: "aa", b: 1, m: "h0", others: [] });
+  assert.deepEqual(L.ctxAt(g, "aa").bench[1].deps, [0, 1]);
+  assert.throws(() => L.step(g, { op: "rule", at: "aa", b: 0, m: "h0", others: [] }), /don't fit/, "no slots: only this a, b and c");
+  // a ↔ stamps either direction; anything else refuses `one`
+  const h = L.start({ id: "t2", goal: "P" }, everything());
+  L.step(h, { op: "make", at: "", m: "idn", fill: { P: "P" }, one: "rl" });
+  assert.equal(bench(h)[0], "P → ¬¬P");
+  assert.throws(() => L.step(h, { op: "make", at: "", m: "pk", fill: { P: "P", Q: "P" }, one: "lr" }), /only a ↔/);
+  L.step(h, { op: "make", at: "", m: "mp", fill: { P: "P", Q: "P" } });
+  assert.equal(bench(h)[1], "(P → P) → (P → P)", "modus ponens stamps as itself, curried");
+  // Using an implication is gone, and a save that finished it keeps its ∎
+  assert.ok(!Q.QUESTS.some(q => q.id === "pmp"));
+  assert.equal(Q.earned({ pmp: 3 }) - Q.earned({}), 3 + Q.PAR_BONUS);
+  for (const [up, olds] of Object.entries(Q.SUPERSEDES)) assert.ok(idx(up) > Math.max(...olds.filter(id => idx(id) >= 0).map(idx)), up + " comes after what it folds away");
 });

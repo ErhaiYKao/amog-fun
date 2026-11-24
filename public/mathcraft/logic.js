@@ -74,7 +74,10 @@
  *                                             by itself (airetho): the player says when. `withQed` adds these to
  *                                             step lists written before it existed.
  * New workshops start with a copy of the bench they split from (with 0 for v in an induction's base case): those
- * blocks hold for every value of v, since induction refuses a v that a hypothesis mentions.
+ * blocks hold for every value of v, since the facts held about v go back into the goal (`induct` puts each
+ * hypothesis that mentions v in front of the goal as A → …, and puts away the blocks made from them).
+ *   { op: "make", at, m, fill, one }         (one: "lr" / "rl") a ↔ machine stamps A → B / B → A instead of itself
+ *   held implications: a rule step with m "hN" uses hypothesis N, A → B, as a rule taking A (no slots)
  *   { op: "dup", at, b }                      a copy of block b next to it (a step: rules use blocks up)
  *   { op: "del", at, b }                      throw block b away, not counted as a step
  * A workshop is done once a qed step closes it, or when its sub-workshops are all done.
@@ -400,6 +403,12 @@
     if (m.premises && m.stmt[0] === "=") throw new Error(m.name + " is a rule, not an equality");
     return { s: m.stmt, slots: true, dep: [], name: m.name };
   }
+  /* a held implication A → B (hypothesis id "hN") is a rule too: it takes a block that says A and gives B, about
+     these particular numbers and statements (no slots); what it makes depends on the hypothesis (airetho) */
+  function heldRule(c, id) {
+    const h = /^h(\d+)$/.exec(id || ""), s = h && c.hyps[+h[1]];
+    return s && s[0] === "→" ? { id, name: "that fact", premises: [s[1]], concl: s[2], held: +h[1] } : null;
+  }
   /* ... as something that rewrites, { l, r, slots, dep, iff }: an equation (numbers) or a biconditional (statements) */
   function equation(game, c, id) {
     const e = statement(game, c, id);
@@ -464,7 +473,10 @@
         if (!e.slots) throw new Error("a given fact goes on the bench as it is");
         const fill = {};
         for (const v of vars(e.s)) fill[v] = suppliedFor(game, e.s, v, st.fill && st.fill[v]);
-        return () => c.bench.push({ s: subst(e.s, fill), deps: [] });
+        // a ↔ can also stamp one direction of itself (airetho), so it can stand in for the one-way theorems
+        if (st.one && e.s[0] !== "↔") throw new Error("only a ↔ stamps one way");
+        const s = !st.one ? e.s : st.one === "lr" ? ["→", e.s[1], e.s[2]] : ["→", e.s[2], e.s[1]];
+        return () => c.bench.push({ s: subst(s, fill), deps: [] });
       }
       case "rw": case "rwg": {
         const goal = st.op === "rwg";
@@ -490,14 +502,15 @@
         return () => { c.bench[st.b] = { s, deps: union(b.deps, e.dep) }; };
       }
       case "rule": {
-        const m = game.machines.find(x => x.id === st.m);
+        const m = heldRule(c, st.m) || game.machines.find(x => x.id === st.m);
         if (!m || !m.premises) throw new Error("you don't have that rule");
         const idx = [st.b, ...(st.others || [])];
         if (idx.length !== m.premises.length || new Set(idx).size !== idx.length) throw new Error(m.name + " needs " + m.premises.length + " different blocks");
         let bind = {}, deps = [];
-        idx.forEach((i, k) => { const b = block(i); bind = bind && match(m.premises[k], b.s, bind, true); deps = union(deps, b.deps); });
+        idx.forEach((i, k) => { const b = block(i); bind = bind && match(m.premises[k], b.s, bind, m.held == null); deps = union(deps, b.deps); });
+        if (m.held != null) deps = union(deps, [m.held]);
         if (!bind) throw new Error("those blocks don't fit " + m.name);
-        for (const v of vars(m.concl)) if (!(v in bind)) {
+        if (m.held == null) for (const v of vars(m.concl)) if (!(v in bind)) {   // a held fact has no slots: its letters are fixed
           if (!st.fill || st.fill[v] == null || st.fill[v] === "") throw new Error(m.name + " needs to be told what " + v + " is");
           bind = { ...bind, [v]: suppliedFor(game, m.concl, v, st.fill[v]) };
         }
@@ -508,13 +521,18 @@
         if (!have("induct")) throw new Error("you don't have the induction machine yet");
         if (c.kids) throw new Error("this workshop is already split");
         if (!st.v || upper(st.v)) throw new Error("induction runs over a number: give a small letter");
-        if (!vars(c.goal).has(st.v)) throw new Error(st.v + " isn't in the goal");
-        if (c.hyps.some(h => vars(h).has(st.v))) throw new Error("a hypothesis already says something about " + st.v + ", so it can't vary");
+        // what the workshop holds about v goes back into the goal first (airetho): holding a + c = b + c, inducting
+        // on c proves a + c = b + c → a = b for every c. Blocks made from those facts are put away with them.
+        const back = c.hyps.map((h, i) => i).filter(i => vars(c.hyps[i]).has(st.v));
+        const goal = back.reduceRight((g, i) => ["→", c.hyps[i], g], c.goal);
+        if (!vars(goal).has(st.v)) throw new Error(st.v + " isn't in the goal");
+        const keep = c.hyps.map((h, i) => i).filter(i => !back.includes(i)), hyps = keep.map(i => c.hyps[i]);
+        const bench = c.bench.filter(b => !b.deps.some(d => back.includes(d))).map(b => ({ s: b.s, deps: b.deps.map(d => keep.indexOf(d)) }));
         const v = V(st.v), zero = s => subst(s, { [st.v]: Z });
         return () => {
-          c.kids = { kind: "induct", v: st.v, list: [
-            ["b", child(zero(c.goal), c.hyps, carry(c.bench, zero))],
-            ["s", child(subst(c.goal, { [st.v]: S(v) }), [...c.hyps, c.goal], carry(c.bench))]] };
+          c.kids = { kind: "induct", v: st.v, back, list: [
+            ["b", child(zero(goal), hyps, carry(bench, zero))],
+            ["s", child(subst(goal, { [st.v]: S(v) }), [...hyps, goal], carry(bench))]] };
         };
       }
       case "assume": {
@@ -713,11 +731,11 @@
         add(onGoal ? { op: "rwg", at: where || "", path: path || [], m: m.id, dir } : { op: "rw", at: where || "", b, path: path || [], m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) }, m.hyp ? [] : left(to, [from]));
       }
     }
-    if (!(path && path.length) && !onGoal) for (const m of game.machines.filter(x => x.premises)) {
+    if (!(path && path.length) && !onGoal) for (const m of [...c.hyps.map((h, i) => heldRule(c, "h" + i)).filter(Boolean), ...game.machines.filter(x => x.premises)]) {
       const n = m.premises.length;
       const rest = c.bench.map((_, i) => i).filter(i => i !== b);
       const picks = n === 1 ? [[]] : n === 2 ? rest.map(i => [i]) : n === 3 ? rest.flatMap(i => rest.filter(j => j !== i).map(j => [i, j])) : [];
-      for (const others of picks) add({ op: "rule", at: where || "", b, m: m.id, others }, { name: m.name, rule: m, others }, left(m.concl, m.premises));
+      for (const others of picks) add({ op: "rule", at: where || "", b, m: m.id, others }, { name: m.name, rule: m, others, ...(m.held != null ? { hyp: true } : {}) }, m.held != null ? [] : left(m.concl, m.premises));
     }
     return out.sort((x, y) => (x.loose ? 1 : 0) - (y.loose ? 1 : 0));
   }

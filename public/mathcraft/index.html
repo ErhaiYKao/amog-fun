@@ -24,8 +24,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=15"></script>
-<script src="/mathcraft/quests.js?v=15"></script>
+<script src="/mathcraft/logic.js?v=17"></script>
+<script src="/mathcraft/quests.js?v=17"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -161,6 +161,9 @@
   .floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
   #floor .sub { font-family: var(--mono); font-size: 11px; color: var(--faint); margin: 12px 0 6px; }
   #floor .label + .sub { margin-top: 0; }
+  #floor input.find { width: 100%; margin: 0 0 10px; }
+  #floor details.oneway { margin-top: 12px; }
+  #floor details.oneway summary { font-family: var(--mono); font-size: 11px; color: var(--faint); cursor: pointer; margin-bottom: 6px; }
   .card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px 8px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; color: var(--ink); cursor: pointer; text-align: center; transition: transform .12s, border-color .12s; }
   .card:hover { transform: translateY(-2px); border-color: var(--muted); }
   .card.on { border-color: var(--g3); box-shadow: 0 0 0 1px var(--g3); }
@@ -413,14 +416,31 @@
       <circle cx="12" cy="38.5" r="3.5" fill="none" stroke="${c}" stroke-width="1.5"/><circle cx="28" cy="38.5" r="3.5" fill="none" stroke="${c}" stroke-width="1.5"/></svg>`;
   }
   /* what each fact held in workshop `at` is: the quest's givens, then one per induction step or assumption on the way in */
-  const hypNames = at => [...(item.given || []).map(() => "given"), ...[...at].filter(ch => "sacxpqo".includes(ch)).map(ch => ({ s: "induction hypothesis", a: "assumption", c: "lemma", x: "for contradiction", p: "case", q: "case", o: "witness" }[ch]))];
+  const hypNames = at => {
+    const out = (item.given || []).map(() => "given");
+    let c = game.root;
+    for (const ch of at) {
+      if (!c.kids) break;
+      if (c.kids.kind === "induct" && c.kids.back) for (const i of c.kids.back.slice().reverse()) out.splice(i, 1);   // went back into the goal
+      const name = { s: "induction hypothesis", a: "assumption", c: "lemma", x: "for contradiction", p: "case", q: "case", o: "witness" }[ch];
+      if (name && (ch !== "s" || c.kids.kind === "induct") && (ch !== "a" || c.kids.kind === "assume")) out.push(name);
+      c = L.subs(c).find(x => x[0] === ch)[1];
+    }
+    return out;
+  };
   const hypName = i => hypNames(where)[i] || "given";
   /* { id, name, kind, stmt | premises+concl, locked, hyp } for anything that can be opened */
   function mach(id) {
     if (id === "refl") return { id, name: "refl", kind: "refl" };
     if (id === "unfold") return { id, name: "Translator", kind: "unfold" };
     const h = /^h(\d+)$/.exec(id);
-    if (h) { const s = L.ctxAt(game, where).hyps[+h[1]]; return s ? { id, name: hypName(+h[1]), kind: s[0] === "=" || s[0] === "↔" ? "hyp" : "held", stmt: s, hyp: true } : null; }
+    if (h) {
+      const s = L.ctxAt(game, where).hyps[+h[1]];
+      if (!s) return null;
+      // a held A → B is a rule about these particular statements: it takes a block A and gives B (airetho)
+      return s[0] === "→" ? { id, name: hypName(+h[1]), kind: "rule", premises: [s[1]], concl: s[2], stmt: s, hyp: true }
+        : { id, name: hypName(+h[1]), kind: s[0] === "=" || s[0] === "↔" ? "hyp" : "held", stmt: s, hyp: true };
+    }
     const m = game.machines.find(x => x.id === id) || (GATES.includes(id) ? { ...Q.gate(id), locked: true } : null);
     return m ? { ...m, kind: Q.TACTICS.includes(m.id) ? m.id : m.premises ? "rule" : m.stmt[0] === "=" ? "eq" : m.stmt[0] === "↔" ? "iff" : "fact" } : null;
   }
@@ -428,7 +448,7 @@
   const rewrites = m => !!m && !m.locked && ["eq", "iff", "hyp"].includes(m.kind);
   const BLURB = {
     refl: "Makes the block <i>t</i> = <i>t</i> out of thin air, for any term <i>t</i> you feed it.",
-    induct: "Feed it a letter from the goal. It splits the workshop in two: craft the goal for 0, then craft it for S(<i>n</i>) while holding it for <i>n</i> as a fact.",
+    induct: "Feed it a letter from the goal. It splits the workshop in two: craft the goal for 0, then craft it for S(<i>n</i>) while holding it for <i>n</i> as a fact. Anything this workshop holds about the letter goes back into the goal first, as <i>A</i> → …",
     eq: "Rewrites a part of a block. Set the lever, then tap the part to feed it.",
     iff: "An equivalence: wherever a block has a part that reads like one side, it may read like the other. Set the lever, then tap the part to feed it (a connective stands for the part it joins; the main one for the whole block).",
     hyp: "A fact about these particular numbers and statements. It rewrites a part of a block, but only where the block says exactly the same thing.",
@@ -784,7 +804,7 @@
   const slotsFor = (m, d) => { const [from, to] = d === "lr" ? [m.stmt[1], m.stmt[2]] : [m.stmt[2], m.stmt[1]]; return [...L.vars(to)].filter(v => !L.vars(from).has(v)).sort(); };
   const openSlots = m => slotsFor(m, dir);
   /* slots of a rule's conclusion that its premises don't fix (⊥ gives P: which P?) */
-  const ruleSlots = m => { const seen = new Set(); m.premises.forEach(p => L.vars(p, seen)); return [...L.vars(m.concl)].filter(v => !seen.has(v)).sort(); };
+  const ruleSlots = m => { if (m.hyp) return []; const seen = new Set(); m.premises.forEach(p => L.vars(p, seen)); return [...L.vars(m.concl)].filter(v => !seen.has(v)).sort(); };
   function keypad(names) {
     const times = [...(game.machines.some(m => m.id === "mul0" || m.id === "mulS") ? ["·"] : []), ...(game.machines.some(m => m.id === "pow0" || m.id === "powS") ? ["^"] : [])];
     return `<div class="keys">` + ["0", "S(", ")", "+", ...times, ...names.filter(v => !L.upper(v)), "⌫"].map(k => `<button data-key="${k}" aria-label="${k === "⌫" ? "delete" : k}">${k}</button>`).join("") + `</div>`;
@@ -843,7 +863,7 @@
         : n === par ? "As short as Amog's proof, and nobody knows a shorter one."
         : n > K ? `Shorter than Amog's proof. He would like a word. The best known is ${sK}, though.`
         : n === K ? `Shorter than Amog's proof, and as short as the best known (${sK}).`
-        : (known ? `Shorter than anything known: Amog's proof is ${par}, the best known was ${sK}.` : "Shorter than Amog's proof, and nobody knew a shorter one.") +
+        : `You've beaten the shortest known proof! ${known ? `Amog's is ${par} and the best known was ${sK}` : `Amog's was ${par}, and nobody knew a shorter one`}.` +
           ` Amog would very much like a word (an issue on <a href="https://github.com/ErhaiYKao/amog-fun/issues" target="_blank" rel="noopener">GitHub</a> will do).`;
       const paid = q.own ? "" : ` You earned ${coin(q.pay + (bonus ? Q.PAR_BONUS : 0))}${quest && !bonus ? ` (${coin(Q.PAR_BONUS)} more for doing it in ${par})` : ""}.`;
       const after = !quest ? `<button class="mini" data-do="new">a conjecture of your own</button>`
@@ -958,7 +978,7 @@
           if (sides.length) h += `<div class="row" style="margin-top:10px"><span class="meta">autofill</span>` + sides.map((t, i) => `<button class="mini" data-refl="${i}"><span class="st small" style="font-size:15px">${tHtml(t)}</span></button>`).join("") + `</div>`;
         }
       } else if (m.kind === "induct") {
-        const ok = [...L.vars(c.goal)].filter(v => !L.upper(v) && !c.hyps.some(s => L.vars(s).has(v)));
+        const ok = [...new Set([c.goal, ...c.hyps].flatMap(s => [...L.vars(s)]))].filter(v => !L.upper(v));   // what is held about it goes back into the goal
         h += `<p class="what">${BLURB.induct}</p><div class="row"><input class="term" id="iv" maxlength="1" value="${esc(letter)}" placeholder="letter" style="width:84px" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the letter to induct on"><button class="mini" data-do="induct">run</button>` +
           (up("autofill") ? `<span class="meta">autofill</span>` + ok.map(v => `<button class="mini" data-induct="${v}"><i>${v}</i></button>`).join("") : "") + `</div>`;
       } else if (m.kind === "apply") {
@@ -992,7 +1012,8 @@
         if (open.length) h += `<div class="form"><span class="meta">tell it</span>` + open.map(v =>
           `<label>${v} =</label><input class="term" data-need="${v}" value="${esc(needVals[v] || "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="what ${v} is">`).join("") + `</div>`;
         if (picked.length) h += `<p class="meta">block ${picked.map(i => i + 1).join(", ")} is in; ${n - picked.length} to go</p>`;
-        if (m.stmt) h += `<div class="form"><span class="meta">or stamp ${st(m.stmt, { slot: true }, "small")} with</span>` + [...L.vars(m.stmt)].sort().map(v =>
+        if (m.hyp) h += `<div class="form"><button class="mini tiny" data-hyp="${m.id.slice(1)}">put it on the bench as a block</button></div>`;
+        else if (m.stmt) h += `<div class="form"><span class="meta">or stamp ${st(m.stmt, { slot: true }, "small")} with</span>` + [...L.vars(m.stmt)].sort().map(v =>
           `<label>${v}</label><input class="term" data-slot="${v}" value="${esc(fillVals[v] != null ? fillVals[v] : game.names.has(v) ? v : "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="what to put for ${v}">`).join("") + `<button class="mini tiny" data-mk="${m.id}">make the block</button></div>`;
       } else {
         const o = { slot: !m.hyp };
@@ -1006,7 +1027,8 @@
         else if (m.kind === "iff" || up("press")) {                       // a ↔ is a statement to start from: always stampable
           const slots = [...L.vars(m.stmt)].sort();
           h += `<div class="form"><span class="meta">${m.kind === "iff" ? "or stamp it with" : "block press"}</span>` + slots.map(v =>
-            `<label>${v}</label><input class="term" data-slot="${v}" value="${esc(fillVals[v] != null ? fillVals[v] : game.names.has(v) ? v : "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="term for ${v}">`).join("") + `<button class="mini tiny" data-mk="${m.id}">${m.kind === "iff" ? "make the block" : "stamp a block"}</button></div>`;
+            `<label>${v}</label><input class="term" data-slot="${v}" value="${esc(fillVals[v] != null ? fillVals[v] : game.names.has(v) ? v : "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="term for ${v}">`).join("") + `<button class="mini tiny" data-mk="${m.id}">${m.kind === "iff" ? "make the block" : "stamp a block"}</button>` +
+            (m.kind === "iff" ? `<button class="mini tiny" data-mk="${m.id}" data-one="lr" title="stamp only the direction left to right">only ${arrow(m.stmt[1], m.stmt[2], { slot: true })}</button><button class="mini tiny" data-mk="${m.id}" data-one="rl" title="stamp only the direction right to left">only ${arrow(m.stmt[2], m.stmt[1], { slot: true })}</button>` : "") + `</div>`;
         }
       }
     }
@@ -1022,8 +1044,9 @@
   const explicitImp = g => g[0] === "→";
   /* is the Translator on this floor? */
   const hasTranslator = () => (item.world ? Q.sees(item.world, "logic") : goalKind().logic && (!item.worlds || item.worlds.includes("logic"))) || /[1-9]/.test(L.show(L.term(item.goal)));
-  function drawFloor() {
+  function drawFloor(tip) {
     const world = item.world, quests = new Set(Q.QUESTS.map(q => q.id)), mine = game.machines.map(m => m.id);
+    const folded = new Set(Object.entries(Q.SUPERSEDES).filter(([id]) => mine.includes(id)).flatMap(([, olds]) => olds));
     // bounties and the playground: by default only the worlds the goal is about (airetho)
     const { logic: logicGoal, num: numGoal } = goalKind();
     const rel = item.worlds || (world || save.allw ? null : [...(numGoal ? ["add", "mul", "eq", "pow"] : []), ...(logicGoal ? ["prop", "logic", "iff", "quant"] : [])]);
@@ -1038,12 +1061,31 @@
     const group = (title, ids) => (ids.length ? `<p class="sub">${title}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
     const gates = GATES.filter(id => (up(id) || Q.onSale(id, save.done)) && Q.sees(world, Q.gate(id).w) && shown(id));
     const theorems = mine.filter(id => quests.has(id)), hidden = theorems.filter(id => !shown(id)).length + GATES.filter(id => up(id) && !shown(id)).length;
+    const keep = id => !folded.has(id), old = [...gates, ...theorems.filter(shown)].filter(id => folded.has(id) && mine.includes(id));
+    const wantOld = !!(tip && tip.at && old.some(id => tip.at.includes(`"${id}"`)));
     put($("floor"), `<p class="label">Machine floor${world ? " · " + Q.WORLDS.find(w => w[0] === world)[1].toLowerCase() : ""}</p>` +
-      group("axioms", [...(numbers ? ["refl"] : []), ...gates.filter(id => !Q.TACTICS.includes(id))]) +
+      `<input class="term find" id="find" value="${esc(findQ)}" placeholder="search machines" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="search the machines by name or statement">` +
+      group("axioms", [...(numbers ? ["refl"] : []), ...gates.filter(id => !Q.TACTICS.includes(id) && keep(id))]) +
       group("tactics", [...gates.filter(id => Q.TACTICS.includes(id)), ...(translator ? ["unfold"] : [])]) +
-      group("theorems", theorems.filter(shown)) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))) +
+      group("theorems", theorems.filter(id => shown(id) && keep(id))) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))) +
+      (old.length ? `<details class="oneway" ${save.oneway || wantOld ? "open" : ""}><summary>${old.length} one-way version${old.length > 1 ? "s" : ""}, folded away</summary><p class="meta">Each has a ↔ on the floor now that rewrites a whole block either way and stamps either direction. They stay here for old proofs.</p><div class="floor">${old.map(card).join("")}</div></details>` : "") +
       (!world && !item.worlds && (hidden || save.allw) ? `<button class="mini tiny allw" data-do="allw">${save.allw ? "only the worlds this goal is about" : `show ${hidden} from other worlds`}</button>` : ""));
   }
+  /* the search box filters the cards in place, so typing never redraws the floor (and never loses focus) */
+  let findQ = "";
+  function applyFind() {
+    const q = findQ.trim().toLowerCase(), fl = $("floor");
+    const show = (el, on) => { el.style.display = on ? "" : "none"; };
+    fl.querySelectorAll(".card").forEach(c => show(c, !q || (c.textContent + " " + c.title).toLowerCase().includes(q)));
+    fl.querySelectorAll(".floor").forEach(f => {
+      const any = [...f.querySelectorAll(".card")].some(c => c.style.display !== "none"), prev = f.previousElementSibling;
+      show(f, any); if (prev && prev.classList.contains("sub")) show(prev, any);
+    });
+    const d = fl.querySelector("details.oneway");
+    if (d && q) { const any = [...d.querySelectorAll(".card")].some(c => c.style.display !== "none"); d.open = any; show(d, any); } else if (d) show(d, true);
+  }
+  $("floor").addEventListener("input", e => { if (e.target.id === "find") { findQ = e.target.value; applyFind(); } });
+  $("floor").addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.oneway") && !findQ.trim()) { save.oneway = e.target.open; store(); } }, true);
   function drawStore() {
     put($("store"), `<p class="label">Upgrades</p><ul class="ups">` + Q.SHOP.filter(x => !x.gate).map(x => {
       const why = up(x.id) ? "" : Q.canBuy(x.id, save.done, ownedSet());
@@ -1056,7 +1098,7 @@
     if (!game) return drawNew();
     drawPanel();                       // first: it settles openM
     const tip = coach();
-    drawQuest(); drawShop(tip); drawFloor(); drawStore();
+    drawQuest(); drawShop(tip); drawFloor(tip); applyFind(); drawStore();
     point(tip);
   }
 
@@ -1101,11 +1143,11 @@
     if (!v) { msg = "which letter? Type one from the goal"; return draw(); }
     act({ op: "induct", at: where, v });
   }
-  function stamp(id) {
+  function stamp(id, one) {
     document.querySelectorAll("#panel [data-slot]").forEach(i => { fillVals[i.dataset.slot] = i.value.trim(); });
     const fill = {};
     for (const v of L.vars(mach(id).stmt)) fill[v] = fillVals[v] != null ? fillVals[v] : "";
-    if (act({ op: "make", at: where, m: id, fill })) fillVals = {};
+    if (act({ op: "make", at: where, m: id, fill, ...(one ? { one } : {}) })) fillVals = {};
   }
   $("panel").addEventListener("input", e => {
     if (e.target.id === "rterm") { typed = e.target.value; point(coach()); }
@@ -1158,7 +1200,7 @@
     else if (d.dir) { dir = d.dir; msg = ""; needVals = {}; draw(); }
     else if (d.buy) buy(d.buy);
     else if (d.hyp !== undefined) act({ op: "hyp", at: where, i: +d.hyp });
-    else if (d.mk) stamp(d.mk);
+    else if (d.mk) stamp(d.mk, d.one);
     else if (d.do === "more") { save.more = !save.more; store(); draw(); }
     else if (d.do === "widen" && sel && sel.path.length) { sel = { b: sel.b, path: sel.path.slice(0, -1) }; draw(); }
   };
