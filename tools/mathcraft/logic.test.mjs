@@ -826,3 +826,14 @@ test("successors: the other Peano axioms, seen only where they are true", () => 
   assert.ok(!quant.includes("szero") && !quant.includes("sinj"), "the quantifier world doesn't see them");
   assert.ok(Q.machinesFor(idx("scancel"), allDone(idx("scancel"))).some(m => m.id === "sinj"));
 });
+
+test("own lemmas are machines like a quest's theorem: an implication is a rule with slots, and still stamps", () => {
+  const lemma = L.questMachine({ id: "u1", name: "Half of And associates", goal: "(P&Q)&R->P&(Q&R)" });
+  const g = L.start({ id: "u2", goal: "((A|B)&C)&D->(A|B)&(C&D)" }, [...everything(), lemma]);
+  L.step(g, { op: "assume", at: "" });
+  L.step(g, { op: "rule", at: "a", b: 0, m: "u1", others: [] });
+  assert.equal(bench(g, "a")[0], "(A ∨ B) ∧ (C ∧ D)", "P is filled with A ∨ B by matching");
+  const h = L.start({ id: "u3", goal: "P" }, [...everything(), lemma]);
+  L.step(h, { op: "make", at: "", m: "u1", fill: { P: "P", Q: "P", R: "P" } });
+  assert.equal(bench(h)[0], "(P ∧ P) ∧ P → P ∧ (P ∧ P)", "saves that stamped it still replay");
+});
