@@ -531,7 +531,11 @@ test("numerals are definitions: 2 is S(1), seen through by S(…) patterns, fold
 test("Amog's proof is the natural one; where a trick is shorter it is kept as the best known", () => {
   const all = allDone(Q.QUESTS.length);
   const shorts = Q.QUESTS.filter(q => q.short);
-  assert.deepEqual(shorts.map(q => q.id), ["lcp", "lre", "lt", "lk", "iaa"]);
+  assert.deepEqual(shorts.filter(q => !/Block press/.test(q.short.hint)).map(q => q.id), ["lcp", "lre", "lt", "lk", "iaa"]);
+  // stamping saves a step wherever refl is followed by one rewrite (airetho): those are best known, never the par
+  assert.ok(["zz", "zadd", "comm", "assoc", "qex", "mz", "massoc", "p1", "ppow"].every(id => /Block press/.test(Q.QUESTS[idx(id)].short.hint)));
+  assert.equal(L.count(Q.QUESTS[idx("p1")].short.proof), 5, "airetho's 1^a = 1 in five");
+  assert.equal(Q.par(Q.QUESTS[idx("lcp")]), 3, "Contrapositive: two Assumes and Chain (airetho)");
   for (const q of shorts) {
     const g = L.replay(q, Q.machinesFor(idx(q.id), all), q.short.proof);
     assert.ok(g.root.done && L.count(q.short.proof) < Q.par(q), q.id);
@@ -754,7 +758,7 @@ test("random play only ever makes true statements", () => {
   const sides = t => (t[0] === "=" ? [t[1], t[2]] : "→∧∨↔".includes(t[0]) ? [...sides(t[1]), ...sides(t[2])] : "∀∃".includes(t[0]) ? sides(t[2]) : []);
   let checked = 0, conditional = 0, quantified = 0;
   // quantifiers and predicates are checked in the integers mod 5: every axiom and induction hold there, and ∀ can
-  // try all five numbers (no powers: they mean nothing modulo 5)
+  // try all five numbers (no powers: they mean nothing modulo 5; no successor axioms: S(4) = 0 there)
   const noPow = Q.playMachines(allDone(Q.QUESTS.length), undefined, ["add", "mul", "eq", "prop", "logic", "iff", "quant", "any"]);
   const items = [...Q.QUESTS.map((q, i) => [q, Q.machinesFor(i, allDone(i))]), [{ id: "mix", goal: "(a+b=b+a)->((P->Q)->(a*b=b*a))" }, everything()], [{ id: "mix2", goal: "(P&Q->R)->((P|Q)->((Q->P)->(R|false)))" }, everything()],
     [{ id: "mix3", goal: "(P<->Q|R)->((a^b=b)->((P&Q<->R)|(a*b=a^S(b))))" }, everything()],
@@ -810,4 +814,15 @@ test("random play only ever makes true statements", () => {
     }
   }
   assert.ok(checked > 20000 && conditional > 2000 && quantified > 5000, `${checked} checks, ${conditional} under hypotheses, ${quantified} with quantifiers`);
+});
+
+test("successors: the other Peano axioms, seen only where they are true", () => {
+  const ids = Q.QUESTS.filter(q => q.world === "peano").map(q => q.id);
+  assert.deepEqual(ids, ["sn10", "sn01", "sn21", "snself", "scancel", "szsum"]);
+  // true of the natural numbers, false mod 5 (S(4) = 0): so no world checked mod 5 may see them
+  for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) for (const s of ["S(a)=0->false", "S(a)=S(b)->a=b"]) assert.ok(L.holds(L.parse(s), { a, b }));
+  assert.ok(!L.holds(L.parse("S(a)=0->false"), { a: 4 }, 5));
+  const quant = Q.machinesFor(idx("qen"), allDone(Q.QUESTS.length)).map(m => m.id);
+  assert.ok(!quant.includes("szero") && !quant.includes("sinj"), "the quantifier world doesn't see them");
+  assert.ok(Q.machinesFor(idx("scancel"), allDone(idx("scancel"))).some(m => m.id === "sinj"));
 });

@@ -55,13 +55,15 @@
     ["quant", { id: "spec", name: "Specialise" }],
     ["quant", { id: "witness", name: "Witness" }],
     ["quant", { id: "obtain", name: "Take a witness" }],
+    ["peano", thm("szero", "Zero comes first", "S(a)=0->false")],
+    ["peano", thm("sinj", "Successors cancel", "S(a)=S(b)->a=b")],
     ["mul", L.machine({ id: "mul0", name: "Times zero", stmt: "a*0=0" })],
     ["mul", L.machine({ id: "mulS", name: "Times a successor", stmt: "a*S(b)=a*b+a" })],
     ["pow", L.machine({ id: "pow0", name: "Power zero", stmt: "a^0=1" })],
     ["pow", L.machine({ id: "powS", name: "Power of a successor", stmt: "a^S(b)=a^b*a" })],
   ].map(([w, m]) => ({ ...m, w }));
-  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["iff", "Equivalence"], ["quant", "Quantifiers"], ["mul", "Multiplication"], ["pow", "Powers"]];
-  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], iff: ["prop", "logic", "iff"], quant: ["prop", "logic", "iff", "add", "eq", "quant"], mul: ["add", "mul", "eq"], pow: ["add", "mul", "eq", "pow"] };
+  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["iff", "Equivalence"], ["quant", "Quantifiers"], ["peano", "Successors"], ["mul", "Multiplication"], ["pow", "Powers"]];
+  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], iff: ["prop", "logic", "iff"], quant: ["prop", "logic", "iff", "add", "eq", "quant"], peano: ["add", "eq", "prop", "logic", "peano"], mul: ["add", "mul", "eq"], pow: ["add", "mul", "eq", "pow"] };
   /* does a quest in `world` see things from world w? (no world = bounties and the playground: everything) */
   const sees = (world, w) => !world || w === "any" || SEES[world].includes(w);
   /* tactics open workshops instead of stating something */
@@ -199,8 +201,8 @@
     {
       id: "lcp", takes: 1, world: "logic", name: "Contrapositive", pay: 3, goal: "(P->Q)->((Q->false)->(P->false))",
       intro: "If $P$ gives $Q$, then not $Q$ gives not $P$. Once crafted it is a rule: it turns a block $P \\to Q$ into $\\lnot Q \\to \\lnot P$.",
-      hint: "Assume three times: you hold $P \\to Q$, $\\lnot Q$ and $P$. Modus ponens twice.",
-      proof: [assume(""), assume("a"), assume("aa"), mp("aaa", 0, 2), mp("aaa", 1, 0)],
+      hint: "Assume twice: you hold $P \\to Q$ and $\\lnot Q$, which is $Q \\to \\bot$, and the goal is $P \\to \\bot$. One of your Implication theorems joins the two.",
+      proof: [assume(""), assume("a"), rule("aa", 0, "pchain", [1])],
       short: { hint: "stamping a theorem from Implication with $\\bot$ in one of its slots", proof: [make("", "pchain", { P: "P", Q: "Q", R: "false" })] },
     },
     {
@@ -412,7 +414,7 @@
     },
     {
       id: "qex", world: "quant", name: "There is one", pay: 4, goal: "exists a. a+a=a",
-      intro: "$\\exists a$ reads \"there is a number $a$\". It is a definition, like $\\lor$: $\\exists a.\\ A$ is short for $\\lnot \\forall a.\\ \\lnot A$, \"not every number fails\". So Assume works on it: you hold that every number fails, and the goal is $\\bot$. Find one that doesn't.",
+      intro: "$\\exists a$ reads \"there is a number $a$\". It is a definition, just as $\\lor$ is. $\\exists a.\\ A$ is short for $\\lnot \\forall a.\\ \\lnot A$, \"not every number fails\". So Assume works on it: you hold that every number fails, and the goal is $\\bot$. Find one that doesn't.",
       hint: "Assume. Specialise what you hold to $0$: it says $\\lnot(0+0 = 0)$. Craft $0+0 = 0$ and feed both to modus ponens.",
       proof: [assume(""), spec("a", 0, "0"), refl("a", "0+0"), { ...rw("a", [1], "add0"), b: 1 }, mp("a", 0, 1)],
     },
@@ -446,6 +448,45 @@
       intro: "And the other one: \"there is no $P$\" is \"every one is not $P$\". Unfold it in your head first.",
       hint: "Written out, $\\lnot \\exists a.\\ P(a)$ is $\\lnot\\lnot \\forall a.\\ \\lnot P(a)$. You have a machine that says exactly this.",
       proof: [make("", "idn", { P: "forall a. not P(a)" })],
+    },
+
+    /* ---- successors (airetho): the two Peano axioms that tell numbers apart. Nothing before them can craft 0 ≠ 1. ---- */
+    {
+      id: "sn10", world: "peano", after: ["lefq", "zadd"], name: "One is not zero", pay: 2, needs: ["szero"], goal: "1=0->false", guide: true,
+      intro: "Everything so far would still hold if every number were $0$. Two axioms rule that out. The first to buy: <b>Zero comes first</b>, nothing comes before $0$, so a block $S(a) = 0$ gives $\\bot$. Remember that $1$ is short for $S(0)$.",
+      hint: "Assume, and feed what you hold to the new machine.",
+      proof: [assume(""), rule("a", 0, "szero")],
+    },
+    {
+      id: "sn01", world: "peano", name: "Zero is not one", pay: 2, goal: "0=1->false",
+      intro: "The same the other way round. The machine wants the successor on the left.",
+      hint: "Assume, then turn the equation round before Zero comes first can take it.",
+      proof: [assume(""), rule("a", 0, "sym"), rule("a", 0, "szero")],
+    },
+    {
+      id: "sn21", world: "peano", name: "Two is not one", pay: 3, needs: ["sinj"], goal: "2=1->false",
+      intro: "The second axiom: <b>Successors cancel</b>. If $S(a) = S(b)$ then $a = b$, so different numbers have different successors.",
+      hint: "$2 = 1$ is $S(1) = S(0)$: cancel, and you are back at a quest you have done.",
+      proof: [assume(""), rule("a", 0, "sinj"), rule("a", 0, "szero")],
+    },
+    {
+      id: "snself", world: "peano", name: "Never its own successor", pay: 4, goal: "S(a)=a->false",
+      intro: "No number comes right after itself. Induction works on a goal that is a $\\lnot$: it is an implication like any other.",
+      hint: "Induct on $a$. The base is the last quest again. In the step, cancel what you assumed and feed it to the induction hypothesis.",
+      proof: [induct("a"), assume("b"), rule("ba", 0, "szero"), assume("s"), rule("sa", 0, "sinj"), hyp("sa", 0), mp("sa", 1, 0)],
+    },
+    {
+      id: "scancel", world: "peano", name: "Adding cancels", pay: 5, goal: "a+c=b+c->a=b",
+      intro: "Cancelling a term from both sides is the first thing anyone does with an equation, and it needs Successors cancel.",
+      hint: "Induct on $c$ before assuming anything (afterwards a hypothesis speaks about $c$). Step: peel the $S$ off both sides of what you assume, cancel, then the induction hypothesis.",
+      proof: [induct("c"), assume("b"), rw("ba", [0], "add0"), rw("ba", [1], "add0"),
+        assume("s"), rw("sa", [0], "addS"), rw("sa", [1], "addS"), rule("sa", 0, "sinj"), hyp("sa", 0), mp("sa", 1, 0)],
+    },
+    {
+      id: "szsum", world: "peano", name: "Nothing adds up to zero", pay: 4, goal: "a+b=0->b=0",
+      intro: "If a sum is $0$, so is what was added. The step can't happen at all, and $\\bot$ gives anything.",
+      hint: "Induct on $b$. In the step, what you assume is the successor of something, equal to $0$.",
+      proof: [induct("b"), assume("b"), refl("ba", "0"), assume("s"), rw("sa", [0], "addS"), rule("sa", 0, "szero"), rule("sa", 0, "lefq", [], { P: "S(b)=0" })],
     },
 
     /* ---- multiplication: two more axioms, on top of all of addition ---- */
@@ -528,6 +569,35 @@
     },
   ].map(q => ({ world: "add", ...q }));
 
+  /* Stamping (the Block press) turns refl t followed by one rewrite of the right side into one step, which beats
+     the par of most arithmetic quests by a step or two (airetho). Amog's proofs stay the natural ones and these are
+     the best known: [the workshop of the refl, the slots of the machine the rewrite right after it uses]. */
+  const PRESSED = {
+    zz: [["", { a: "0" }]],
+    zadd: [["b", { a: "0" }], ["s", { a: "0", b: "a" }]],
+    sadd: [["b", { a: "S(a)" }], ["s", { a: "S(a)", b: "b" }]],
+    comm: [["b", { a: "a" }], ["s", { a: "a", b: "b" }]],
+    assoc: [["b", { a: "a+b" }], ["s", { a: "a+b", b: "c" }]],
+    qa: [["f", { a: "a" }]],
+    qex: [["a", { a: "0" }]],
+    mz: [["b", { a: "0" }], ["s", { a: "0", b: "a" }]],
+    ms: [["b", { a: "S(a)" }], ["s", { a: "S(a)", b: "b" }]],
+    mcomm: [["b", { a: "a" }], ["s", { a: "a", b: "b" }]],
+    massoc: [["b", { a: "a*b" }], ["s", { a: "a*b", b: "c" }]],
+    p1: [["b", { a: "1" }], ["s", { a: "1", b: "a" }]],
+    ppow: [["b", { a: "a^b" }], ["s", { a: "a^b", b: "c" }]],
+  };
+  for (const q of QUESTS) {
+    const at = PRESSED[q.id];
+    if (!at || q.short) continue;
+    const proof = q.proof.slice();
+    for (const [w, fill] of at) {
+      const k = proof.findIndex((st, i) => st.op === "refl" && st.at === w && proof[i + 1] && proof[i + 1].op === "rw" && proof[i + 1].at === w);
+      proof.splice(k, 2, make(w, proof[k + 1].m, fill));
+    }
+    q.short = { hint: "stamping with the Block press", proof };
+  }
+
   /* optional theorems that pay once; they use every quest finished so far */
   const BOUNTIES = [
     { id: "b11", name: "One plus one", goal: "1+1=2", pay: 1,
@@ -589,6 +659,8 @@
     { id: "spec", gate: true, price: 3, after: ["qa"] },
     { id: "witness", gate: true, price: 3, after: ["qex"] },
     { id: "obtain", gate: true, price: 3, after: ["qzs"] },
+    { id: "szero", gate: true, price: 2, after: ["lefq", "zadd"] },
+    { id: "sinj", gate: true, price: 3, after: ["sn01"] },
     { id: "mul0", gate: true, price: 2, after: ["assoc"] },
     { id: "mulS", gate: true, price: 3, after: ["assoc"] },
     { id: "pow0", gate: true, price: 2, after: ["t1"] },

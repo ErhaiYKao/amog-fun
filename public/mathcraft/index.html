@@ -24,8 +24,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=13"></script>
-<script src="/mathcraft/quests.js?v=13"></script>
+<script src="/mathcraft/logic.js?v=14"></script>
+<script src="/mathcraft/quests.js?v=14"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -133,6 +133,7 @@
   .tabs button.done .meta { color: var(--g3); }
   #shop.workshop { border-color: color-mix(in srgb, var(--g3) 40%, var(--line)); }
   .given { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0; }
+  .given.nums .num { display: inline-flex; gap: 6px; align-items: baseline; }
   .given .tag { font-family: var(--mono); font-size: 11px; color: #f5c04a; border: 1px solid #f5c04a55; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 
   .bench { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 12px; }
@@ -258,7 +259,7 @@
   const put = (el, html) => { el.innerHTML = html.replace(/∎/g, '<i class="ts"></i>'); };
 
   const TIPS = [
-    ["undo", () => game.steps.length >= 4 && !game.root.done, "<b>undo</b> takes back one step at a time (so does Ctrl or ⌘ + Z), and ✕ on a block throws it away for free."],
+    ["undo", () => game.steps.length >= 4 && !game.root.done, "<b>undo</b> takes back one step at a time (so does Ctrl or ⌘ + Z) and <b>redo</b> puts it back (⇧ as well), and ✕ on a block throws it away for free."],
     ["shop", () => "zz" in save.done && !Q.SHOP.some(x => !x.gate && up(x.id)), `∎ also buys conveniences. See <a href="#store">Upgrades</a> at the bottom of the page: Autofill types for you, and the Scanner lists every machine that fits a part you tap.`],
     ["worlds", () => "zz" in save.done && !("pid" in save.done), "the quest list at the top has more than one world. Implication is open next to Addition: switch whenever you like. Each world needs machines of its own."],
     ["bounty", () => Q.BOUNTIES.some(b => !finished(b) && openB(b)), "a <b>bounty</b> has opened at the end of the quest list. Bounties are optional theorems that pay ∎ once."],
@@ -273,6 +274,7 @@
   let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = 0;   // hint: 1 = the idea, 2 = also point at the next step
   let tab = null;   // the world (or "bounty" / "own") whose quests the map lists; null = the open item's
   let numT = "";    // the number typed into Specialise or Witness
+  let redo = [];    // steps undone, the next one to put back last (airetho)
   let openM = null, dir = "lr", picked = [], typed = "", letter = "", fillVals = {}, needVals = {}, flash = -1, lemmaText = "", applied = [];
 
   function load() {
@@ -287,6 +289,7 @@
       if ("zz" in s.done) s.owned.push("add0");
       if ("zadd" in s.done) s.owned.push("addS", "induct");
     }
+    if (!s.best || typeof s.best !== "object") s.best = {};                     // the steps of each best proof, to look through
     if (!s.tips) s.tips = Object.keys(s.done).length > 6 ? Object.fromEntries(TIPS.map(t => [t[0], 1])) : {};   // "by the way" notes are for new players
     return s;
   }
@@ -451,6 +454,16 @@
   };
   /* the number terms refl is most likely wanted for: the sides of the goal, if it is an equation */
   const reflSides = c => (c.goal[0] !== "=" ? [] : L.same(c.goal[1], c.goal[2]) ? [c.goal[1]] : [c.goal[1], c.goal[2]]);
+  /* the numbers Fix and Take a witness have put in scope on the way to workshop `at` */
+  const fixedAt = at => {
+    const out = []; let c = game.root;
+    for (const ch of at) {
+      if (!c.kids) break;
+      if (c.kids.kind === "fix" || c.kids.kind === "obtain") out.push([c.kids.v, c.kids.kind]);
+      c = L.subs(c).find(x => x[0] === ch)[1];
+    }
+    return out;
+  };
   const and = a => (a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
 
   function reset() { sel = null; msg = ""; hint = 0; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; numT = ""; fillVals = {}; flash = -1; lemmaText = ""; }
@@ -458,7 +471,10 @@
     item = [...Q.QUESTS, ...Q.BOUNTIES, ...lemmas()].find(q => q.id === id) || Q.QUESTS[0];
     const ms = machinesOf(item);
     try { game = L.replay(item, ms, save.steps[item.id] || []); } catch (e) { game = L.start(item, ms); save.steps[item.id] = []; }
-    reset(); where = firstOpen(); tab = null;
+    if (game.root.done && item.id in save.done && (!save.best[item.id] || L.count(game.steps) < save.done[item.id]) && L.count(game.steps) <= save.done[item.id]) {
+      save.done[item.id] = L.count(game.steps); save.best[item.id] = game.steps.slice();
+    }
+    reset(); redo = []; where = firstOpen(); tab = null;
     save.cur = item.id; store();
     draw();
   }
@@ -475,6 +491,7 @@
     if (game.root.done) {
       const n = L.count(game.steps);
       if (!(item.id in save.done) || n < save.done[item.id]) save.done[item.id] = n;
+      if (n <= save.done[item.id]) save.best[item.id] = game.steps.slice();
       achievements();
     }
     store();
@@ -493,6 +510,7 @@
   function act(step) {
     const before = leaves().find(l => l.at === where), wasDone = !!(before && before.c.done);
     try { L.step(game, step); msg = ""; } catch (e) { msg = e.message; redrawKeeping(); return false; }
+    if (redo.length && JSON.stringify(redo[redo.length - 1]) === JSON.stringify(game.steps[game.steps.length - 1])) redo.pop(); else redo = [];
     const at0 = where;
     if (Q.TACTICS.includes(step.op) && L.subs(L.ctxAt(game, step.at)).length) { where = step.at + L.subs(L.ctxAt(game, step.at))[0][0]; sel = null; openM = null; }
     else if (step.op === "rule") sel = null;
@@ -509,6 +527,7 @@
   function undo() {
     if (!game.steps.length) return;
     const last = game.steps[game.steps.length - 1];
+    redo.push(last);
     game = L.replay(item, game.machines, game.steps.slice(0, -1));
     sel = null; msg = ""; picked = [];
     where = leaves().some(l => l.at === last.at) ? last.at : firstOpen();
@@ -516,7 +535,24 @@
     save.steps[item.id] = game.steps; store();
     draw();
   }
+  function redoStep(all) {
+    if (!redo.length) return;
+    do { if (!act(redo[redo.length - 1])) { redo = []; return; } } while (all && redo.length);
+  }
+  /* look through the best proof: start over with all of its steps waiting to be redone */
+  function showBest() {
+    const best = save.best[item.id];
+    if (!best) return;
+    if (game.steps.length && !game.root.done && !confirm("This puts your unfinished attempt away. Look at your best proof anyway?")) return;
+    game = L.start(item, game.machines);
+    redo = best.slice().reverse();
+    where = ""; sel = null; picked = []; openM = null;
+    msg = "Your best proof, from the start: redo steps through it (Ctrl or ⌘ + ⇧ + Z).";
+    save.steps[item.id] = []; store();
+    draw();
+  }
   function restart() {
+    redo = [...redo, ...game.steps.slice().reverse()];                 // start over can be redone too
     game = L.start(item, game.machines);
     where = ""; sel = null; msg = ""; picked = [];
     if (openM && !mach(openM)) openM = null;
@@ -707,7 +743,7 @@
   /* ---------- drawing ---------- */
   /* The quest list as a map (#33): worlds in the order they open, each with its progress; the one that is open lists
      its quests underneath. With "step colours" on, finished quests are coloured by how they compare with Amog. */
-  const MAP = [["add", "mul", "pow"], ["prop", "logic", "iff", "quant"]], SUB = ["eq"];
+  const MAP = [["add", "mul", "pow"], ["prop", "logic", "iff", "quant"]], SUB = ["eq", "peano"];
   const tabOf = it => (!it ? "own" : it.bounty ? "bounty" : it.own ? "own" : it.world);
   const grade = q => { const n = save.done[q.id], par = Q.par(q); return n < par ? "beat" : n === par ? "par" : "long"; };
   function drawQuests() {
@@ -772,7 +808,10 @@
     }
     h += `<div class="row hint">${quest ? `<button class="mini" data-do="hint">${hint ? "hide hint" : "hint"}</button>` : ""}
         <button class="mini" data-do="undo" ${game.steps.length ? "" : "disabled"}>undo</button>
+        <button class="mini" data-do="redo" ${redo.length ? "" : "disabled"}>redo</button>
+        ${redo.length > 1 ? `<button class="mini" data-do="redoall" title="put back all ${redo.length} undone steps">redo all</button>` : ""}
         <button class="mini" data-do="restart" ${game.steps.length ? "" : "disabled"}>start over</button>
+        ${save.best[q.id] && JSON.stringify(save.best[q.id]) !== JSON.stringify(game.steps) && !(redo.length && JSON.stringify([...game.steps, ...redo.slice().reverse()]) === JSON.stringify(save.best[q.id])) ? `<button class="mini" data-do="best" title="start over with your best proof ready to step through with redo">your best proof</button>` : ""}
         ${q.own ? `<button class="mini" data-do="remove">delete</button>` : ""}
         <span class="meta">${steps}${best ? ` · your best ${best}` : ""}${pays}</span></div>`;
     if (hint && quest) h += `<p>${q.hint}</p>` + (game.root.done ? "" : `<div class="row hint"><button class="mini ${hint === 2 ? "on" : ""}" data-do="step">${hint === 2 ? "stop pointing" : "what do I do next?"}</button><span class="meta">points at the next step from where you are, one step at a time</span></div>`);
@@ -784,8 +823,15 @@
     if (game.root.done) {
       const par = quest ? Q.par(q) : 0, bonus = quest && best <= par;
       const known = quest && q.short ? L.count(q.short.proof) : 0;      // revealed once the player ties or beats Amog
-      const verdict = !quest ? "" : (n < par ? "Shorter than Amog's proof. He would like a word." : n === par ? "As short as Amog's proof." : `Amog does it in ${par}.`) +
-        (known && best <= par ? (best <= known ? ` That is the best known.` : ` The best known is ${known} step${known === 1 ? "" : "s"}.`) : "");
+      // Amog's par against the best known (airetho): lose to both, tie or beat Amog, and tie or beat the best known
+      const K = known || par, sK = `${K} step${K === 1 ? "" : "s"}`;
+      const verdict = !quest ? "" : n > par ? `Amog does it in ${par}.${known && best <= par ? ` The best known is ${sK}.` : ""}`
+        : n === par && K < par ? `As short as Amog's proof. He has heard of one in ${sK}, but he is too lazy to find it.`
+        : n === par ? "As short as Amog's proof, and nobody knows a shorter one."
+        : n > K ? `Shorter than Amog's proof. He would like a word. The best known is ${sK}, though.`
+        : n === K ? `Shorter than Amog's proof, and as short as the best known (${sK}).`
+        : (known ? `Shorter than anything known: Amog's proof is ${par}, the best known was ${sK}.` : "Shorter than Amog's proof, and nobody knew a shorter one.") +
+          ` Amog would very much like a word (an issue on <a href="https://github.com/ErhaiYKao/amog-fun/issues" target="_blank" rel="noopener">GitHub</a> will do).`;
       const paid = q.own ? "" : ` You earned ${coin(q.pay + (bonus ? Q.PAR_BONUS : 0))}${quest && !bonus ? ` (${coin(Q.PAR_BONUS)} more for doing it in ${par})` : ""}.`;
       const after = !quest ? `<button class="mini" data-do="new">a conjecture of your own</button>`
         : k + 1 < chain.length ? `<button class="mini" data-do="next">next quest →</button>`
@@ -820,6 +866,9 @@
       : explicitImp(c.goal) && has("assume") ? `<button class="use" data-do="gassume" title="run Assume on this goal">assume</button>`
       : c.goal[0] === "∀" && has("fix") ? `<button class="use" data-do="gfix" title="run Fix on this goal">fix</button>` : "";
     h += `<div class="given goalline ${c.done ? "done" : ""}" data-goal title="the goal${canApply() ? ": drop a block P → (this goal) here to apply it, or the goal itself to use it" : ""}"><span class="meta">${c.done ? "done ✓" : "goal"}</span><span class="scroll">${st(c.goal, tappable ? { live: true, sel: sel && sel.b === "g" ? pstr(sel.path) : null } : {}, "goalst")}</span>${quick}${gTip ? `<span class="meta">${gTip}</span>` : ""}</div>`;
+    const fixedNums = fixedAt(where);
+    if (fixedNums.length) h += `<div class="given nums"><span class="tag" title="numbers in scope: arbitrary, but one and the same all through this workshop">numbers</span>` +
+      fixedNums.map(([v, how]) => `<span class="num" title="${how === "fix" ? "fixed by Fix: an arbitrary number" : "the witness taken from an ∃"}"><span class="st small">${v}&thinsp;:&thinsp;ℕ</span> <span class="meta">${how === "fix" ? "fixed" : "witness"}</span></span>`).join("") + `</div>`;
     c.hyps.forEach((s, i) => {
       h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span>
         <button class="mini tiny ${openM === "h" + i ? "on" : ""}" data-m="h${i}">open</button></div>`;
@@ -1015,6 +1064,9 @@
     else if (b.dataset.tip) { save.tips[b.dataset.tip] = 1; store(); draw(); }
     else if (b.dataset.buy) buy(b.dataset.buy);
     else if (d === "undo") undo();
+    else if (d === "redo") redoStep(false);
+    else if (d === "redoall") redoStep(true);
+    else if (d === "best") showBest();
     else if (d === "restart") restart();
     else if (d === "remove") removeLemma();
     else if (d === "new") openNew();
@@ -1296,7 +1348,7 @@
     if (t) dropMachine(d.id, t);
   });
   document.addEventListener("pointercancel", mdragEnd);
-  document.addEventListener("keydown", e => { if (game && (e.metaKey || e.ctrlKey) && e.key === "z" && e.target.tagName !== "INPUT") { e.preventDefault(); undo(); } });
+  document.addEventListener("keydown", e => { if (game && (e.metaKey || e.ctrlKey) && e.target.tagName !== "INPUT" && (e.key.toLowerCase() === "z" || e.key === "y")) { e.preventDefault(); if (e.shiftKey || e.key === "y") redoStep(false); else undo(); } });
 
   migrateEq();
   migrate();
