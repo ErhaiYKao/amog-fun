@@ -91,13 +91,13 @@
   const QUESTS = [
     {
       id: "refl0", name: "Something from nothing", pay: 2, goal: "0=0", guide: true,
-      intro: "This is your first machine. <b>refl</b> makes theorems of the form $t = t$ out of thin air, for any term $t$ you feed it. That is already enough for a theorem, if not a deep one.",
+      intro: "Of course $0 = 0$. But here nothing counts as true until you have crafted it, and machines are all you may use. Your first machine is <b>refl</b>: it makes blocks of the form $t = t$ out of thin air, for any term $t$ you feed it.",
       hint: "Open refl, type $0$ and run it.",
       proof: [refl("", "0")],
     },
     {
       id: "zz", name: "Zero plus zero", pay: 3, needs: ["add0"], goal: "0+0=0", guide: true,
-      intro: "Finishing a craft pays ∎, and new machines arrive when a quest needs them. This one brings <i>Adding zero</i>, an axiom. An equality machine rewrites a part of a block: set its lever to a direction, then tap the part to feed it. Nearly every equation is crafted this way: make a block from one side of the goal with refl, then rewrite its other side until the block is the goal.",
+      intro: "Finishing a craft pays ∎, and new machines arrive when a quest needs them. This one brings <i>Adding zero</i>, an axiom. An equality machine rewrites a part of a block: set its lever to a direction, then tap the part to feed it (or drag the machine from the floor onto the part). Nearly every equation is crafted this way: make a block from one side of the goal with refl, then rewrite its other side until the block is the goal.",
       hint: "Make $0+0 = 0+0$ with refl. Then open <i>Adding zero</i>, set its lever to $a+0 \\to a$, and tap the $0+0$ on the right side of your block.",
       proof: [refl("", "0+0"), rw("", [1], "add0")],
     },
@@ -117,7 +117,7 @@
     },
     {
       id: "zadd", name: "Zero on the left", pay: 3, needs: ["addS", "induct"], goal: "0+a=a", guide: true,
-      intro: "<i>Adding zero</i> says $a+0 = a$. With the zero on the left, no machine fits: $a$ could be anything. Two new machines: <i>Adding a successor</i>, the other axiom, and <b>Induction</b>. Induction splits the job into two workshops: craft the goal for $0$ (the base case), then craft it for $S(a)$ while <i>holding</i> it for $a$ (the step). What you hold there, the induction hypothesis, is a machine too: it turns $0+a$ into $a$, but only for this $a$.",
+      intro: "<i>Adding zero</i> says $a+0 = a$. With the zero on the left, no machine fits: $a$ could be anything. Two new machines: <i>Adding a successor</i>, the other axiom, and <b>Induction</b>, the way to prove something about every number at once: prove it for $0$, then prove that it passes from each number to the next. Induction splits the job into two workshops: craft the goal for $0$ (the base case), then craft it for $S(a)$ while <i>holding</i> it for $a$ (the step). What you hold there, the induction hypothesis, is a machine too: it turns $0+a$ into $a$, but only for this $a$.",
       hint: "Induct on $a$. Each workshop then goes like <i>Zero plus zero</i>: make a block from the goal's left side with refl, and rewrite its right side until it reads the goal's right side. Don't try to reshape the induction hypothesis into the goal: it is the machine for the last rewrite. In the step, <i>Adding a successor</i> turns $0+S(a)$ into $S(0+a)$, and now there is a $0+a$ inside for the induction hypothesis to work on.",
       proof: [{ op: "induct", at: "", v: "a" }, refl("b", "0+0"), rw("b", [1], "add0"), refl("s", "0+S(a)"), rw("s", [1], "addS"), rw("s", [1, 0], "h0")],
     },

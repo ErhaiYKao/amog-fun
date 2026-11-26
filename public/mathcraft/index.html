@@ -24,8 +24,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=18"></script>
-<script src="/mathcraft/quests.js?v=18"></script>
+<script src="/mathcraft/logic.js?v=19"></script>
+<script src="/mathcraft/quests.js?v=19"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -227,6 +227,16 @@
   .ups span.d { grid-column: 1; font-size: 15px; color: #d3cfc5; line-height: 1.4; }
   .ups .mini { grid-row: 1 / span 2; grid-column: 2; }
   .ups .why { grid-column: 1 / -1; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+  .settings { margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--bg-2); display: grid; gap: 8px; }
+  .settings .label { margin: 0; }
+  .settings .srow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .settings .seg { display: inline-flex; gap: 4px; }
+  .tour { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; padding: 10px 14px; border-radius: 12px; border: 1px solid #f5c04a; background: color-mix(in srgb, #f5c04a 12%, var(--bg)); color: var(--ink); font-family: var(--serif); font-size: 16.5px; line-height: 1.45; font-style: normal; text-transform: none; letter-spacing: 0; grid-column: 1 / -1; position: relative; }
+  .tour::before { content: ""; position: absolute; top: -7px; left: 22px; width: 12px; height: 12px; background: inherit; border-left: 1px solid #f5c04a; border-top: 1px solid #f5c04a; transform: rotate(45deg); }
+  .tour > span:first-child { flex: 1 1 260px; }
+  .tour .mini.quiet { border-color: transparent; background: none; color: var(--muted); }
+  .spot { outline: 2px solid #f5c04a; outline-offset: 3px; border-radius: 8px; }
+  #floor .sub b { font-weight: 500; color: var(--muted); }
   .foot { margin-top: 40px; }
 </style>
 </head>
@@ -272,10 +282,45 @@
     ["own", () => "comm" in save.done || "pdist" in save.done, "<b>+ your own</b> at the end of the quest list is a playground: type any conjecture and craft it. What you prove there becomes a machine for your later lemmas."],
   ];
 
+  /* The tour (#33): one pop-up at a time, each next to the thing it names and shown until dismissed. [id, when, the
+     thing to outline, the element the pop-up goes after, text]. The first level shows only the goal, the bench and its
+     one machine (`fresh`); the ∎ count, the map and the upgrades come with a pop-up when they appear. */
+  const TOUR = [
+    ["goal", () => !!game && !game.root.done, "#quest .goal", "#quest .goal", "This is the <b>goal</b>. You need to prove this to complete the level."],
+    ["machine", () => !!game && !game.root.done, "#floor .card", "#floor .floor", "This is a <b>machine</b>. You can use it to accomplish a specific kind of task. This machine creates blocks of the form <i>t</i> = <i>t</i>, where <i>t</i> is any term you feed it. Tap it to open it."],
+    ["bench", () => !!game && !game.root.done, "#shop .bench", "#shop .bench", "This is your <b>workbench</b>. It holds statements which you've crafted (proven to be true). You need to craft a statement which is the same as the goal to beat the level."],
+    ["coin", () => !fresh(), "#quests .bal", "#quests .top", "These are <b>tombstones</b>, ∎, the mark that ends a proof. Every theorem you craft pays some. Later they buy upgrades: conveniences, never proofs."],
+    ["map", () => !fresh(), "#quests .map", "#quests .map", "This is the <b>map</b>. A world is a chain of quests, listed underneath. Every theorem you craft becomes a machine for the quests after it. More worlds open as you go."],
+    ["sections", () => !!game && "zz" in save.done, "#floor .sub", "#floor .find, #floor .label", "The floor is sorted. <b>Axioms</b> are taken as given. <b>Theorems</b> are what you have crafted. <b>Tactics</b> (the first one is Induction) don't make blocks: they change the goal, or split the work into smaller workshops."],
+    ["store", () => !!game && !$("store").hidden, "#store", "#store .label", "<b>Upgrades</b> are bought with ∎. They save typing and tapping; none of them proves anything for you."],
+  ];
+  const fresh = () => !("refl0" in save.done);                           // the very first level: nothing but the goal, the bench and refl
+  const touring = () => TOUR.find(t => !save.tut[t[0]] && t[1]());
+  function drawTour() {
+    document.querySelectorAll(".spot").forEach(x => x.classList.remove("spot"));
+    const old = $("tour"); if (old) old.remove();
+    const left = TOUR.filter(t => !save.tut[t[0]] && t[1]()), t = left[0];
+    const el = t && document.querySelector(t[2]), after = t && document.querySelector(t[3]);
+    if (!el || !after || el.offsetParent === null) return;
+    el.classList.add("spot");
+    const box = document.createElement("div");
+    box.id = "tour"; box.className = "tour";
+    put(box, `<span>${t[4]}</span><span class="row"><button class="mini tiny" data-tour="${t[0]}">${left.length > 1 ? "next" : "got it"}</button>${left.length > 1 ? `<button class="mini tiny quiet" data-tour="*">skip these</button>` : ""}</span>`);
+    after.insertAdjacentElement("afterend", box);
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-tour]"); if (!b) return;
+    if (b.dataset.tour === "*") TOUR.forEach(t => { if (t[1]()) save.tut[t[0]] = 1; }); else save.tut[b.dataset.tour] = 1;
+    store(); draw();
+    const box = $("tour");
+    if (box) { const r = box.getBoundingClientRect(); if (r.top < 0 || r.bottom > innerHeight) box.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  });
+
   // item: the quest, bounty or lemma on the bench (null on the "your own" page)
   // openM: the machine whose interface is open ("refl", "induct", "h0", or a machine id); dir: its lever
   // picked: blocks fed to an open rule so far; sel: { b, path } for the Scanner list (path [] = whole block)
   let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = 0;   // hint: 1 = the idea, 2 = also point at the next step
+  let setOpen = false;   // the settings box under the top row
   let tab = null;   // the world (or "bounty" / "own") whose quests the map lists; null = the open item's
   let numT = "";    // the number typed into Specialise or Witness
   let redo = [];    // steps undone, the next one to put back last (airetho)
@@ -296,6 +341,9 @@
     if (s.owned.includes("mp") && !("mp" in s.done)) s.done.mp = 1;             // Modus ponens was bought; now it is a one-step quest (#33): keep it
     if (!s.best || typeof s.best !== "object") s.best = {};                     // the steps of each best proof, to look through
     if (!s.tips) s.tips = Object.keys(s.done).length > 6 ? Object.fromEntries(TIPS.map(t => [t[0], 1])) : {};   // "by the way" notes are for new players
+    const old = Object.keys(s.done).length > 0;
+    if (typeof s.cmp !== "boolean") s.cmp = old;                                 // step counts: against Amog (as before) for old saves, just the counter for new players (#33)
+    if (!s.tut) s.tut = old ? Object.fromEntries(TOUR.map(t => [t[0], 1])) : {}; // the tour of the page is for new players
     return s;
   }
   /* Symmetry and Transitivity used to be "given a = b" quests; now they are implications (#33). Put the Assume
@@ -325,6 +373,8 @@
   const freeNow = id => !!Q.gate(id) && Q.onSale(id, save.done);
   const ownedSet = () => new Set([...save.owned, ...Q.GATES.map(g => g.id).filter(freeNow)]);
   const up = id => save.owned.includes(id) || freeNow(id);
+  /* machines are never bought: say which quests bring one that isn't here yet */
+  const arrives = id => { const a = ((Q.SHOP.find(x => x.id === id) || {}).after || []).filter(q => !(q in save.done)).map(q => `<i>${esc(Q.QUESTS.find(x => x.id === q).name)}</i>`); return a.length ? `It arrives once you have crafted ${and(a)}.` : "It is yours: open this quest again from the map."; };
   const has = id => !!game && game.machines.some(m => m.id === id);
   const canApply = () => has("apply");
   const bal = () => Q.balance(save.done, ownedSet());
@@ -453,8 +503,8 @@
   const BLURB = {
     refl: "Makes the block <i>t</i> = <i>t</i> out of thin air, for any term <i>t</i> you feed it.",
     induct: "Feed it a letter from the goal. It splits the workshop in two: craft the goal for 0, then craft it for S(<i>n</i>) while holding it for <i>n</i> as a fact. Anything this workshop holds about the letter goes back into the goal first, as <i>A</i> → …",
-    eq: "Rewrites a part of a block. Set the lever, then tap the part to feed it.",
-    iff: "An equivalence: wherever a block has a part that reads like one side, it may read like the other. Set the lever, then tap the part to feed it (a connective stands for the part it joins; the main one for the whole block).",
+    eq: "Rewrites a part of a block. Set the lever, then tap the part to feed it. Or drag this machine from the floor onto the part: it runs there, whichever way round fits.",
+    iff: "An equivalence: wherever a block has a part that reads like one side, it may read like the other. Set the lever, then tap the part to feed it (a connective stands for the part it joins; the main one for the whole block), or drag this machine from the floor onto the part.",
     hyp: "A fact about these particular numbers and statements. It rewrites a part of a block, but only where the block says exactly the same thing.",
     fix: "For a goal of the form ∀<i>a</i>. … It opens a workshop about one number, fixed but arbitrary: nothing is known about it, so what you craft for it holds for every number.",
     spec: "Uses a ∀ you have as a block: name a number, then tap the block ∀<i>a</i>. … and it becomes the same statement about that number.",
@@ -643,8 +693,8 @@
   const isTerm = (text, t) => { try { return L.same(L.term(text), t); } catch (e) { return false; } };
   const keyed = t => { const a = L.show(t), b = a.replace(/¬/g, "not ").replace(/⊥/g, "false").replace(/⊤/g, "true").replace(/→/g, "->").replace(/∧/g, "and").replace(/∨/g, "or").replace(/↔/g, "<->").replace(/·/g, "*").replace(/∀/g, "forall ").replace(/∃/g, "exists "); return a === b ? "" : ` (type <b>${esc(b)}</b>)`; };
   function buyTip(id) {
-    const why = Q.canBuy(id, save.done, ownedSet()), name = `<i>${esc(Q.gate(id).name)}</i>`;
-    return { route: true, text: `The next step takes a machine you don't own yet: ${name}. Machines are bought with ∎. ` + (why ? `It costs ∎${Q.price(id)}, and right now ${esc(why)}.` : `Buy it for ∎${Q.price(id)}.`),
+    const name = `<i>${esc(Q.gate(id).name)}</i>`;
+    return { route: true, text: `The next step takes a machine you don't have yet: ${name}. ${arrives(id)}`,
       at: `#quest [data-buy="${id}"], #panel [data-buy="${id}"], #floor [data-m="${id}"]` };
   }
   function say(s, c) {
@@ -765,6 +815,7 @@
   }
   /* the strip above the workbench: asked for (hint 2), or unasked in a `guide` quest while the player is on the route */
   function coach() {
+    if (hint !== 2 && touring()) return null;                            // the tour first: one thing at a time
     const tip = advice();
     return tip && (hint === 2 || (item.guide && tip.route)) ? tip : null;
   }
@@ -782,6 +833,27 @@
   const MAP = [["add", "mul", "pow"], ["prop", "logic", "iff", "quant"]], SUB = ["eq", "peano"];
   const tabOf = it => (!it ? "own" : it.bounty ? "bounty" : it.own ? "own" : it.world);
   const grade = q => { const n = save.done[q.id], par = Q.par(q); return n < par ? "beat" : n === par ? "par" : "long"; };
+  const colours = () => save.cmp && save.moves;                         // step colours only mean something against Amog
+  /* settings (#33): the switches that used to be scattered over the page, and the two ways to show step counts */
+  function settingsHtml() {
+    const sw = (key, on, label, note) => `<div class="srow"><button class="mini tiny ${on ? "on" : ""}" data-set="${key}" aria-pressed="${!!on}">${label}: ${on ? "on" : "off"}</button><span class="meta">${note}</span></div>`;
+    return `<div class="settings"><p class="label">Settings</p>
+      <div class="srow"><span class="seg"><button class="mini tiny ${save.cmp ? "" : "on"}" data-set="cmp0" aria-pressed="${!save.cmp}">steps only</button><button class="mini tiny ${save.cmp ? "on" : ""}" data-set="cmp1" aria-pressed="${!!save.cmp}">against Amog</button></span>
+        <span class="meta">${save.cmp ? "step counts: your best, Amog's count and a verdict on every proof" : "step counts: just the counter. Your best is still kept, and nothing is compared"}</span></div>` +
+      (save.cmp ? sw("moves", save.moves, "step colours", "colour finished quests on the map by how they compare with Amog's proof") : "") +
+      sw("plain", save.plain, "write ¬P as P → ⊥", "¬P is only a way of writing P → ⊥; this spells it out everywhere") +
+      (up("scanner") ? sw("more", save.more !== false, "Scanner: fits anything", "also list the moves that fit any part at all") : "") +
+      sw("wide", save.wide, "wide workbench", "use the whole width of a large screen") +
+      `<div class="srow"><button class="mini tiny" data-set="tour">show the pop-ups again</button><span class="meta">the tour of the page and the “by the way” notes</span></div></div>`;
+  }
+  function setting(key) {
+    if (key === "cmp0" || key === "cmp1") save.cmp = key === "cmp1";
+    else if (key === "tour") { save.tut = {}; save.tips = {}; setOpen = false; }
+    else if (key === "more") save.more = save.more === false;
+    else save[key] = !save[key];
+    document.body.classList.toggle("wide", !!save.wide);
+    store(); draw();
+  }
   function drawQuests() {
     const cur = tab || tabOf(item);
     const chip = (id, label, cls, off, why = "", g = "") => `<button data-id="${id}" class="${cls} ${item && item.id === id ? "on" : ""} ${id in save.done ? "done" : ""} ${g ? "g-" + g : ""}" ${off ? `disabled title="${esc(why)}"` : ""}>${label}${id in save.done ? (g === "beat" ? " ★" : " ✓") : ""}</button>`;
@@ -795,13 +867,17 @@
     const bopen = Q.BOUNTIES.filter(openB);
     const list = cur === "bounty" ? Q.BOUNTIES.map(q => chip(q.id, `${esc(q.name)}${finished(q) ? "" : ` <span class="coin">∎${q.pay}</span>`}`, "bounty", !openB(q), "opens once you have " + and(q.tools.map(tool)))).join("")
       : cur === "own" ? lemmas().map(q => chip(q.id, esc(q.name), "own")).join("") + `<button data-id="new" class="own ${item ? "" : "on"}">+ your own</button>`
-      : Q.QUESTS.filter(q => q.world === cur).map((q, k) => chip(q.id, `${cur === "add" ? k : k + 1}. ${esc(q.name)}`, "", !unlocked(q), "", save.moves && finished(q) ? grade(q) : "")).join("");
-    put($("quests"), `<div class="top"><span class="bal" title="tombstones: earned by finishing crafts, spent on machines and upgrades">∎ ${bal()}</span><span class="meta">to spend</span><span class="spacer"></span>` +
-      (save.moves ? `<span class="legend">finished in <b style="color:#e0a070">more steps than Amog ✓</b> · <b style="color:var(--g3)">as many ✓</b> · <b style="color:var(--g1)">fewer ★</b></span>` : "") +
-      `<button class="mini tiny ${save.moves ? "on" : ""}" data-do="moves" title="colour finished quests by how their step count compares with Amog's">step colours: ${save.moves ? "on" : "off"}</button></div>` +
+      : Q.QUESTS.filter(q => q.world === cur).map((q, k) => chip(q.id, `${cur === "add" ? k : k + 1}. ${esc(q.name)}`, "", !unlocked(q), "", colours() && finished(q) ? grade(q) : "")).join("");
+    const top = `<div class="top">` + (fresh() ? "" : `<span class="bal" title="tombstones: earned by finishing crafts, spent on upgrades">∎ ${bal()}</span><span class="meta">to spend</span>`) + `<span class="spacer"></span>` +
+      (colours() ? `<span class="legend">finished in <b style="color:#e0a070">more steps than Amog ✓</b> · <b style="color:var(--g3)">as many ✓</b> · <b style="color:var(--g1)">fewer ★</b></span>` : "") +
+      `<button class="mini tiny ${setOpen ? "on" : ""}" data-do="set" aria-expanded="${setOpen}">⚙ settings</button></div>` + (setOpen ? settingsHtml() : "");
+    if (fresh()) return put($("quests"), top);                           // the first level: no map yet
+    const side = (bopen.length || Q.BOUNTIES.some(finished) ? extra("bounty", "Bounties", `${Q.BOUNTIES.filter(finished).length} of ${Q.BOUNTIES.length}${bopen.some(b => !finished(b)) ? " · open" : ""}`) : "") +
+      ("zadd" in save.done || lemmas().length || !item ? extra("own", "Playground", lemmas().length ? `${lemmas().length} of your own` : "your own conjectures") : "");
+    put($("quests"), top +
       `<div class="map"><div class="rows">` + MAP.map(r => `<div class="mrow">` + r.map((w, i) => (i ? `<span class="arr">→</span>` : "") + node(w)).join("") + `</div>`).join("") +
       `<div class="mrow sub"><span class="arr">↳</span>` + SUB.map(node).join("") + `</div></div>` +
-      `<div class="side">` + extra("bounty", "Bounties", `${Q.BOUNTIES.filter(finished).length} of ${Q.BOUNTIES.length}${bopen.some(b => !finished(b)) ? " · open" : ""}`) + extra("own", "Playground", lemmas().length ? `${lemmas().length} of your own` : "your own conjectures") + `</div></div>` +
+      `<div class="side">${side}</div></div>` +
       `<div class="chips">${list}</div>`);
   }
   /* slots the open machine's current direction can't work out from the part it is fed (0 → a·0 needs an a) */
@@ -831,17 +907,13 @@
     const steps = `${n} step${n === 1 ? "" : "s"}`;
     const text = q.own ? "Your own conjecture. If it is true and you can craft it, it becomes a machine for your later lemmas, just like a quest's theorem: an implication P → Q takes a block that fits P and gives Q, and every letter is a slot."
       : q.bounty ? `${q.intro ? q.intro + " " : ""}A bounty: an optional theorem that pays ${coin(q.pay)} the first time you craft it, and becomes a machine in the playground.` : q.intro;
-    const pays = quest ? ` · pays ∎${q.pay}, +${Q.PAR_BONUS} in ${Q.par(q)} steps or fewer` : "";
+    const pays = !quest || fresh() ? "" : ` · pays ∎${q.pay}` + (save.cmp ? `, +${Q.PAR_BONUS} in ${Q.par(q)} steps or fewer` : "");
     let h = `<p class="label">${q.own ? "Playground" : q.bounty ? "Bounty" : `${wname} · quest ${q.world === "add" ? k : k + 1} of ${q.world === "add" ? chain.length - 1 : chain.length}`}</p><h2>${esc(q.name)}</h2>
       <div class="goal"><span class="meta">craft</span><span class="scroll">${st(L.term(q.goal))}</span><span class="meta">${forAny}</span></div>
       <p>${text}</p>${q.curious ? `<details class="curious"><summary>for the curious</summary><p>${q.curious}</p></details>` : ""}`;
     const missing = (q.needs || []).filter(id => !up(id));
-    if (missing.length && !game.root.done) {                             // new players miss that machines are bought (#33)
-      const whys = missing.map(id => Q.canBuy(id, save.done, ownedSet()));
-      h += `<div class="need"><span>This quest needs ${missing.length > 1 ? "machines" : "a machine"} you don't own yet. Machines are bought with the ∎ you earn:</span><span class="row">` +
-        missing.map((id, i) => `<button class="mini" data-buy="${id}" ${whys[i] ? "disabled" : ""}>buy ${esc(Q.gate(id).name)} · ∎${Q.price(id)}</button>`).join("") +
-        (whys.some(Boolean) ? `<span class="meta">${esc(whys.find(Boolean))}</span>` : "") + `</span></div>`;
-    }
+    if (missing.length && !game.root.done)                               // machines are free (#33): nothing to buy, only to wait for
+      h += `<div class="need">` + missing.map(id => `<span>This quest needs <i>${esc(Q.gate(id).name)}</i>, a machine you don't have yet. ${arrives(id)}</span>`).join("") + `</div>`;
     h += `<div class="row hint">${quest ? `<button class="mini" data-do="hint">${hint ? "hide hint" : "hint"}</button>` : ""}
         <button class="mini" data-do="undo" ${game.steps.length ? "" : "disabled"}>undo</button>
         <button class="mini" data-do="redo" ${redo.length ? "" : "disabled"}>redo</button>
@@ -850,11 +922,11 @@
         ${save.best[q.id] && JSON.stringify(save.best[q.id]) !== JSON.stringify(game.steps) && !(redo.length && JSON.stringify([...game.steps, ...redo.slice().reverse()]) === JSON.stringify(save.best[q.id])) ? `<button class="mini" data-do="best" title="start over with your best proof ready to step through with redo">your best proof</button>` : ""}
         ${q.own ? `<button class="mini" data-do="remove">delete</button>` : ""}
         ${q.own ? `<span class="row"><input class="term name" id="lname" value="${esc(q.name)}" maxlength="40" autocomplete="off" spellcheck="false" aria-label="the lemma's name"><button class="mini" data-do="rename">rename</button></span>` : ""}
-        <span class="meta">${steps}${best ? ` · your best ${best}` : ""}${pays}</span></div>`;
+        <span class="meta">${steps}${best && save.cmp ? ` · your best ${best}` : ""}${pays}</span></div>`;
     if (hint && quest) h += `<p>${q.hint}</p>` + (game.root.done ? "" : `<div class="row hint"><button class="mini ${hint === 2 ? "on" : ""}" data-do="step">${hint === 2 ? "stop pointing" : "what do I do next?"}</button><span class="meta">points at the next step from where you are, one step at a time</span></div>`);
     // once the quest is beaten: Amog's hint for the shortest way (#33), so the hint above can stay a nudge
     const lazy = q.short ? `“There might be a way to do this by ${q.short.hint}, but I'm too lazy to work it out.”` : q.amog;
-    if (quest && finished(q) && lazy) h += `<details class="curious"><summary>Amog's hint${q.short ? " for a shorter way" : ""}</summary><p>${lazy}</p></details>`;
+    if (quest && finished(q) && lazy && save.cmp) h += `<details class="curious"><summary>Amog's hint${q.short ? " for a shorter way" : ""}</summary><p>${lazy}</p></details>`;
     const note = btw();
     if (note) h += `<div class="btw"><span><b>By the way:</b> ${note[2]}</span><button class="mini tiny" data-tip="${note[0]}">got it</button></div>`;
     if (game.root.done) {
@@ -862,14 +934,14 @@
       const known = quest && q.short ? L.count(q.short.proof) : 0;      // revealed once the player ties or beats Amog
       // Amog's par against the best known (airetho): lose to both, tie or beat Amog, and tie or beat the best known
       const K = known || par, sK = `${K} step${K === 1 ? "" : "s"}`;
-      const verdict = !quest ? "" : n > par ? `Amog does it in ${par}.${known && best <= par ? ` The best known is ${sK}.` : ""}`
+      const verdict = !quest || !save.cmp ? "" : n > par ? `Amog does it in ${par}.${known && best <= par ? ` The best known is ${sK}.` : ""}`
         : n === par && K < par ? `As short as Amog's proof. He has heard of one in ${sK}, but he is too lazy to find it.`
         : n === par ? "As short as Amog's proof, and nobody knows a shorter one."
         : n > K ? `Shorter than Amog's proof. He would like a word. The best known is ${sK}, though.`
         : n === K ? `Shorter than Amog's proof, and as short as the best known (${sK}).`
         : `You've beaten the shortest known proof! ${known ? `Amog's is ${par} and the best known was ${sK}` : `Amog's was ${par}, and nobody knew a shorter one`}.` +
           ` Amog would very much like a word (an issue on <a href="https://github.com/ErhaiYKao/amog-fun/issues" target="_blank" rel="noopener">GitHub</a> will do).`;
-      const paid = q.own ? "" : ` You earned ${coin(q.pay + (bonus ? Q.PAR_BONUS : 0))}${quest && !bonus ? ` (${coin(Q.PAR_BONUS)} more for doing it in ${par})` : ""}.`;
+      const paid = q.own ? "" : ` You earned ${coin(q.pay + (bonus ? Q.PAR_BONUS : 0))}${quest && !bonus && save.cmp ? ` (${coin(Q.PAR_BONUS)} more for doing it in ${par})` : ""}.`;
       const after = !quest ? `<button class="mini" data-do="new">a conjecture of your own</button>`
         : k + 1 < chain.length ? `<button class="mini" data-do="next">next quest →</button>`
         : `<span class="meta">That's all of ${wname.toLowerCase()}. ${Q.QUESTS.every(finished) ? "And all of Mathcraft, for now: the bounties and the playground are still open." : "Other branches are open in the list above."}</span>`;
@@ -973,8 +1045,7 @@
         : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop", apply: "in: a block P → goal, or a rule · out: the goal P", have: "in: a statement · out: a workshop for it, then the goal with it", byc: "in: a goal P · out: a workshop holding ¬P, goal ⊥", cases: "in: a block P ∧ Q, P ∨ Q or P ↔ Q · out: two blocks, or two workshops", fix: "in: a goal ∀a. A · out: a workshop for A about one fixed number", spec: "in: a number and a block ∀a. A · out: A about that number", witness: "in: a number, for a goal ∃a. A · out: a workshop for A about that number", obtain: "in: a block ∃a. A · out: a workshop that holds A about a new number", unfold: "in: a part of a block · out: its definition, or back · free" }[m.kind]}</div>`;
       h = `<div class="mhead">${icon(m.kind, 60)}<div><h3>${esc(m.name)}</h3>${stmt}</div><button class="x" data-do="close" title="close">✕</button></div>`;
       if (m.locked) {
-        const why = Q.canBuy(m.id, save.done, ownedSet());
-        h += `<p class="what">${BLURB[m.kind]}</p><div class="row"><button class="mini" data-buy="${m.id}" ${why ? "disabled" : ""}>buy for ∎${Q.price(m.id)}</button><span class="meta">${why ? esc(why) : `you have ∎${bal()}`}</span></div>`;
+        h += `<p class="what">${BLURB[m.kind]}</p><p class="meta">Not here yet. ${arrives(m.id)}</p>`;
       } else if (m.kind === "refl") {
         h += `<p class="what">${BLURB.refl}</p><div class="row"><input class="term" id="rterm" value="${esc(typed)}" placeholder="a term, like S(0)+0" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the term to feed refl"><button class="mini" data-do="refl">run</button></div>` + keypad(names);
         if (up("autofill")) {
@@ -983,7 +1054,7 @@
         }
       } else if (m.kind === "induct") {
         const ok = [...new Set([c.goal, ...c.hyps].flatMap(s => [...L.vars(s)]))].filter(v => !L.upper(v));   // what is held about it goes back into the goal
-        h += `<p class="what">${BLURB.induct}</p><div class="row"><input class="term" id="iv" maxlength="1" value="${esc(letter)}" placeholder="letter" style="width:84px" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the letter to induct on"><button class="mini" data-do="induct">run</button>` +
+        h += `<p class="what">${BLURB.induct}</p><details class="curious"><summary>what is induction?</summary><p>A way to prove something about every number 0, 1, 2, … at once. First prove it for 0. Then prove that whenever it is true for a number, it is true for the next one. Now it is true for 0, so for 1, so for 2, and so on for ever, like a row of dominoes: the first one falls, and each one knocks over the next.</p></details><div class="row"><input class="term" id="iv" maxlength="1" value="${esc(letter)}" placeholder="letter" style="width:84px" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the letter to induct on"><button class="mini" data-do="induct">run</button>` +
           (up("autofill") ? `<span class="meta">autofill</span>` + ok.map(v => `<button class="mini" data-induct="${v}"><i>${v}</i></button>`).join("") : "") + `</div>`;
       } else if (m.kind === "apply") {
         h += `<p class="what">${BLURB.apply}</p>` + applyHtml(c);
@@ -1059,10 +1130,12 @@
     const unfolder = hasUnfold(), wanted = game.root.done ? [] : item.needs || [];
     const card = id => {
       const m = mach(id);
-      return `<button class="card ${m.locked ? "locked" : ""} ${m.locked && wanted.includes(id) ? "want" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${esc(m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : m.stmt ? L.show(m.stmt) : "")}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">∎${Q.price(id)}</span>` : ""}</button>`;
+      return `<button class="card ${m.locked ? "locked" : ""} ${m.locked && wanted.includes(id) ? "want" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${esc(m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : m.stmt ? L.show(m.stmt) : "")}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">soon</span>` : ""}</button>`;
     };
-    const group = (title, ids) => (ids.length ? `<p class="sub">${title}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
-    const gates = GATES.filter(id => (up(id) || Q.onSale(id, save.done)) && Q.sees(world, Q.gate(id).w) && shown(id));
+    const SUBS = { axioms: "taken as given, never proved", tactics: "they change the goal or split the work; they make no block", theorems: "crafted by you; each one is a machine now", lemmas: "your own, from the playground" };
+    const group = (title, ids) => (ids.length ? `<p class="sub"><b>${title}</b> · ${SUBS[title]}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
+    // a machine that arrived by finishing this very quest is not on its floor: the next quest brings it (it used to sit here greyed out, "buy for ∎0")
+    const gates = GATES.filter(id => (mine.includes(id) || wanted.includes(id)) && Q.sees(world, Q.gate(id).w) && shown(id));
     const theorems = mine.filter(id => quests.has(id)), hidden = theorems.filter(id => !shown(id)).length + GATES.filter(id => up(id) && !shown(id)).length;
     // Once its ↔ is crafted, a one-way machine gives up its place and its section to the ↔ (airetho): the ↔ sits
     // where the first old one sat, the other old ones go, and the ↔ leaves the theorems list. An old machine that
@@ -1078,7 +1151,7 @@
     }
     const place = ids => ids.flatMap(id => (id in swap ? (swap[id] ? [swap[id]] : []) : moved.has(id) ? [] : [id]));
     put($("floor"), `<p class="label">Machine floor${world ? " · " + Q.WORLDS.find(w => w[0] === world)[1].toLowerCase() : ""}</p>` +
-      `<input class="term find" id="find" value="${esc(findQ)}" placeholder="search machines" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="search the machines by name or statement">` +
+      `<input class="term find" id="find" ${mine.length < 6 && !findQ ? "hidden" : ""} value="${esc(findQ)}" placeholder="search machines" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="search the machines by name or statement">` +
       group("axioms", [...(numbers ? ["refl"] : []), ...place(gates.filter(id => !Q.TACTICS.includes(id)))]) +
       group("tactics", [...gates.filter(id => Q.TACTICS.includes(id)), ...(unfolder ? ["unfold"] : [])]) +
       group("theorems", place(theorems.filter(shown))) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))) +
@@ -1100,6 +1173,7 @@
   $("floor").addEventListener("input", e => { if (e.target.id === "find") { findQ = e.target.value; applyFind(); } });
   $("floor").addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.oneway") && !findQ.trim()) { save.oneway = e.target.open; store(); } }, true);
   function drawStore() {
+    $("store").hidden = !("zz" in save.done) && !Q.SHOP.some(x => !x.gate && save.owned.includes(x.id));   // upgrades come after the first two quests
     put($("store"), `<p class="label">Upgrades</p><ul class="ups">` + Q.SHOP.filter(x => !x.gate).map(x => {
       const why = up(x.id) ? "" : Q.canBuy(x.id, save.done, ownedSet());
       return `<li><b>${esc(x.name)}</b><span class="d">${esc(x.text)}</span>${up(x.id) ? `<span class="mini tiny on" style="grid-row:1/span 2;grid-column:2;cursor:default">owned</span>` : `<button class="mini" data-buy="${x.id}" ${why ? "disabled" : ""}>∎${x.price}</button>`}${why ? `<span class="why">${esc(why)}</span>` : ""}</li>`;
@@ -1108,17 +1182,19 @@
   function draw() {
     drawQuests();
     $("shop").hidden = $("side").hidden = !game;
-    if (!game) return drawNew();
+    if (!game) { drawNew(); return drawTour(); }
     drawPanel();                       // first: it settles openM
     const tip = coach();
     drawQuest(); drawShop(tip); drawFloor(tip); applyFind(); drawStore();
     point(tip);
+    drawTour();
   }
 
   /* ---------- input ---------- */
   $("quests").onclick = e => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
-    if (b.dataset.do === "moves") { save.moves = !save.moves; store(); drawQuests(); }
+    if (b.dataset.do === "set") { setOpen = !setOpen; drawQuests(); drawTour(); }
+    else if (b.dataset.set) setting(b.dataset.set);
     else if (b.dataset.w) { tab = b.dataset.w; drawQuests(); }
     else if (b.dataset.id === "new") openNew();
     else open(b.dataset.id);
@@ -1440,7 +1516,7 @@
     const next = Q.QUESTS.find(q => unlocked(q) && !finished(q)) || Q.QUESTS[0];
     open((known.find(q => q.id === save.cur) || next).id);
   }
-  window.addEventListener("DOMContentLoaded", () => { if (game) { drawQuest(); point(coach()); } });   // math.js is deferred: typeset the quest text once it's there
+  window.addEventListener("DOMContentLoaded", () => { if (game) { drawQuest(); point(coach()); drawTour(); } });   // math.js is deferred: typeset the quest text once it's there
 })();
 </script>
 </body>
