@@ -24,8 +24,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=17"></script>
-<script src="/mathcraft/quests.js?v=17"></script>
+<script src="/mathcraft/logic.js?v=18"></script>
+<script src="/mathcraft/quests.js?v=18"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -293,6 +293,7 @@
       if ("zz" in s.done) s.owned.push("add0");
       if ("zadd" in s.done) s.owned.push("addS", "induct");
     }
+    if (s.owned.includes("mp") && !("mp" in s.done)) s.done.mp = 1;             // Modus ponens was bought; now it is a one-step quest (#33): keep it
     if (!s.best || typeof s.best !== "object") s.best = {};                     // the steps of each best proof, to look through
     if (!s.tips) s.tips = Object.keys(s.done).length > 6 ? Object.fromEntries(TIPS.map(t => [t[0], 1])) : {};   // "by the way" notes are for new players
     return s;
@@ -320,8 +321,10 @@
   }
   function store() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} }
   const doneSet = () => new Set(Object.keys(save.done));
-  const ownedSet = () => new Set(save.owned);
-  const up = id => save.owned.includes(id);
+  /* machines are free (#33): a gate is yours the moment it goes on sale; only the upgrades are bought */
+  const freeNow = id => !!Q.gate(id) && Q.onSale(id, save.done);
+  const ownedSet = () => new Set([...save.owned, ...Q.GATES.map(g => g.id).filter(freeNow)]);
+  const up = id => save.owned.includes(id) || freeNow(id);
   const has = id => !!game && game.machines.some(m => m.id === id);
   const canApply = () => has("apply");
   const bal = () => Q.balance(save.done, ownedSet());
@@ -357,7 +360,8 @@
     const cls = q => `t${o.sel === q ? " sel" : ""}${o.fit && o.fit.has(q) ? " fit" : ""}`;
     // parts are counted as the engine counts them (L.at): a quantifier's is its body, a predicate's are its arguments.
     // A quantifier reaches as far right as it can, so inside anything but another quantifier it gets brackets.
-    const kid = (i, ops) => { const k = L.at(t, [i]); return tHtml(k, o, [...path, i], ops !== null && ((ops.includes(k[0]) && !L.neg(k)) || "∀∃".includes(k[0]))); };
+    const neg = x => L.neg(x) && !save.plain;                            // ¬A is how A → ⊥ is written, unless the player wants it spelled out
+    const kid = (i, ops) => { const k = L.at(t, [i]); return tHtml(k, o, [...path, i], ops !== null && ((ops.includes(k[0]) && !neg(k)) || "∀∃".includes(k[0]))); };
     const handle = (ch, c) => (o.live && top ? `<span class="${c} ${cls("")}" data-p="" title="the whole block">${ch}</span>` : ch);
     // the main sign of a block stands for the whole block
     const sign = ch => (o.live && top ? `<span class="eqs ${cls("")}" data-p="" title="the whole block">${ch}</span>` : `<span class="eqs">${ch}</span>`);
@@ -370,7 +374,7 @@
     else if (t[0] === "*") inner = kid(0, "+*") + "·" + kid(1, "+*");
     else if (t[0] === "^") inner = kid(0, "+*^") + "<sup>" + kid(1, "") + "</sup>";
     else if (t[0] === "=") inner = kid(0, "") + sign("=") + kid(1, "");
-    else if (L.neg(t)) inner = (o.live && top ? `<span class="neg ${cls("")}" data-p="" title="the whole block">¬</span>` : "¬") + kid(0, "=→∧∨↔");   // A → ⊥, written ¬A
+    else if (neg(t)) inner = (o.live && top ? `<span class="neg ${cls("")}" data-p="" title="the whole block">¬</span>` : "¬") + kid(0, "=→∧∨↔");   // A → ⊥, written ¬A
     else if (t[0] === "→" || t[0] === "↔") inner = kid(0, "→↔") + sign(t[0]) + kid(1, "→↔");
     else if (t[0] === "∧" || t[0] === "∨") inner = kid(0, "→∧∨↔") + sign(t[0]) + kid(1, "→∧∨↔");
     else if (t[0] === "∀" || t[0] === "∃") inner = handle(`${t[0]}<i>${esc(t[1][1])}</i>.`, "neg") + " " + kid(0, null);
@@ -432,7 +436,7 @@
   /* { id, name, kind, stmt | premises+concl, locked, hyp } for anything that can be opened */
   function mach(id) {
     if (id === "refl") return { id, name: "refl", kind: "refl" };
-    if (id === "unfold") return { id, name: "Translator", kind: "unfold" };
+    if (id === "unfold") return { id, name: "Unfold", kind: "unfold" };
     const h = /^h(\d+)$/.exec(id);
     if (h) {
       const s = L.ctxAt(game, where).hyps[+h[1]];
@@ -720,7 +724,7 @@
         const blk = c.bench[s.b].s, part = L.at(blk, s.path);
         let res = ""; try { res = ` The block becomes ${sm(L.preview(game, s))}.`; } catch (e) {}
         const tr = openM !== "unfold" ? `#floor [data-m="unfold"]` : null;
-        return tip(`${s.as ? `Fold ${sm(part)} back into an ${s.as}` : `Unfold ${sm(part)} into its definition`}: open the <b>Translator</b> and tap ${s.path.length ? "that part" : "the main connective"} of block ${s.b + 1}. Translating is free.${res}`,
+        return tip(`${s.as ? `Fold ${sm(part)} back into an ${s.as}` : `Unfold ${sm(part)} into its definition`}: open <b>Unfold</b> and tap ${s.path.length ? "that part" : "the main connective"} of block ${s.b + 1}. Translating is free.${res}`,
           tr || `.block[data-b="${s.b}"] .t[data-p="${pstr(s.path)}"]`);
       }
       case "dup": return tip(`Block ${s.b + 1}, ${sm(c.bench[s.b].s)}, is needed twice, and a rule uses up what it is fed. Copy it first: ⧉ on the block.`, `[data-dup="${s.b}"]`);
@@ -891,9 +895,9 @@
       `<button data-at="${l.at}" class="${l.at === where ? "on" : ""} ${l.c.done ? "done" : ""}"><span class="meta">${shopName(l.at)}${l.c.done ? " ✓" : ""}</span><span class="st small">${tHtml(l.c.goal)}</span></button>`).join("") + `</div>`;
     h += `<p class="label">${where ? "Workshop · " + shopName(where) : "Workbench"}<button class="mini tiny widen" data-do="wide">${save.wide ? "narrower" : "wider"}</button></p>`;
     const om = openM && mach(openM), gLive = up("goalrw") && rewrites(om);
-    const gTip = om && om.kind === "unfold" ? "tap a part to translate the goal" : gLive ? "tap a part to rewrite the goal" : "";
-    // the goal is only tappable once something can be done to it: translating (logic) or the Goal lever (#33)
-    const tappable = !c.done && (hasTranslator() || up("goalrw"));
+    const gTip = om && om.kind === "unfold" ? "tap a part to unfold or fold the goal" : gLive ? "tap a part to rewrite the goal" : "";
+    // the goal is only tappable once something can be done to it: unfolding (logic) or the Goal lever (#33)
+    const tappable = !c.done && (hasUnfold() || up("goalrw"));
     // Goal buttons (upgrade): refl on a goal t = t, assume on an implication
     const quick = c.done || !up("quick") ? "" : (c.goal[0] === "=" || (c.goal[0] === "↔" && has("ir"))) && L.same(c.goal[1], c.goal[2]) ? `<button class="use" data-do="grefl" title="make this block${c.goal[0] === "=" ? " with refl" : " (If and only if, stamped)"} and use it (one step)">refl ✓</button>`
       : explicitImp(c.goal) && has("assume") ? `<button class="use" data-do="gassume" title="run Assume on this goal">assume</button>`
@@ -937,7 +941,7 @@
     const pairs = shown.map((o, i) => [o, i]), tight = pairs.filter(x => !x[0].loose), loose = pairs.filter(x => x[0].loose);
     let h = `<p class="label">Scanner</p><div class="row" style="margin-bottom:10px"><span class="meta">selected</span>${whole ? `<span class="meta">${onGoal ? "the whole goal" : `the whole of block ${sel.b + 1}`}</span>` : st(L.at(b.s, sel.path), {}, "small")}${onGoal ? `<span class="meta">of the goal</span>` : ""}
       <button class="mini tiny" data-do="widen" ${whole ? "disabled" : ""}>widen</button></div><div class="opts">`;
-    if (!tight.length) h += `<p class="empty">${onGoal ? (up("goalrw") ? "Nothing translates or rewrites this part of the goal." : "Nothing translates this part of the goal. Rewriting the goal needs the Goal lever.") : whole ? "No rule does anything to this block." : "Nothing fits this part exactly."}</p>`;
+    if (!tight.length) h += `<p class="empty">${onGoal ? (up("goalrw") ? "Nothing unfolds or rewrites this part of the goal." : "Nothing unfolds this part of the goal. Rewriting the goal needs the Goal lever.") : whole ? "No rule does anything to this block." : "Nothing fits this part exactly."}</p>`;
     h += tight.map(x => optHtml(x[0], x[1])).join("");
     const more = save.more !== false;
     if (loose.length) h += `<button class="mini tiny" data-do="more" style="justify-self:start">${more ? "hide" : "show"} ${loose.length} that fit anything</button>` + (more ? loose.map(x => optHtml(x[0], x[1])).join("") : "");
@@ -986,7 +990,7 @@
       } else if (m.kind === "have") {
         h += `<p class="what">${BLURB.have}</p><div class="row"><input class="term" id="lemma" value="${esc(lemmaText)}" placeholder="a statement, like a+0 = 0+a" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the lemma to craft"><button class="mini" data-do="have">open a workshop</button></div>`;
       } else if (m.kind === "unfold") {
-        h += `<p class="what">${BLURB.unfold}</p>`;
+        h += `<p class="what">${BLURB.unfold}</p><div class="row"><span class="meta">¬<i>P</i> is only a way of writing <i>P</i> → ⊥:</span><button class="mini tiny ${save.plain ? "on" : ""}" data-do="plain">${save.plain ? "showing P → ⊥ everywhere" : "show ¬P as P → ⊥"}</button></div>`;
       } else if (m.kind === "cases" || m.kind === "obtain") {
         h += `<p class="what">${BLURB[m.kind]}</p>`;
       } else if (m.kind === "fix") {
@@ -1042,18 +1046,17 @@
   /* A → B written as such (¬A counts: to prove not A, assume A), not an ∧ / ∨ / ↔ that only unfolds to one. The assume
      button on the goal is for these only (airetho); the Assume machine itself still takes the others. */
   const explicitImp = g => g[0] === "→";
-  /* is the Translator on this floor? */
-  const hasTranslator = () => (item.world ? Q.sees(item.world, "logic") : goalKind().logic && (!item.worlds || item.worlds.includes("logic"))) || /[1-9]/.test(L.show(L.term(item.goal)));
+  /* is Unfold on this floor? */
+  const hasUnfold = () => (item.world ? Q.sees(item.world, "logic") : goalKind().logic && (!item.worlds || item.worlds.includes("logic"))) || /[1-9]/.test(L.show(L.term(item.goal)));
   function drawFloor(tip) {
     const world = item.world, quests = new Set(Q.QUESTS.map(q => q.id)), mine = game.machines.map(m => m.id);
-    const folded = new Set(Object.entries(Q.SUPERSEDES).filter(([id]) => mine.includes(id)).flatMap(([, olds]) => olds));
     // bounties and the playground: by default only the worlds the goal is about (airetho)
     const { logic: logicGoal, num: numGoal } = goalKind();
     const rel = item.worlds || (world || save.allw ? null : [...(numGoal ? ["add", "mul", "eq", "pow"] : []), ...(logicGoal ? ["prop", "logic", "iff", "quant"] : [])]);
     const wOf = id => { const g = Q.gate(id); if (g) return g.w; const q = Q.QUESTS.find(x => x.id === id); return q ? q.world : null; };
     const shown = id => !rel || !wOf(id) || wOf(id) === "any" || rel.includes(wOf(id));
     const numbers = world ? Q.numeric(world) : numGoal;                  // refl makes equations: no use among pure statements
-    const translator = hasTranslator(), wanted = game.root.done ? [] : item.needs || [];
+    const unfolder = hasUnfold(), wanted = game.root.done ? [] : item.needs || [];
     const card = id => {
       const m = mach(id);
       return `<button class="card ${m.locked ? "locked" : ""} ${m.locked && wanted.includes(id) ? "want" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${esc(m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : m.stmt ? L.show(m.stmt) : "")}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">∎${Q.price(id)}</span>` : ""}</button>`;
@@ -1061,14 +1064,24 @@
     const group = (title, ids) => (ids.length ? `<p class="sub">${title}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
     const gates = GATES.filter(id => (up(id) || Q.onSale(id, save.done)) && Q.sees(world, Q.gate(id).w) && shown(id));
     const theorems = mine.filter(id => quests.has(id)), hidden = theorems.filter(id => !shown(id)).length + GATES.filter(id => up(id) && !shown(id)).length;
-    const keep = id => !folded.has(id), old = [...gates, ...theorems.filter(shown)].filter(id => folded.has(id) && mine.includes(id));
-    const wantOld = !!(tip && tip.at && old.some(id => tip.at.includes(`"${id}"`)));
+    // Once its ↔ is crafted, a one-way machine gives up its place and its section to the ↔ (airetho): the ↔ sits
+    // where the first old one sat, the other old ones go, and the ↔ leaves the theorems list. An old machine that
+    // the hint is pointing at stays, so there is something to point at.
+    const visible = new Set([...gates, ...theorems.filter(shown)]), pointed = id => !!(tip && tip.at && tip.at.includes(`"${id}"`));
+    const swap = {}, moved = new Set();
+    for (const [neu, olds] of Object.entries(Q.SUPERSEDES)) {
+      if (!mine.includes(neu) || !shown(neu)) continue;
+      const here = olds.filter(o => visible.has(o) && !pointed(o)).sort((x, y) => !!Q.gate(y) - !!Q.gate(x));   // an axiom's place first: Double negation stays an axiom
+      if (!here.length) continue;
+      here.forEach((o, k) => { swap[o] = k ? null : neu; });
+      moved.add(neu);
+    }
+    const place = ids => ids.flatMap(id => (id in swap ? (swap[id] ? [swap[id]] : []) : moved.has(id) ? [] : [id]));
     put($("floor"), `<p class="label">Machine floor${world ? " · " + Q.WORLDS.find(w => w[0] === world)[1].toLowerCase() : ""}</p>` +
       `<input class="term find" id="find" value="${esc(findQ)}" placeholder="search machines" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="search the machines by name or statement">` +
-      group("axioms", [...(numbers ? ["refl"] : []), ...gates.filter(id => !Q.TACTICS.includes(id) && keep(id))]) +
-      group("tactics", [...gates.filter(id => Q.TACTICS.includes(id)), ...(translator ? ["unfold"] : [])]) +
-      group("theorems", theorems.filter(id => shown(id) && keep(id))) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))) +
-      (old.length ? `<details class="oneway" ${save.oneway || wantOld ? "open" : ""}><summary>${old.length} one-way version${old.length > 1 ? "s" : ""}, folded away</summary><p class="meta">Each has a ↔ on the floor now that rewrites a whole block either way and stamps either direction. They stay here for old proofs.</p><div class="floor">${old.map(card).join("")}</div></details>` : "") +
+      group("axioms", [...(numbers ? ["refl"] : []), ...place(gates.filter(id => !Q.TACTICS.includes(id)))]) +
+      group("tactics", [...gates.filter(id => Q.TACTICS.includes(id)), ...(unfolder ? ["unfold"] : [])]) +
+      group("theorems", place(theorems.filter(shown))) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))) +
       (!world && !item.worlds && (hidden || save.allw) ? `<button class="mini tiny allw" data-do="allw">${save.allw ? "only the worlds this goal is about" : `show ${hidden} from other worlds`}</button>` : ""));
   }
   /* the search box filters the cards in place, so typing never redraws the floor (and never loses focus) */
@@ -1187,6 +1200,7 @@
     const d = b.dataset, c = L.ctxAt(game, where);
     if (d.key) { typed = d.key === "⌫" ? typed.slice(0, -1) : typed + d.key; msg = ""; draw(); }
     else if (d.do === "close") openMachine(openM);
+    else if (d.do === "plain") { save.plain = !save.plain; store(); msg = ""; draw(); }
     else if (d.do === "refl") runRefl();
     else if (d.refl !== undefined) act({ op: "refl", at: where, t: reflSides(c)[+d.refl] });
     else if (d.do === "assume") act({ op: "assume", at: where });
@@ -1228,7 +1242,7 @@
       if (!t) return;
       const path = t.dataset.p === "" ? [] : t.dataset.p.split(".").map(Number), c = L.ctxAt(game, where);
       if (c.done) { msg = "This workshop is done."; return draw(); }
-      if (m0 && m0.kind === "unfold") {                                    // the Translator, on the goal
+      if (m0 && m0.kind === "unfold") {                                    // Unfold, on the goal
         const tr = translation(L.at(c.goal, path));
         if (tr) act({ op: "unfoldg", at: where, path, ...tr }); else { msg = "Nothing there is a definition, or folds into one."; draw(); }
         return;
@@ -1237,11 +1251,11 @@
         if (!up("goalrw")) { msg = "Rewriting the goal needs the Goal lever upgrade."; return draw(); }
         if (!path.length && m0.stmt[0] === "=") { msg = "Tap a part of one side of the goal."; return draw(); }
         const need = m0.hyp ? [] : openSlots(m0);
-        act({ op: "rwg", at: where, path, m: openM, dir, ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, needVals[v] || ""])) } : {}) });
+        act(underNeg({ op: "rwg", at: where, path, m: openM, dir, ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, needVals[v] || ""])) } : {}) }, c.goal));
         return;
       }
       if (up("scanner")) { openM = null; sel = { b: "g", path }; msg = ""; return draw(); }
-      msg = hasTranslator() ? "Open the Translator to unfold the goal" + (up("goalrw") ? ", or an equality machine to rewrite it." : ".") : "Open an equality machine, then tap the part of the goal to rewrite.";
+      msg = hasUnfold() ? "Open Unfold to unfold the goal" + (up("goalrw") ? ", or an equality machine to rewrite it." : ".") : "Open an equality machine, then tap the part of the goal to rewrite.";
       return draw();
     }
     const blk = e.target.closest(".block"), whole = m0 && !m0.locked && ["apply", "cases", "rule", "spec", "obtain"].includes(m0.kind);
@@ -1266,7 +1280,7 @@
     if (rewrites(m)) {                                                   // feed the part to the open machine
       if (!pick.path.length && m.stmt[0] === "=") { msg = "Feed it a part of one side: a number, a sum or an S(…)."; return draw(); }
       const need = m.hyp ? [] : openSlots(m), fill = Object.fromEntries(need.map(v => [v, needVals[v] || ""]));
-      if (!act({ op: "rw", at: where, b: pick.b, path: pick.path, m: openM, dir, ...(need.length ? { fill } : {}) }) && /doesn't fit/.test(msg)) {
+      if (!act(underNeg({ op: "rw", at: where, b: pick.b, path: pick.path, m: openM, dir, ...(need.length ? { fill } : {}) }, L.ctxAt(game, where).bench[pick.b].s)) && /doesn't fit/.test(msg)) {
         msg = "That part isn't shaped like " + L.show(dir === "lr" ? m.stmt[1] : m.stmt[2]) + ".";
         draw();
       }
@@ -1284,7 +1298,18 @@
     msg = m && m.locked ? "That machine isn't yours yet." : "Open a machine that takes blocks first, then tap what to feed it.";
     draw();
   };
-  /* what the Translator does to a part: unfold a definition, else fold into the first connective it fits */
+  /* A machine that wants ¬X, fed the X sitting right under a ¬: run it on the ¬X instead (#33: De Morgan would not
+     take the P ∨ Q of a ¬(P ∨ Q)). Only when it doesn't fit the part itself. */
+  function underNeg(st, stmt) {
+    const n = st.path.length;
+    if (!n || st.path[n - 1] !== 0) return st;
+    const parent = L.at(stmt, st.path.slice(0, -1));
+    if (!parent || !L.neg(parent)) return st;
+    try { L.preview(game, st); return st; } catch (e) {}
+    const alt = { ...st, path: st.path.slice(0, -1) };
+    try { L.preview(game, alt); return alt; } catch (e) { return st; }
+  }
+  /* what Unfold does to a part: unfold a definition, else fold into the first connective it fits */
   const translation = node => (!node ? null : L.folds(node).some(f => f[0] === "↔") ? { as: "↔" } : L.unfold(node) ? {} : L.folds(node).length ? { as: L.folds(node)[0][0] } : null);
   /* drag a block onto another (modus ponens, either way round) or onto the goal (Apply) */
   let drag = null;
@@ -1362,7 +1387,7 @@
     let wants = null;
     for (const d of dirs) {
       const need = m.hyp ? [] : slotsFor(m, d);
-      const st = { ...base, dir: d, ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, L.guess(game, v)])) } : {}) };
+      const st = underNeg({ ...base, dir: d, ...(need.length ? { fill: Object.fromEntries(need.map(v => [v, L.guess(game, v)])) } : {}) }, gl ? c.goal : c.bench[base.b].s);
       let res; try { res = L.preview(game, st); } catch (e) { continue; }
       if (L.same(res, gl ? c.goal : c.bench[st.b].s)) continue;
       if (need.length) { wants = wants || [d, need]; continue; }

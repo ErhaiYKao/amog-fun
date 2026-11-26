@@ -18,8 +18,8 @@
  * Worlds branch (Pope Amog's choice): addition is the trunk; implication opens after Zero plus zero, equality
  * (Symmetry and Transitivity as implications between equations, airetho) after Identity, logic (and, or, false,
  * true) after the third implication quest, equivalence (↔ and the laws of logic, proved by rewriting) after Or
- * commutes, quantifiers (∀, ∃ and predicates) after Double negation both ways and Zero on the left,
- * multiplication after Associativity, powers after Associativity of ·, each started by buying its
+ * commutes, quantifiers (∀, ∃ and predicates) after the Double negation ↔ and Zero on the left,
+ * multiplication after Associativity, powers after Associativity of ·, each started by getting its
  * machines. A world only sees machines from the worlds in SEES (logic sees implication, equivalence sees logic,
  * multiplication sees addition, powers see multiplication, the number worlds see equality); bounties and the
  * playground see everything. A world's quests need
@@ -45,7 +45,6 @@
     ["add", L.machine({ id: "addS", name: "Adding a successor", stmt: "a+S(b)=S(a+b)" })],
     ["add", { id: "induct", name: "Induction" }],
     ["prop", { id: "assume", name: "Assume" }],
-    ["prop", { ...L.machine({ id: "mp", name: "Modus ponens", premises: ["P->Q", "P"], concl: "Q" }), stmt: L.term("(P->Q)->(P->Q)") }],   // stamps as itself, curried (airetho)
     ["any", { id: "have", name: "Lemma" }],
     ["logic", thm("dne", "Double negation", "((P->false)->false)->P")],
     ["logic", { id: "apply", name: "Apply" }],
@@ -98,7 +97,7 @@
     },
     {
       id: "zz", name: "Zero plus zero", pay: 3, needs: ["add0"], goal: "0+0=0", guide: true,
-      intro: "Finishing a craft pays ∎, and ∎ buys machines. This quest needs one: <i>Adding zero</i>, an axiom. An equality machine rewrites a part of a block: set its lever to a direction, then tap the part to feed it. Nearly every equation is crafted this way: make a block from one side of the goal with refl, then rewrite its other side until the block is the goal.",
+      intro: "Finishing a craft pays ∎, and new machines arrive when a quest needs them. This one brings <i>Adding zero</i>, an axiom. An equality machine rewrites a part of a block: set its lever to a direction, then tap the part to feed it. Nearly every equation is crafted this way: make a block from one side of the goal with refl, then rewrite its other side until the block is the goal.",
       hint: "Make $0+0 = 0+0$ with refl. Then open <i>Adding zero</i>, set its lever to $a+0 \\to a$, and tap the $0+0$ on the right side of your block.",
       proof: [refl("", "0+0"), rw("", [1], "add0")],
     },
@@ -118,7 +117,7 @@
     },
     {
       id: "zadd", name: "Zero on the left", pay: 3, needs: ["addS", "induct"], goal: "0+a=a", guide: true,
-      intro: "<i>Adding zero</i> says $a+0 = a$. With the zero on the left, no machine fits: $a$ could be anything. Two machines to buy: <i>Adding a successor</i>, the other axiom, and <b>Induction</b>. Induction splits the job into two workshops: craft the goal for $0$ (the base case), then craft it for $S(a)$ while <i>holding</i> it for $a$ (the step). What you hold there, the induction hypothesis, is a machine too: it turns $0+a$ into $a$, but only for this $a$.",
+      intro: "<i>Adding zero</i> says $a+0 = a$. With the zero on the left, no machine fits: $a$ could be anything. Two new machines: <i>Adding a successor</i>, the other axiom, and <b>Induction</b>. Induction splits the job into two workshops: craft the goal for $0$ (the base case), then craft it for $S(a)$ while <i>holding</i> it for $a$ (the step). What you hold there, the induction hypothesis, is a machine too: it turns $0+a$ into $a$, but only for this $a$.",
       hint: "Induct on $a$. Each workshop then goes like <i>Zero plus zero</i>: make a block from the goal's left side with refl, and rewrite its right side until it reads the goal's right side. Don't try to reshape the induction hypothesis into the goal: it is the machine for the last rewrite. In the step, <i>Adding a successor</i> turns $0+S(a)$ into $S(0+a)$, and now there is a $0+a$ inside for the induction hypothesis to work on.",
       proof: [{ op: "induct", at: "", v: "a" }, refl("b", "0+0"), rw("b", [1], "add0"), refl("s", "0+S(a)"), rw("s", [1], "addS"), rw("s", [1, 0], "h0")],
     },
@@ -150,7 +149,7 @@
     /* ---- propositions: implication only, by assuming and by modus ponens ---- */
     {
       id: "pid", world: "prop", after: ["zz"], name: "Identity", pay: 2, needs: ["assume"], goal: "P->P", guide: true,
-      intro: "A new kind of block: statements, written with capital letters, joined by $\\to$ (\"implies\"). Nothing is known about $P$. To craft $P \\to Q$ you buy <b>Assume</b>: it opens a workshop where $P$ is a fact, already on the bench, and the goal is $Q$.",
+      intro: "A new kind of block: statements, written with capital letters, joined by $\\to$ (\"implies\"). Nothing is known about $P$. To craft $P \\to Q$ there is a new machine, <b>Assume</b>: it opens a workshop where $P$ is a fact, already on the bench, and the goal is $Q$.",
       hint: "Run Assume. Inside the workshop, the assumption is exactly the goal.",
       proof: [assume("")],
     },
@@ -161,8 +160,16 @@
       proof: [assume(""), assume("a")],
     },
     {
-      id: "pchain", takes: 2, world: "prop", name: "Chain", pay: 4, needs: ["mp"], guide: true, goal: "(P->Q)->((Q->R)->(P->R))",
-      intro: "Implications compose: from $P$ to $Q$ and from $Q$ to $R$ makes from $P$ to $R$. Holding $P \\to Q$ and $P$ should give $Q$: that is a machine to buy, <b>Modus ponens</b>, a rule. Feed it the implication first, then the block that matches its left side; it uses up both. Every implication you craft from now on becomes a rule of its own: it takes its hypotheses as blocks and gives what they imply.",
+      /* Modus ponens is Identity with P → Q in its slot (airetho): a theorem, not an axiom. Its id is the old
+         shop machine's, so proofs that used the bought one replay unchanged. */
+      id: "mp", world: "prop", name: "Modus ponens", pay: 2, goal: "(P->Q)->(P->Q)",
+      intro: "Holding $P \\to Q$ and $P$ should give $Q$. That needs no new axiom: it is <i>Identity</i> with $P \\to Q$ in its slot. A machine that came from an implication can stamp that implication as a block, with its slots filled in as you like. Once crafted, this theorem is a rule like every implication you craft: it takes its hypotheses as blocks, uses them up, and gives what they imply. Here that is the implication first, then the block that matches its left side.",
+      hint: "Open <i>Identity</i> and stamp it with $P \\to Q$ for its $P$.",
+      proof: [make("", "pid", { P: "P->Q" })],
+    },
+    {
+      id: "pchain", takes: 2, world: "prop", name: "Chain", pay: 4, guide: true, goal: "(P->Q)->((Q->R)->(P->R))",
+      intro: "Implications compose: from $P$ to $Q$ and from $Q$ to $R$ makes from $P$ to $R$. <i>Modus ponens</i> does each step.",
       hint: "Assume three times. Get $Q$ from $P \\to Q$ and $P$, then $R$ from $Q \\to R$ and $Q$.",
       proof: [assume(""), assume("a"), assume("aa"), mp("aaa", 0, 2), mp("aaa", 1, 0)],
     },
@@ -189,7 +196,7 @@
     },
     {
       id: "lefq", world: "logic", name: "From false, anything", pay: 3, needs: ["dne"], goal: "false->P",
-      intro: "The other direction, $\\lnot\\lnot P \\to P$, can't be crafted from implication alone. It is the one axiom of classical logic: buy <b>Double negation</b>. First use: once you hold $\\bot$, you can craft anything.",
+      intro: "The other direction, $\\lnot\\lnot P \\to P$, can't be crafted from implication alone. It is the one axiom of classical logic, and it is on your floor now: <b>Double negation</b>. First use: once you hold $\\bot$, you can craft anything.",
       hint: "Assume. <i>Weakening</i> turns $\\bot$ into $\\lnot P \\to \\bot$, which is $\\lnot\\lnot P$. Then Double negation.",
       proof: [assume(""), rule("a", 0, "pk", [], { Q: "P->false" }), rule("a", 0, "dne")],
     },
@@ -202,7 +209,7 @@
     },
     {
       id: "le", world: "logic", name: "Or: from the left", pay: 3, goal: "P->P|Q",
-      intro: "$P \\lor Q$ is short for $\\lnot P \\to Q$: if it isn't $P$, it's $Q$. A block or goal with $\\lor$ behaves like its definition wherever an implication is wanted, so Assume works on $P \\lor Q$ straight away. The other way round needs translating: tap a part of a block with the Scanner (or open the <i>Translator</i>) to fold or unfold a definition, for free.",
+      intro: "$P \\lor Q$ is short for $\\lnot P \\to Q$: if it isn't $P$, it's $Q$. A block or goal with $\\lor$ behaves like its definition wherever an implication is wanted, so Assume works on $P \\lor Q$ straight away. The other way round needs unfolding: tap a part of a block with the Scanner (or open <i>Unfold</i>) to fold or unfold a definition, for free.",
       hint: "Assume twice: you hold $P$ and $\\lnot P$. That's $\\bot$, and $\\bot$ gives anything.",
       proof: [assume(""), assume("a"), mp("aa", 1, 0), rule("aa", 0, "lefq", [], { P: "Q" })],
     },
@@ -233,13 +240,13 @@
     },
     {
       id: "lore", world: "logic", name: "Or: by cases", pay: 5, needs: ["byc"], goal: "(P->R)->((Q->R)->(P|Q->R))",
-      intro: "If $P$ gives $R$ and $Q$ gives $R$, then $P \\lor Q$ gives $R$. The longest craft in logic, and a machine to buy for it: <b>Contradiction</b>. Applying Double negation and then assuming $\\lnot P$ is what you did in both $\\land$ proofs. That is proof by contradiction, and the tactic does it in one step: on a goal $P$ you get a workshop that holds $\\lnot P$, with the goal $\\bot$.",
+      intro: "If $P$ gives $R$ and $Q$ gives $R$, then $P \\lor Q$ gives $R$. The longest craft in logic, and a new machine for it: <b>Contradiction</b>. Applying Double negation and then assuming $\\lnot P$ is what you did in both $\\land$ proofs. That is proof by contradiction, and the tactic does it in one step: on a goal $P$ you get a workshop that holds $\\lnot P$, with the goal $\\bot$.",
       hint: "Assume three times, then Contradiction: you hold $\\lnot R$ and the goal is $\\bot$. Keep a copy of $\\lnot R$, then work backwards: $\\lnot R$, then $Q \\to R$, then $P \\lor Q$ leave the goal $\\lnot P$.",
       proof: [assume(""), assume("a"), assume("aa"), byc("aaa"), dup("aaax", 3), applyB("aaax", 3), applyB("aaax1", 1), applyB("aaax11", 1), assume("aaax111"), mp("aaax111a", 0, 2), mp("aaax111a", 1, 0)],
     },
     {
       id: "la", world: "logic", name: "And commutes", pay: 3, needs: ["cases"], goal: "P&Q->Q&P",
-      intro: "You have earned the familiar way of using $\\land$ and $\\lor$. A machine to buy: <b>Cases</b> takes a block apart. A block $P \\land Q$ becomes the two blocks $P$ and $Q$ (that is <i>And: left</i> and <i>And: right</i> in one move). A block $P \\lor Q$ splits the workshop in two, one where you hold $P$ and one where you hold $Q$, with the same goal in both (that is <i>Or: by cases</i>).",
+      intro: "You have earned the familiar way of using $\\land$ and $\\lor$. A new machine: <b>Cases</b> takes a block apart. A block $P \\land Q$ becomes the two blocks $P$ and $Q$ (that is <i>And: left</i> and <i>And: right</i> in one move). A block $P \\lor Q$ splits the workshop in two, one where you hold $P$ and one where you hold $Q$, with the same goal in both (that is <i>Or: by cases</i>).",
       hint: "Assume, take the assumption apart with Cases, and feed $Q$ and $P$ to <i>And: make</i>, in that order.",
       proof: [assume(""), cases("a", 0), rule("a", 1, "landi", [0])],
     },
@@ -264,7 +271,7 @@
     {
       id: "lt", world: "logic", name: "True can be dropped", pay: 2, goal: "(true->P)->P",
       intro: "$\\top$, the statement that is simply true, is short for $\\bot \\to \\bot$.",
-      hint: "Assume. Make $\\top$: it is <i>Identity</i> stamped with $\\bot$, folded with the Translator. Then modus ponens.",
+      hint: "Assume. Make $\\top$: it is <i>Identity</i> stamped with $\\bot$, folded with <i>Unfold</i>. Then modus ponens.",
       proof: [assume(""), make("a", "pid", { P: "false" }), { op: "unfold", at: "a", b: 1, path: [], as: "⊤" }, mp("a", 0, 1)],
     },
     {
@@ -297,51 +304,51 @@
       proof: [make("", "pid", { P: "P" }), applyR("", "landi")],
     },
     {
-      id: "idn", world: "iff", name: "Double negation, both ways", pay: 2, goal: "not not P<->P",
+      id: "idn", world: "iff", name: "Double negation", pay: 2, goal: "not not P<->P",
       intro: "Double negation as a machine with a lever: it adds or removes $\\lnot\\lnot$ anywhere inside a block.",
       hint: "You have each direction already, as two separate machines: stamp each and join them.",
-      amog: "Stamp <i>Double negation</i> and <i>Double negation in</i> (both with $P$), then feed the two blocks to <i>And: make</i>.",
+      amog: "Each direction is a machine you already have. Stamping them is shorter than any workshop.",
       proof: both("dne", { P: "P" }, { P: "P" }).map((st, k) => (k === 1 ? { ...st, m: "lnn" } : st)),
     },
     {
       id: "idm", world: "iff", name: "De Morgan: not or", pay: 3, goal: "not (P|Q)<->not P&not Q",
-      intro: "Now the new way of crafting: start from a block that says a statement is equivalent to itself, then rewrite one side until it is the goal. Translating is free, so the only real step is one rewrite.",
+      intro: "Now the new way of crafting: start from a block that says a statement is equivalent to itself, then rewrite one side until it is the goal. Unfolding is free, so the only real step is one rewrite.",
       hint: "Start from a block that says $\\lnot(P \\lor Q)$ is equivalent to itself, and try unfolding the and/or statements. Written out, how do the two sides of the goal differ?",
-      amog: "Stamp <i>If and only if</i> with $\\lnot(P \\lor Q)$. On the right side, unfold the $\\lor$: it reads $\\lnot(\\lnot P \\to Q)$. Turn that $Q$ into $\\lnot\\lnot Q$ with <i>Double negation, both ways</i> run backwards. What is left, $\\lnot(\\lnot P \\to \\lnot\\lnot Q)$, is $\\lnot P \\land \\lnot Q$ written out: the block is the goal (fold it with the Translator to see it).",
+      amog: "Start from a block that says one side is equivalent to itself, and change only that side. Unfolded, the two sides differ by a single double negation.",
       proof: [make("", "ir", { P: "not (P|Q)" }), unf("", [1, 0]), rw("", [1, 0, 1], "idn", "rl")],
     },
     {
       id: "idm2", world: "iff", name: "De Morgan: not and", pay: 3, goal: "not (P&Q)<->not P|not Q",
       intro: "The other De Morgan law, the same way.",
       hint: "The same idea as the first De Morgan law: unfold the $\\land$ and compare with the $\\lor$ written out.",
-      amog: "Stamp <i>If and only if</i> with $\\lnot(P \\land Q)$ and unfold the $\\land$ on the right: $\\lnot\\lnot(P \\to \\lnot Q)$. Remove that $\\lnot\\lnot$ and put one on the $P$ instead: $\\lnot\\lnot P \\to \\lnot Q$ is $\\lnot P \\lor \\lnot Q$ written out.",
+      amog: "As for the first De Morgan law. Unfolded, the two sides differ only in where one double negation sits: take it away in one place and put it in another.",
       proof: [make("", "ir", { P: "not (P&Q)" }), unf("", [1, 0]), rw("", [1], "idn"), rw("", [1, 0], "idn", "rl")],
     },
     {
-      id: "iac", world: "iff", name: "And commutes, both ways", pay: 2, goal: "P&Q<->Q&P",
+      id: "iac", world: "iff", name: "And commutes", pay: 2, goal: "P&Q<->Q&P",
       intro: "<i>And commutes</i> is an implication, so it only works on a whole block. As a $\\leftrightarrow$ it swaps an $\\land$ anywhere inside one.",
       hint: "Each direction is a theorem you have, with the letters the other way round.",
-      amog: "Stamp <i>And commutes</i> twice, once with $P$ and $Q$ the other way round, and join them with <i>And: make</i>.",
+      amog: "No workshop is needed: each direction can be stamped.",
       proof: both("la", { P: "P", Q: "Q" }, { P: "Q", Q: "P" }),
     },
     {
-      id: "ioc", world: "iff", name: "Or commutes, both ways", pay: 2, goal: "P|Q<->Q|P",
+      id: "ioc", world: "iff", name: "Or commutes", pay: 2, goal: "P|Q<->Q|P",
       intro: "And the same for $\\lor$.",
       hint: "As for $\\land$.",
-      amog: "Stamp <i>Or commutes</i> twice and join them.",
+      amog: "No workshop is needed: each direction can be stamped.",
       proof: both("lo", { P: "P", Q: "Q" }, { P: "Q", Q: "P" }),
     },
     {
-      id: "isym", world: "iff", name: "Equations turn round", pay: 2, goal: "a=b<->b=a",
+      id: "isym", world: "iff", name: "Symmetry", pay: 2, goal: "a=b<->b=a",
       intro: "Equations are statements too, so a $\\leftrightarrow$ can be about them. <i>Symmetry</i> turns a whole block round; this one turns an equation round anywhere inside a block.",
       hint: "Each direction is a theorem from Equality.",
       proof: [...both("sym", { a: "a", b: "b" }, { a: "b", b: "a" })],
     },
     {
-      id: "icur", world: "iff", name: "Currying, both ways", pay: 2, goal: "(P&Q->R)<->(P->(Q->R))",
+      id: "icur", world: "iff", name: "Currying", pay: 2, goal: "(P&Q->R)<->(P->(Q->R))",
       intro: "The machine that moves an $\\land$ in and out of an implication.",
       hint: "Two theorems you have are the two directions.",
-      amog: "Stamp <i>Currying</i> and <i>Uncurrying</i> and join them.",
+      amog: "Two theorems you have are the two directions. No workshop is needed.",
       proof: both("lc", { P: "P", Q: "Q", R: "R" }, { P: "P", Q: "Q", R: "R" }).map((st, k) => (k === 1 ? { ...st, m: "lu" } : st)),
     },
     {
@@ -357,21 +364,22 @@
       id: "ioa", world: "iff", name: "Or associates", pay: 4, goal: "(P|Q)|R<->P|(Q|R)",
       intro: "The same for $\\lor$, and shorter than it looks.",
       hint: "Stamp <i>If and only if</i> and unfold the outer $\\lor$ on one side. Unfolded, the two sides are a De Morgan law and a currying apart.",
-      amog: "Stamp <i>If and only if</i> with $(P \\lor Q) \\lor R$ and unfold the outer $\\lor$ on the right: $\\lnot(P \\lor Q) \\to R$. De Morgan makes that $\\lnot P \\land \\lnot Q \\to R$, currying makes it $\\lnot P \\to (\\lnot Q \\to R)$, and that is $P \\lor (Q \\lor R)$ written out.",
+      amog: "Unfold only the outer $\\lor$ on one side and leave the inner one folded. Two machines you have each do one step from there.",
       proof: [make("", "ir", { P: "(P|Q)|R" }), unf("", [1]), rw("", [1, 0], "idm"), rw("", [1], "icur")],
     },
     {
       id: "iof", world: "iff", name: "Or with false", pay: 2, goal: "P|false<->P",
       intro: "The simplification laws: $\\bot$ does nothing to an $\\lor$.",
       hint: "Unfold $P \\lor \\bot$ in your head. What is it short for?",
-      amog: "$P \\lor \\bot$ is short for $\\lnot P \\to \\bot$, which is $\\lnot\\lnot P$. So the goal is <i>Double negation, both ways</i> in disguise: stamp it.",
+      amog: "After unfolding, find a way to stamp the conclusion.",
       proof: [make("", "idn", { P: "P" })],
     },
     {
       id: "iat", world: "iff", name: "And with true", pay: 3, goal: "P&true<->P",
       intro: "And $\\top$ does nothing to an $\\land$.",
-      hint: "Apply <i>And: make</i> to the goal. One direction is <i>And: left</i>, stamped. For the other, assume $P$, make $\\top$ (it is <i>Identity</i> stamped with $\\bot$) and join them.",
-      proof: [applyR("", "landi"), make("1", "landl", { P: "P", Q: "true" }), assume("2"), make("2a", "pid", { P: "false" }), rule("2a", 0, "landi", [1])],
+      hint: "Unfold $P \\land \\top$ all the way, the $\\top$ too. What is $\\lnot\\top$ short for?",
+      amog: "Written out, the goal is one double negation away from a theorem you can stamp.",
+      proof: [make("", "idn", { P: "P" }), rw("", [0, 0, 1], "idn", "rl")],
     },
     {
       id: "idist", world: "iff", name: "Distributivity", pay: 6, goal: "P&(Q|R)<->(P&Q)|(P&R)",
@@ -390,7 +398,7 @@
        Fix and Specialise for ∀, Witness and Take a witness for ∃. ---- */
     {
       id: "qa", world: "quant", after: ["idn", "zadd"], name: "For every number", pay: 3, needs: ["fix"], goal: "forall a. a+0=a", guide: true,
-      intro: "$\\forall a$ reads \"for every number $a$\". Every theorem about numbers so far was secretly for every $a$; now the block says so, and the $a$ belongs to the $\\forall$: nothing outside it is called $a$. To craft a $\\forall$ you buy <b>Fix</b>. It opens a workshop about one number, fixed but arbitrary: nothing is known about it, so whatever you craft for it holds for all of them.",
+      intro: "$\\forall a$ reads \"for every number $a$\". Every theorem about numbers so far was secretly for every $a$; now the block says so, and the $a$ belongs to the $\\forall$: nothing outside it is called $a$. To craft a $\\forall$ there is a new machine, <b>Fix</b>. It opens a workshop about one number, fixed but arbitrary: nothing is known about it, so whatever you craft for it holds for all of them.",
       hint: "Run Fix. In the workshop the goal is $a+0 = a$ about one number $a$, and you have had a machine for that since quest 1.",
       proof: [fix(""), refl("f", "a+0"), rw("f", [1], "add0")],
     },
@@ -420,7 +428,7 @@
     },
     {
       id: "qw", world: "quant", name: "Every number has a next one", pay: 3, needs: ["witness"], goal: "forall a. exists b. b=S(a)",
-      intro: "That was the long way. A machine to buy: <b>Witness</b>. On a goal $\\exists b.\\ \\ldots$ you name the number, and the goal becomes the statement about it.",
+      intro: "That was the long way. A new machine: <b>Witness</b>. On a goal $\\exists b.\\ \\ldots$ you name the number, and the goal becomes the statement about it.",
       hint: "Fix, then give $S(a)$ as the witness. What is left is refl.",
       proof: [fix(""), witness("f", "S(a)"), refl("fw", "S(a)")],
     },
@@ -432,7 +440,7 @@
     },
     {
       id: "qo", world: "quant", name: "Whoever it is", pay: 4, needs: ["obtain"], goal: "(exists a. P(a))->exists a. P(a)|Q(a)",
-      intro: "Using an $\\exists$ you hold: you know some number does it, but not which. A machine to buy: <b>Take a witness</b> gives that number a name. You get a workshop that holds the statement about it, and nothing else is known about that number.",
+      intro: "Using an $\\exists$ you hold: you know some number does it, but not which. A new machine: <b>Take a witness</b> gives that number a name. You get a workshop that holds the statement about it, and nothing else is known about that number.",
       hint: "Assume, take a witness from the assumption, and give the same number as the witness for the goal. <i>Or: from the left</i> finishes.",
       proof: [assume(""), obtain("a", 0), witness("ao", "a"), rule("aow", 0, "le", [], { Q: "Q(a)" })],
     },
@@ -440,7 +448,7 @@
       id: "qdm", world: "quant", name: "Not all", pay: 4, goal: "not (forall a. P(a))<->exists a. not P(a)",
       intro: "De Morgan for quantifiers: \"not all are $P$\" is \"one is not $P$\". Equivalences rewrite inside a $\\forall$ too.",
       hint: "Write out $\\exists a.\\ \\lnot P(a)$ with its definition and compare it with the left side. They differ by a double negation.",
-      amog: "Stamp <i>If and only if</i> with $\\lnot \\forall a.\\ P(a)$. On the right side, turn the $P(a)$ inside the $\\forall$ into $\\lnot\\lnot P(a)$ with <i>Double negation, both ways</i> run backwards. What is left, $\\lnot \\forall a.\\ \\lnot\\lnot P(a)$, is $\\exists a.\\ \\lnot P(a)$ written out.",
+      amog: "Stamp <i>If and only if</i> and change one side. Unfolded, $\\exists$ and $\\lnot\\forall$ differ by one double negation under the $\\forall$.",
       proof: [make("", "ir", { P: "not forall a. P(a)" }), rw("", [1, 0, 0], "idn", "rl")],
     },
     {
@@ -453,7 +461,7 @@
     /* ---- successors (airetho): the two Peano axioms that tell numbers apart. Nothing before them can craft 0 ≠ 1. ---- */
     {
       id: "sn10", world: "peano", after: ["lefq", "zadd"], name: "One is not zero", pay: 2, needs: ["szero"], goal: "1=0->false", guide: true,
-      intro: "Everything so far would still hold if every number were $0$. Two axioms rule that out. The first to buy: <b>Zero comes first</b>, nothing comes before $0$, so a block $S(a) = 0$ gives $\\bot$. Remember that $1$ is short for $S(0)$.",
+      intro: "Everything so far would still hold if every number were $0$. Two axioms rule that out. The first: <b>Zero comes first</b>, nothing comes before $0$, so a block $S(a) = 0$ gives $\\bot$. Remember that $1$ is short for $S(0)$.",
       hint: "Assume, and feed what you hold to the new machine.",
       proof: [assume(""), rule("a", 0, "szero")],
       short: { hint: "stamping the axiom", proof: [make("", "szero", { a: "0" })] },
@@ -463,7 +471,7 @@
       intro: "The same the other way round.",
       hint: "Zero comes first wants the successor on the left: turn the equation round first.",
       proof: [assume(""), rule("a", 0, "sym"), rule("a", 0, "szero")],
-      short: { hint: "stamping the axiom and turning the equation inside round with <i>Equations turn round</i>", proof: [make("", "szero", { a: "0" }), rw("", [0], "isym")] },
+      short: { hint: "stamping the axiom and turning the equation inside round with <i>Symmetry</i>", proof: [make("", "szero", { a: "0" }), rw("", [0], "isym")] },
     },
     {
       id: "sn21", world: "peano", name: "Two is not one", pay: 3, needs: ["sinj"], goal: "2=1->false",
@@ -495,7 +503,7 @@
     /* ---- multiplication: two more axioms, on top of all of addition ---- */
     {
       id: "mz", world: "mul", after: ["assoc"], name: "Zero times", pay: 3, needs: ["mul0", "mulS"], goal: "0*a=0",
-      intro: "Multiplication is two more axioms to buy: $a \\cdot 0 = 0$ and $a \\cdot S(b) = a \\cdot b + a$. As with addition, the zero on the left needs induction.",
+      intro: "Multiplication is two more axioms: $a \\cdot 0 = 0$ and $a \\cdot S(b) = a \\cdot b + a$. As with addition, the zero on the left needs induction.",
       hint: "Induct on $a$. In the step, <i>Times a successor</i> gives $0 \\cdot a + 0$.",
       proof: [induct("a"), refl("b", "0*0"), rw("b", [1], "mul0"),
         refl("s", "0*S(a)"), rw("s", [1], "mulS"), rw("s", [1], "add0"), rw("s", [1], "h0")],
@@ -543,7 +551,7 @@
     },
     {
       id: "pone", world: "pow", name: "First power", pay: 3, needs: ["pow0", "powS"], goal: "a^1=a",
-      intro: "Two more axioms to buy: $a^0 = 1$ and $a^{S(b)} = a^b \\cdot a$. Type a power as a^b.",
+      intro: "Two more axioms: $a^0 = 1$ and $a^{S(b)} = a^b \\cdot a$. Type a power as a^b.",
       hint: "$a^{S(0)}$ is $a^0 \\cdot a$, which is $S(0) \\cdot a$. Swap it round and <i>Times one</i> finishes.",
       proof: [refl("", "a^1"), rw("", [1], "powS"), rw("", [1, 0], "pow0"), rw("", [1], "mcomm"), rw("", [1], "t1")],
     },
@@ -626,9 +634,6 @@
       proof: [refl("", "0^S(a)"), rw("", [1], "powS"), rw("", [1], "mul0")] },
     { id: "bsq", name: "Squaring", goal: "a^2=a*a", pay: 2,
       proof: [refl("", "a^2"), rw("", [1], "powS"), rw("", [1, 0], "pone")] },
-    { id: "beq", name: "Symmetry, both ways", goal: "a=b<->b=a", pay: 2,
-      intro: "A $\\leftrightarrow$ between equations rewrites an equation inside a block.",
-      proof: both("sym", { a: "a", b: "b" }, { a: "b", b: "a" }) },
     { id: "bimp", name: "Implication as or", goal: "(P->Q)<->(not P|Q)", pay: 3,
       proof: [make("", "ir", { P: "P->Q" }), rw("", [1, 0], "idn", "rl")] },
     { id: "bcontra", name: "A contradiction is false", goal: "P&not P<->false", pay: 3,
@@ -647,30 +652,32 @@
   for (const b of BOUNTIES) b.tools = [...new Set(b.proof.flatMap(s => [TACTICS.includes(s.op) ? s.op : null, s.m]).filter(m => m && !/^h\d+$/.test(m)))];
 
   const PAR_BONUS = 1;
-  /* once its ↔ is crafted, a one-way theorem is folded away on the floor (airetho): the ↔ rewrites a whole block
+  /* Machines are free (airetho): every `gate` costs ∎0 and the page hands it over the moment it goes on sale, so
+     ∎ only buys the upgrades. The buying rules below still hold for those.
+     Once its ↔ is crafted, a one-way machine is replaced on the floor by the ↔, in its place and under its name
+     (airetho): the ↔ rewrites a whole block
      either way and stamps either direction, so it does both jobs. Old proofs still use the old machines. */
   const SUPERSEDES = { idn: ["lnn", "dne"], ir: ["pid"], iac: ["la"], ioc: ["lo"], icur: ["lc", "lu"], isym: ["sym"] };
   const SHOP = [
-    { id: "add0", gate: true, price: 1, after: ["refl0"] },
-    { id: "addS", gate: true, price: 2, after: ["zz"] },
-    { id: "induct", gate: true, price: 2, after: ["zz"] },
-    { id: "assume", gate: true, price: 3, after: ["zz"] },
-    { id: "mp", gate: true, price: 3, after: ["pk"] },
-    { id: "have", gate: true, extra: true, price: 3, after: ["pchain"] },
-    { id: "dne", gate: true, price: 3, after: ["lnn"] },
-    { id: "apply", gate: true, price: 3, after: ["landi"] },
-    { id: "byc", gate: true, price: 2, after: ["landr"] },
-    { id: "cases", gate: true, price: 3, after: ["lore"] },
-    { id: "fix", gate: true, price: 3, after: ["idn", "zadd"] },
-    { id: "spec", gate: true, price: 3, after: ["qa"] },
-    { id: "witness", gate: true, price: 3, after: ["qex"] },
-    { id: "obtain", gate: true, price: 3, after: ["qzs"] },
-    { id: "szero", gate: true, price: 2, after: ["lefq", "zadd"] },
-    { id: "sinj", gate: true, price: 3, after: ["sn01"] },
-    { id: "mul0", gate: true, price: 2, after: ["assoc"] },
-    { id: "mulS", gate: true, price: 3, after: ["assoc"] },
-    { id: "pow0", gate: true, price: 2, after: ["t1"] },
-    { id: "powS", gate: true, price: 3, after: ["t1"] },
+    { id: "add0", gate: true, price: 0, after: ["refl0"] },
+    { id: "addS", gate: true, price: 0, after: ["zz"] },
+    { id: "induct", gate: true, price: 0, after: ["zz"] },
+    { id: "assume", gate: true, price: 0, after: ["zz"] },
+    { id: "have", gate: true, extra: true, price: 0, after: ["pchain"] },
+    { id: "dne", gate: true, price: 0, after: ["lnn"] },
+    { id: "apply", gate: true, price: 0, after: ["landi"] },
+    { id: "byc", gate: true, price: 0, after: ["landr"] },
+    { id: "cases", gate: true, price: 0, after: ["lore"] },
+    { id: "fix", gate: true, price: 0, after: ["idn", "zadd"] },
+    { id: "spec", gate: true, price: 0, after: ["qa"] },
+    { id: "witness", gate: true, price: 0, after: ["qex"] },
+    { id: "obtain", gate: true, price: 0, after: ["qzs"] },
+    { id: "szero", gate: true, price: 0, after: ["lefq", "zadd"] },
+    { id: "sinj", gate: true, price: 0, after: ["sn01"] },
+    { id: "mul0", gate: true, price: 0, after: ["assoc"] },
+    { id: "mulS", gate: true, price: 0, after: ["assoc"] },
+    { id: "pow0", gate: true, price: 0, after: ["t1"] },
+    { id: "powS", gate: true, price: 0, after: ["t1"] },
     { id: "autofill", name: "Autofill", price: 2, text: "refl offers the two sides of the goal, and Induction offers the letters, so you type less." },
     { id: "press", name: "Block press", price: 2, text: "Any equality machine can stamp its own statement onto the bench, with the slots filled in as you like." },
     { id: "quick", name: "Goal buttons", price: 2, text: "When the goal reads t = t (or P ↔ P), a refl button on it crafts that block and uses it. When the goal is an implication or a ¬, an assume button runs Assume; when it is a ∀, a fix button runs Fix. One tap instead of opening the machine." },
@@ -693,7 +700,7 @@
   /* a shop item is on sale once the quests it comes after are finished */
   const onSale = (id, done) => { const it = SHOP.find(x => x.id === id); return !!it && all(it.after, done); };
   /* quests taken out of the game (airetho: Using an implication was modus ponens stamped): finished ones keep paying */
-  const RETIRED = { pmp: { pay: 3, par: 3 } };
+  const RETIRED = { pmp: { pay: 3, par: 3 }, beq: { pay: 2, par: -1 } };   // beq: the bounty that the Symmetry ↔ quest replaced (no par bonus)
   function earned(done) {
     let n = 0;
     for (const [id, r] of Object.entries(RETIRED)) if (id in done) n += r.pay + (done[id] <= r.par ? PAR_BONUS : 0);

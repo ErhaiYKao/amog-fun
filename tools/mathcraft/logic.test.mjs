@@ -695,7 +695,7 @@ test("owned shop machines gate what a quest can use", () => {
   assert.ok(!ids(idx("zadd"), ["add0", "addS"]).includes("induct"));
   assert.ok(ids(idx("zadd"), ["add0", "addS", "induct"]).includes("induct"));
   assert.throws(() => L.replay(Q.QUESTS[1], Q.machinesFor(1, allDone(1), new Set()), Q.QUESTS[1].proof), /don't have/);
-  assert.deepEqual(Q.playMachines(new Set(["refl0", "zz"]), new Set(["add0", "mp"])).map(m => m.id), ["add0", "mp", "refl0", "zz"]);
+  assert.deepEqual(Q.playMachines(new Set(["refl0", "zz"]), new Set(["add0", "assume"])).map(m => m.id), ["add0", "assume", "refl0", "zz"]);
 });
 
 test("quests open in branches and machines go on sale when a quest needs them", () => {
@@ -707,7 +707,8 @@ test("quests open in branches and machines go on sale when a quest needs them", 
   assert.deepEqual(open(done(["refl0", "zz", "pid"])), ["sym", "zadd", "pk"], "equality opens once Assume is known");
   assert.deepEqual(open(done(["refl0", "zz", "pid", "sym"])), ["trans", "zadd", "pk"]);
   assert.deepEqual(open(done(Q.QUESTS.filter(q => q.world === "add").map(q => q.id))), ["pid", "mz"]);
-  assert.deepEqual(open(done(["refl0", "zz", "pid", "pk", "pchain"])), ["sym", "zadd", "pswap", "lnn"], "four ways on");
+  assert.deepEqual(open(done(["refl0", "zz", "pid", "pk"])), ["sym", "zadd", "mp"], "Modus ponens is a quest now, between Weakening and Chain");
+  assert.deepEqual(open(done(["refl0", "zz", "pid", "pk", "mp", "pchain"])), ["sym", "zadd", "pswap", "lnn"], "four ways on");
   const sale = d => Q.SHOP.filter(x => x.gate && Q.onSale(x.id, d)).map(x => x.id);
   assert.deepEqual(sale({}), []);
   assert.deepEqual(sale(done(["refl0"])), ["add0"]);
@@ -724,16 +725,40 @@ test("payouts", () => {
   assert.match(Q.canBuy("addS", {}, new Set()), /not on sale/);
   assert.match(Q.canBuy("add0", {}, new Set()), /not on sale/);
   assert.match(Q.canBuy("scanner", { refl0: 9 }, new Set()), /need ∎2 more/);
-  // with ∎2 the only sensible buy is the machine quest 1 needs; an upgrade would strand you
+  // machines are free (airetho): none costs anything, so ∎ only ever goes on upgrades and can't strand a quest
+  for (const x of Q.SHOP) assert.equal(x.price > 0, !x.gate, x.id);
   assert.equal(Q.canBuy("add0", { refl0: 9 }, new Set()), "");
-  assert.match(Q.canBuy("autofill", { refl0: 9 }, new Set()), /leave too little/);
-  // after Zero plus zero, even with no par bonus, either branch can be bought into (and not half of one)
+  assert.equal(Q.canBuy("autofill", { refl0: 9 }, new Set()), "", "an upgrade is safe to buy at once");
   const d = { refl0: 9, zz: 9 }, own = new Set(["add0"]);
-  assert.equal(Q.balance(d, own), 4);
-  assert.equal(Q.canBuy("assume", d, own), "", "implication");
-  assert.equal(Q.canBuy("induct", d, own), "", "or induction, which needs both of its machines");
-  assert.equal(Q.canBuy("addS", d, new Set(["add0", "induct"])), "");
-  assert.match(Q.canBuy("scanner", d, own), /leave too little/);
+  assert.equal(Q.balance(d, own), 5);
+  assert.equal(Q.balance(d, new Set(["add0", "addS", "induct", "assume"])), 5, "owning machines costs nothing");
+  assert.equal(Q.canBuy("scanner", d, own), "");
+  assert.match(Q.canBuy("goalrw", d, own), /on sale once/);
+  // retired quests and bounties keep paying what they paid
+  assert.equal(Q.earned({ pmp: 3 }), 3 + Q.PAR_BONUS);
+  assert.equal(Q.earned({ beq: 1 }), 2);
+  assert.ok(!Q.BOUNTIES.some(b => b.id === "beq") && !Q.QUESTS.some(q => q.id === "pmp"));
+});
+
+test("Modus ponens is Identity with P → Q in its slot", () => {
+  const i = idx("mp"), q = Q.QUESTS[i];
+  assert.equal(Q.par(q), 1);
+  assert.deepEqual(q.proof.filter(s => s.op !== "qed"), [{ op: "make", at: "", m: "pid", fill: { P: "P->Q" } }]);
+  assert.ok(!Q.gate("mp") && !Q.SHOP.some(x => x.id === "mp"), "no longer sold");
+  const m = Q.machinesFor(idx("pchain"), allDone(idx("pchain"))).find(x => x.id === "mp");
+  assert.deepEqual([m.premises.map(L.show), L.show(m.concl), L.show(m.stmt)], [["P → Q", "P"], "Q", "(P → Q) → (P → Q)"], "the theorem is the same machine the shop sold");
+  assert.ok(!Q.machinesFor(idx("pchain"), new Set(["refl0", "zz", "pid", "pk"])).some(x => x.id === "mp"), "and has to be crafted first");
+});
+
+test("an upgraded machine carries the plain name", () => {
+  for (const [id, olds] of Object.entries(Q.SUPERSEDES)) {
+    const q = Q.QUESTS.find(x => x.id === id);
+    assert.ok(q && !/both ways/.test(q.name), id);
+    for (const o of olds) assert.ok(Q.gate(o) || Q.QUESTS.some(x => x.id === o), o);
+  }
+  assert.ok(![...Q.QUESTS, ...Q.BOUNTIES].some(q => /both ways|Equations turn round/.test(q.name + (q.intro || "") + (q.hint || "") + (q.amog || ""))));
+  assert.equal(Q.QUESTS.find(q => q.id === "isym").name, "Symmetry");
+  assert.equal(Q.QUESTS.find(q => q.id === "idn").name, "Double negation");
 });
 
 test("the shop has no dead ends: whatever is bought, in any order, every quest can still be finished", () => {
