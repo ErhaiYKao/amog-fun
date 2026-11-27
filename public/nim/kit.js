@@ -14,7 +14,13 @@
  *   symmetric(s)            -> true if a position is "mirrored" (easy to read); Amog avoids leaving these (optional)
  *   verdict(s, who, opts)   -> HTML replacing the P/N-position line in the math panel (optional; partizan games)
  *   custom: { placeholder, help, parse(text, opts) -> state or error string }  (optional: "custom start" box)
+ *   inkKey(s)               -> which annotation sheet goes with this board (optional; e.g. the board size)
  * })
+ *
+ * Annotations (the ✎ bar under every board): pen strokes on a canvas over the board, saved per variant
+ * (and per inkKey) in localStorage `amog.nim.<id>.ink.<key>`. Strokes are stored relative to the board's
+ * `[data-ink-anchor]` element (else the board), so they stay put when the page reflows. Cells with a
+ * `data-note="<key>"` attribute can also hold typed labels (the "label" tool: tap a cell, type, arrows move).
  */
 (function () {
   "use strict";
@@ -64,8 +70,9 @@
     let s, turn, over, gid = 0, timer, log = [], hint = store.get(K + ".hint", false), peeked = false;
 
     root.innerHTML = `<div class="nk">
-      <div class="nk-board-wrap"><div class="nk-board" id="nk-board"></div>
+      <div class="nk-board-wrap"><div class="nk-stage" id="nk-stage"><div class="nk-board" id="nk-board"></div><canvas class="nk-ink" id="nk-ink"></canvas>
         <div class="nk-over" id="nk-over"><div class="card"><h2 id="nk-ot"></h2><p id="nk-op"></p><button class="btn primary" id="nk-again">Play again</button></div></div></div>
+        <div class="nk-tools" id="nk-tools"></div></div>
       <aside class="nk-panel">
         <div class="nk-scores"><div class="nk-score you" id="nk-you"><div class="who">you</div><div class="n" id="nk-wy">0</div></div><div class="nk-score amog" id="nk-amog"><div class="who">amog</div><div class="n" id="nk-wa">0</div></div></div>
         <div class="nk-status" id="nk-status"></div>
@@ -78,8 +85,9 @@
       </aside></div>`;
     const $ = id => document.getElementById(id);
     const board = $("nk-board");
+    const ink = Ink(cfg, K, $("nk-stage"), board, $("nk-ink"), $("nk-tools"), () => s);
 
-    root.querySelectorAll(".seg").forEach(seg => {
+    root.querySelectorAll(".nk-controls .seg").forEach(seg => {
       const key = seg.dataset.key;
       const sync = () => seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v == opts[key])));
       seg.addEventListener("click", e => {
@@ -215,6 +223,7 @@
       };
       board.classList.toggle("locked", ctx.locked);
       cfg.render(board, s, ctx);
+      ink.render();
       $("nk-wy").textContent = score[0];
       $("nk-wa").textContent = score[1];
       $("nk-you").classList.toggle("active", !over && turn === 0);
@@ -234,6 +243,156 @@
     }
 
     newGame();
+  }
+
+  // ---- annotations ----
+  const COLORS = [["c", "var(--g1)", "#4fd6e8"], ["r", "var(--g2)", "#ff5d6c"], ["l", "var(--g3)", "#b6f26b"], ["w", "var(--ink)", "#ece8de"]];
+  function Ink(cfg, K, stage, board, canvas, bar, getS) {
+    let mode = "play", color = store.get(K + ".inkColor", "c"), hidden = false, sel = null, sheet, key, hist = [];
+    const notesOn = !!cfg.notes;
+    const load = () => {
+      const k = K + ".ink." + (cfg.inkKey ? cfg.inkKey(getS()) : "0");
+      if (k === key) return;
+      key = k; hist = []; sel = null;
+      sheet = store.get(key, null) || { strokes: [], notes: {} };
+    };
+    const save = () => store.set(key, sheet);
+    const snap = () => { hist.push(JSON.stringify(sheet)); if (hist.length > 80) hist.shift(); };
+    const anchor = () => board.querySelector("[data-ink-anchor]") || board;
+    // board-relative frame: origin at the anchor's top-left, unit = anchor width
+    const frame = () => {
+      const a = anchor().getBoundingClientRect(), b = stage.getBoundingClientRect();
+      return { x0: a.left - b.left, y0: a.top - b.top, u: a.width || 1, cx: b.left, cy: b.top };
+    };
+
+    bar.innerHTML = `<div class="seg nk-mode">
+        <button data-m="play" title="play moves">play</button>
+        <button data-m="pen" title="draw on the board">✎ pen</button>
+        ${notesOn ? `<button data-m="label" title="tap a square and type"># label</button>` : ""}
+        <button data-m="erase" title="rub out strokes">erase</button></div>
+      <div class="nk-colors">${COLORS.map(([k, v]) => `<button data-c="${k}" style="--c:${v}" aria-label="colour"></button>`).join("")}</div>
+      <div class="nk-acts"><button class="nk-tb" data-a="undo">undo</button><button class="nk-tb" data-a="hide">hide</button><button class="nk-tb" data-a="clear">clear</button></div>
+      <div class="nk-pad">${"1234567890".split("").map(d => `<button class="nk-tb" data-k="${d}">${d}</button>`).join("")}<button class="nk-tb" data-k="Backspace">⌫</button><button class="nk-tb" data-k="Delete">✕</button></div>`;
+
+    function sync() {
+      bar.querySelectorAll("[data-m]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.m === mode)));
+      bar.querySelectorAll("[data-c]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.c === color)));
+      bar.querySelector('[data-a="hide"]').textContent = hidden ? "show" : "hide";
+      bar.dataset.mode = mode;
+      stage.dataset.mode = mode;
+      stage.classList.toggle("ink-hidden", hidden);
+      if (mode !== "label") sel = null;
+    }
+    bar.addEventListener("click", e => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      if (b.dataset.m) { mode = b.dataset.m; if (mode !== "play") hidden = false; }
+      else if (b.dataset.c) { color = b.dataset.c; store.set(K + ".inkColor", color); if (mode === "play" || mode === "erase") mode = "pen"; }
+      else if (b.dataset.a === "undo") { if (hist.length) { sheet = JSON.parse(hist.pop()); save(); } }
+      else if (b.dataset.a === "hide") hidden = !hidden;
+      else if (b.dataset.a === "clear") { if (sheet.strokes.length || Object.keys(sheet.notes).length) { snap(); sheet = { strokes: [], notes: {} }; save(); } }
+      else if (b.dataset.k) return key_(b.dataset.k);
+      sync(); render();
+    });
+
+    // ---- pen and eraser ----
+    let cur = null;
+    const pt = e => { const f = frame(); return [+((e.clientX - f.cx - f.x0) / f.u).toFixed(4), +((e.clientY - f.cy - f.y0) / f.u).toFixed(4)]; };
+    function rub(p) {
+      const r = 0.025, n = sheet.strokes.length;
+      const keep = sheet.strokes.filter(st => !st.p.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r));
+      if (keep.length !== n) { if (!cur.rubbed) { snap(); cur.rubbed = true; } sheet.strokes = keep; draw(); }
+    }
+    canvas.addEventListener("pointerdown", e => {
+      if (mode !== "pen" && mode !== "erase") return;
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      if (mode === "pen") { snap(); cur = { c: color, p: [pt(e)] }; sheet.strokes.push(cur); draw(); }
+      else { cur = { erase: true }; rub(pt(e)); }
+    });
+    canvas.addEventListener("pointermove", e => {
+      if (!cur) return;
+      const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      for (const ev of evs.length ? evs : [e]) { if (cur.erase) rub(pt(ev)); else cur.p.push(pt(ev)); }
+      if (!cur.erase) draw();
+    });
+    const end = () => { if (!cur) return; if (!cur.erase && cur.p.length === 1) cur.p.push([cur.p[0][0] + 0.0005, cur.p[0][1]]); cur = null; save(); draw(); };
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", end);
+
+    function draw() {
+      const dpr = window.devicePixelRatio || 1, w = stage.clientWidth, h = stage.clientHeight;
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
+      const g = canvas.getContext("2d");
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      if (hidden) return;
+      const f = frame(), ox = f.x0, oy = f.y0;
+      g.lineCap = g.lineJoin = "round";
+      g.lineWidth = Math.max(2, f.u * 0.006);
+      for (const st of sheet.strokes) {
+        g.strokeStyle = (COLORS.find(c => c[0] === st.c) || COLORS[0])[2];
+        g.beginPath();
+        st.p.forEach(([x, y], i) => (i ? g.lineTo : g.moveTo).call(g, ox + x * f.u, oy + y * f.u));
+        g.stroke();
+      }
+    }
+    new ResizeObserver(() => draw()).observe(stage);
+
+    // ---- typed labels on [data-note] cells ----
+    stage.addEventListener("click", e => {
+      if (mode !== "label" || !board.contains(e.target)) return;
+      e.stopPropagation(); e.preventDefault();
+      const c = e.target.closest("[data-note]");
+      sel = c ? c.dataset.note : null;
+      render();
+    }, true);
+    function move(dir) {
+      const cells = [...board.querySelectorAll("[data-note]")], at = cells.find(c => c.dataset.note === sel);
+      if (!at) return;
+      const r = at.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      let best = null, bd = Infinity;
+      for (const c of cells) {
+        if (c === at) continue;
+        const q = c.getBoundingClientRect(), dx = q.left + q.width / 2 - cx, dy = q.top + q.height / 2 - cy;
+        const along = { ArrowLeft: -dx, ArrowRight: dx, ArrowUp: -dy, ArrowDown: dy }[dir], across = dir === "ArrowLeft" || dir === "ArrowRight" ? Math.abs(dy) : Math.abs(dx);
+        if (along <= 1) continue;
+        const d = along + across * 3;
+        if (d < bd) { bd = d; best = c; }
+      }
+      if (best) { sel = best.dataset.note; render(); }
+    }
+    function key_(k) {
+      if (mode !== "label" || sel == null) return false;
+      if (k.startsWith("Arrow")) { move(k); return true; }
+      if (k === "Escape" || k === "Enter") { sel = null; render(); return true; }
+      const old = sheet.notes[sel] || "";
+      let nu = old;
+      if (k === "Backspace") nu = old.slice(0, -1);
+      else if (k === "Delete") nu = "";
+      else if (/^[0-9a-zA-Z*+?\-]$/.test(k)) nu = (old + k).slice(-4);
+      else return false;
+      if (nu !== old) { snap(); if (nu) sheet.notes[sel] = nu; else delete sheet.notes[sel]; save(); render(); }
+      return true;
+    }
+    document.addEventListener("keydown", e => {
+      if (e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA/.test(document.activeElement && document.activeElement.tagName)) return;
+      if (key_(e.key)) e.preventDefault();
+    });
+
+    function render() {
+      load();
+      sync();
+      board.querySelectorAll("[data-note]").forEach(c => {
+        const t = sheet.notes[c.dataset.note];
+        c.querySelector(".nk-note")?.remove();
+        if (t && !hidden) { const n = document.createElement("span"); n.className = "nk-note"; n.textContent = t; c.appendChild(n); }
+        c.classList.toggle("nk-sel", c.dataset.note === sel);
+      });
+      draw();
+    }
+    sync();
+    return { render };
   }
 
   // "1 3, 5 7" -> [1, 3, 5, 7]; null if there's anything but numbers and separators

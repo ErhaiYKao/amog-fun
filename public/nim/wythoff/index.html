@@ -97,15 +97,17 @@
     apply: (s, m) => ({ n: s.n, x: m.x, y: m.y, from: { x: s.x, y: s.y } }),
     isP: s => cold(s.x, s.y),
     symmetric: s => s.x === s.y && s.x > 0, // on the diagonal: one slide to the corner
+    notes: true,
+    inkKey: s => s.n,
     describe: (m, who, s) => `queen ${s.x},${s.y} → ${m.x},${m.y}`,
     render(el, s, ctx) {
       const reach = (x, y) => (x < s.x && y === s.y) || (x === s.x && y < s.y) || (s.x - x === s.y - y && x < s.x);
-      let h = `<div class="wy" style="grid-template-columns: repeat(${s.n}, 1fr)">`;
+      let h = `<div class="wy" data-ink-anchor style="grid-template-columns: repeat(${s.n}, 1fr)">`;
       for (let y = s.n - 1; y >= 0; y--) for (let x = 0; x < s.n; x++) {
         const r = !ctx.locked && reach(x, y);
         const cls = ["sq", (x + y) % 2 ? "" : "dk", r ? "reach" : "", ctx.hint && cold(x, y) ? "cold" : "", x === 0 && y === 0 ? "corner" : "",
           s.from && s.from.x === x && s.from.y === y ? "from" : "", r && ctx.isGood({ x, y }) ? "good" : ""].join(" ");
-        h += `<button class="${cls}" data-x="${x}" data-y="${y}" ${r ? `aria-label="move to ${x},${y}"` : "tabindex=-1"}>${x === s.x && y === s.y ? '<span class="q">♛</span>' : ""}</button>`;
+        h += `<button class="${cls}" data-x="${x}" data-y="${y}" data-note="${x},${y}" ${r ? `aria-label="move to ${x},${y}"` : "tabindex=-1"}>${x === s.x && y === s.y ? '<span class="q">♛</span>' : ""}</button>`;
       }
       el.innerHTML = h + `</div><div class="axis">queen at (${s.x}, ${s.y}) · corner at (0, 0)</div>`;
       el.onclick = e => { const b = e.target.closest(".sq.reach"); if (b && !ctx.locked) ctx.play({ x: +b.dataset.x, y: +b.dataset.y }); };
