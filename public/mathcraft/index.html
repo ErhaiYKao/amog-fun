@@ -24,8 +24,8 @@
 <link rel="stylesheet" href="/assets/amog.css">
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=19"></script>
-<script src="/mathcraft/quests.js?v=19"></script>
+<script src="/mathcraft/logic.js?v=20"></script>
+<script src="/mathcraft/quests.js?v=20"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -423,8 +423,8 @@
     else if (t[0] === "+") inner = kid(0, "+") + " + " + kid(1, "+");
     else if (t[0] === "*") inner = kid(0, "+*") + "·" + kid(1, "+*");
     else if (t[0] === "^") inner = kid(0, "+*^") + "<sup>" + kid(1, "") + "</sup>";
-    else if (t[0] === "=") inner = kid(0, "") + sign("=") + kid(1, "");
-    else if (neg(t)) inner = (o.live && top ? `<span class="neg ${cls("")}" data-p="" title="the whole block">¬</span>` : "¬") + kid(0, "=→∧∨↔");   // A → ⊥, written ¬A
+    else if (t[0] === "=" || t[0] === "≤") inner = kid(0, "") + sign(t[0]) + kid(1, "");
+    else if (neg(t)) inner = (o.live && top ? `<span class="neg ${cls("")}" data-p="" title="the whole block">¬</span>` : "¬") + kid(0, "=≤→∧∨↔");   // A → ⊥, written ¬A
     else if (t[0] === "→" || t[0] === "↔") inner = kid(0, "→↔") + sign(t[0]) + kid(1, "→↔");
     else if (t[0] === "∧" || t[0] === "∨") inner = kid(0, "→∧∨↔") + sign(t[0]) + kid(1, "→∧∨↔");
     else if (t[0] === "∀" || t[0] === "∃") inner = handle(`${t[0]}<i>${esc(t[1][1])}</i>.`, "neg") + " " + kid(0, null);
@@ -508,8 +508,8 @@
     hyp: "A fact about these particular numbers and statements. It rewrites a part of a block, but only where the block says exactly the same thing.",
     fix: "For a goal of the form ∀<i>a</i>. … It opens a workshop about one number, fixed but arbitrary: nothing is known about it, so what you craft for it holds for every number.",
     spec: "Uses a ∀ you have as a block: name a number, then tap the block ∀<i>a</i>. … and it becomes the same statement about that number.",
-    witness: "For a goal of the form ∃<i>a</i>. … Name the number that does it, and the goal becomes the statement about that number.",
-    obtain: "Uses an ∃ you have as a block: tap ∃<i>a</i>. … and you get a workshop that holds the statement about one number with a new name. Nothing else is known about that number.",
+    witness: "For a goal of the form ∃<i>a</i>. … Name the number that does it, and the goal becomes the statement about that number. A goal <i>a</i> ≤ <i>b</i> counts: name the number that added to <i>a</i> gives <i>b</i>.",
+    obtain: "Uses an ∃ you have as a block: tap ∃<i>a</i>. … and you get a workshop that holds the statement about one number with a new name. Nothing else is known about that number. A block <i>a</i> ≤ <i>b</i> counts: you get a number with <i>a</i> + it = <i>b</i>.",
     cases: "Takes a block apart. Tap <i>P</i> ∧ <i>Q</i> (or <i>P</i> ↔ <i>Q</i>) and it becomes two blocks. Tap <i>P</i> ∨ <i>Q</i> and the workshop splits in two: one where you hold <i>P</i>, one where you hold <i>Q</i>, with the same goal in both.",
     held: "A fact you hold in this workshop. It is about these particular statements, so it has no slots.",
     assume: "For a goal of the form <i>A</i> → <i>B</i>. It opens a workshop where <i>A</i> is a fact you hold, and the goal is <i>B</i>.",
@@ -517,7 +517,7 @@
     fact: "A statement you have proved, with slots. Fill them in and it puts the block on the bench.",
     apply: "Works backwards. When the goal is <i>Q</i>, tap a block <i>P</i> → <i>Q</i> (it is used up) or drag it onto the goal, and the goal becomes <i>P</i>. A rule that concludes the goal leaves one goal for each thing it takes.",
     have: "A lemma in the middle of a proof: type a statement about what is in play. You craft it in a workshop of its own, then carry on with it on the bench. Nothing on the bench is lost.",
-    unfold: "∨, ∧, ↔ and ⊤ are definitions: <i>A</i> ∨ <i>B</i> is ¬<i>A</i> → <i>B</i>, <i>A</i> ∧ <i>B</i> is ¬(<i>A</i> → ¬<i>B</i>), <i>A</i> ↔ <i>B</i> is (<i>A</i> → <i>B</i>) ∧ (<i>B</i> → <i>A</i>), and ⊤ is ¬⊥. (¬<i>A</i> is just how <i>A</i> → ⊥ is written.) Numerals are definitions too: 2 is S(1) and 1 is S(0). Tap a part of a block or of the goal to unfold it, or fold it back. Free: it takes no step.",
+    unfold: "∨, ∧, ↔ and ⊤ are definitions: <i>A</i> ∨ <i>B</i> is ¬<i>A</i> → <i>B</i>, <i>A</i> ∧ <i>B</i> is ¬(<i>A</i> → ¬<i>B</i>), <i>A</i> ↔ <i>B</i> is (<i>A</i> → <i>B</i>) ∧ (<i>B</i> → <i>A</i>), and ⊤ is ¬⊥. (¬<i>A</i> is just how <i>A</i> → ⊥ is written.) Numerals are definitions too: 2 is S(1) and 1 is S(0). So is order: <i>a</i> ≤ <i>b</i> is ∃<i>c</i>. <i>a</i> + <i>c</i> = <i>b</i>. Tap a part of a block or of the goal to unfold it, or fold it back. Free: it takes no step.",
     byc: "Proof by contradiction: suppose the goal is false and reach ⊥. It opens a workshop that holds ¬<i>P</i>, with the goal ⊥. It is Apply Double negation followed by Assume, in one step.",
   };
 
@@ -691,7 +691,7 @@
   const sm = t => st(t, {}, "small");
   const mref = id => { const h = /^h(\d+)$/.exec(id); if (h) return "the " + hypName(+h[1]); const m = mach(id); return `<i>${esc(m ? m.name : id)}</i>`; };
   const isTerm = (text, t) => { try { return L.same(L.term(text), t); } catch (e) { return false; } };
-  const keyed = t => { const a = L.show(t), b = a.replace(/¬/g, "not ").replace(/⊥/g, "false").replace(/⊤/g, "true").replace(/→/g, "->").replace(/∧/g, "and").replace(/∨/g, "or").replace(/↔/g, "<->").replace(/·/g, "*").replace(/∀/g, "forall ").replace(/∃/g, "exists "); return a === b ? "" : ` (type <b>${esc(b)}</b>)`; };
+  const keyed = t => { const a = L.show(t), b = a.replace(/¬/g, "not ").replace(/⊥/g, "false").replace(/⊤/g, "true").replace(/→/g, "->").replace(/∧/g, "and").replace(/∨/g, "or").replace(/↔/g, "<->").replace(/·/g, "*").replace(/≤/g, "<=").replace(/∀/g, "forall ").replace(/∃/g, "exists "); return a === b ? "" : ` (type <b>${esc(b)}</b>)`; };
   function buyTip(id) {
     const name = `<i>${esc(Q.gate(id).name)}</i>`;
     return { route: true, text: `The next step takes a machine you don't have yet: ${name}. ${arrives(id)}`,
@@ -762,9 +762,9 @@
       }
       case "witness": {
         const t = L.term(s.t);
-        return tip(`The goal says some number does it: name one. Open <b>Witness</b>, give it <b>${esc(L.show(t))}</b> and run it. The goal becomes the statement about ${sm(t)}.`, card || (isTerm(numT, t) ? `[data-do="witness"]` : "#nterm"));
+        return tip(`${c.goal[0] === "≤" ? `The goal ${sm(c.goal)} is short for ${sm(L.unfold(c.goal))}: name the number that fills the gap.` : "The goal says some number does it: name one."} Open <b>Witness</b>, give it <b>${esc(L.show(t))}</b> and run it. The goal becomes the statement about ${sm(t)}.`, card || (isTerm(numT, t) ? `[data-do="witness"]` : "#nterm"));
       }
-      case "obtain": return tip(`Block ${s.b + 1}, ${sm(c.bench[s.b].s)}, says some number does it, without saying which. Open <b>Take a witness</b> and tap the block: you get a workshop that holds the statement about a number with a new name.`, card || `.block[data-b="${s.b}"]`);
+      case "obtain": return tip(`Block ${s.b + 1}, ${sm(c.bench[s.b].s)}, ${c.bench[s.b].s[0] === "≤" ? `is short for ${sm(L.unfold(c.bench[s.b].s))}: some number fills the gap` : "says some number does it"}, without saying which. Open <b>Take a witness</b> and tap the block: you get a workshop that holds the statement about a number with a new name.`, card || `.block[data-b="${s.b}"]`);
       case "byc": return tip(`Nothing on the bench gives ${sm(c.goal)} directly, so suppose it is false. Open <b>Contradiction</b> and run it: you get a workshop that holds ${sm(["→", c.goal, ["⊥"]])}, and the goal there is ⊥.`, card || `[data-do="byc"]`);
       case "cases": {
         const blk = c.bench[s.b].s, or = blk[0] === "∨";
@@ -830,7 +830,7 @@
   /* ---------- drawing ---------- */
   /* The quest list as a map (#33): worlds in the order they open, each with its progress; the one that is open lists
      its quests underneath. With "step colours" on, finished quests are coloured by how they compare with Amog. */
-  const MAP = [["add", "mul", "pow"], ["prop", "logic", "iff", "quant"]], SUB = ["eq", "peano"];
+  const MAP = [["add", "mul", "pow"], ["prop", "logic", "iff", "quant"]], SUB = ["eq", "peano", "ord"];
   const tabOf = it => (!it ? "own" : it.bounty ? "bounty" : it.own ? "own" : it.world);
   const grade = q => { const n = save.done[q.id], par = Q.par(q); return n < par ? "beat" : n === par ? "par" : "long"; };
   const colours = () => save.cmp && save.moves;                         // step colours only mean something against Amog
@@ -893,7 +893,7 @@
     put($("quest"), `<p class="label">Playground</p><h2>Your own conjecture</h2>
       <p>Type a statement you think is always true: an equation between numbers, or capital letters joined by → (type -&gt;) and ↔ (type &lt;-&gt;). Quantifiers are typed forall a. … and exists a. …, and P(a) is a predicate. You get a workshop for it, with every machine you have. If you can craft it, it becomes a machine for the lemmas you add after it: that is how a long proof gets split into steps.</p>
       <div class="row hint"><input class="term" id="conj" placeholder="a+(b+c) = b+(a+c)" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="your conjecture"><button class="mini" data-do="add">open a workshop</button></div>
-      <p class="meta">Small letters are numbers, capitals are statements, S(a) is the number after a, a*b is a·b, a^b is a power, and 2 is short for S(S(0)). Statements also take and, or, not, false and true (not P is P → ⊥). Your own lemmas pay no ∎ (0 = 0, 1 = 1, … would print money) and stay out of the quests. The bounties above do pay.</p>
+      <p class="meta">Small letters are numbers, capitals are statements, S(a) is the number after a, a*b is a·b, a^b is a power, a<=b is a ≤ b, and 2 is short for S(S(0)). Statements also take and, or, not, false and true (not P is P → ⊥). Your own lemmas pay no ∎ (0 = 0, 1 = 1, … would print money) and stay out of the quests. The bounties above do pay.</p>
       <p class="msg">${esc(msg)}</p>`);
   }
   function drawQuest() {
@@ -1042,7 +1042,7 @@
       const c = L.ctxAt(game, where), names = [...game.names];
       const stmt = m.premises ? `<div class="scroll"><span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span></div>`
         : m.stmt ? `<div class="scroll">${st(m.stmt, { slot: !m.hyp }, "small")}</div>`
-        : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop", apply: "in: a block P → goal, or a rule · out: the goal P", have: "in: a statement · out: a workshop for it, then the goal with it", byc: "in: a goal P · out: a workshop holding ¬P, goal ⊥", cases: "in: a block P ∧ Q, P ∨ Q or P ↔ Q · out: two blocks, or two workshops", fix: "in: a goal ∀a. A · out: a workshop for A about one fixed number", spec: "in: a number and a block ∀a. A · out: A about that number", witness: "in: a number, for a goal ∃a. A · out: a workshop for A about that number", obtain: "in: a block ∃a. A · out: a workshop that holds A about a new number", unfold: "in: a part of a block · out: its definition, or back · free" }[m.kind]}</div>`;
+        : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop", apply: "in: a block P → goal, or a rule · out: the goal P", have: "in: a statement · out: a workshop for it, then the goal with it", byc: "in: a goal P · out: a workshop holding ¬P, goal ⊥", cases: "in: a block P ∧ Q, P ∨ Q or P ↔ Q · out: two blocks, or two workshops", fix: "in: a goal ∀a. A · out: a workshop for A about one fixed number", spec: "in: a number and a block ∀a. A · out: A about that number", witness: "in: a number, for a goal ∃a. A or a ≤ b · out: a workshop for A about that number", obtain: "in: a block ∃a. A or a ≤ b · out: a workshop that holds A about a new number", unfold: "in: a part of a block · out: its definition, or back · free" }[m.kind]}</div>`;
       h = `<div class="mhead">${icon(m.kind, 60)}<div><h3>${esc(m.name)}</h3>${stmt}</div><button class="x" data-do="close" title="close">✕</button></div>`;
       if (m.locked) {
         h += `<p class="what">${BLURB[m.kind]}</p><p class="meta">Not here yet. ${arrives(m.id)}</p>`;
@@ -1112,7 +1112,7 @@
   /* what the goal of a bounty or lemma is about: statements (logic), numbers (num) */
   function goalKind() {
     const goal = L.term(item.goal), text = L.show(goal);
-    return { logic: /[→∧∨↔⊥⊤∀∃]/.test(text) || [...L.vars(goal)].some(L.upper), num: text.includes("=") };
+    return { logic: /[→∧∨↔⊥⊤∀∃≤]/.test(text) || [...L.vars(goal)].some(L.upper), num: /[=≤]/.test(text), ord: text.includes("≤") };
   }
   /* A → B written as such (¬A counts: to prove not A, assume A), not an ∧ / ∨ / ↔ that only unfolds to one. The assume
      button on the goal is for these only (airetho); the Assume machine itself still takes the others. */
@@ -1122,8 +1122,8 @@
   function drawFloor(tip) {
     const world = item.world, quests = new Set(Q.QUESTS.map(q => q.id)), mine = game.machines.map(m => m.id);
     // bounties and the playground: by default only the worlds the goal is about (airetho)
-    const { logic: logicGoal, num: numGoal } = goalKind();
-    const rel = item.worlds || (world || save.allw ? null : [...(numGoal ? ["add", "mul", "eq", "pow"] : []), ...(logicGoal ? ["prop", "logic", "iff", "quant"] : [])]);
+    const { logic: logicGoal, num: numGoal, ord: ordGoal } = goalKind();
+    const rel = item.worlds || (world || save.allw ? null : [...(numGoal ? ["add", "mul", "eq", "pow"] : []), ...(ordGoal ? ["peano", "ord"] : []), ...(logicGoal ? ["prop", "logic", "iff", "quant"] : [])]);
     const wOf = id => { const g = Q.gate(id); if (g) return g.w; const q = Q.QUESTS.find(x => x.id === id); return q ? q.world : null; };
     const shown = id => !rel || !wOf(id) || wOf(id) === "any" || rel.includes(wOf(id));
     const numbers = world ? Q.numeric(world) : numGoal;                  // refl makes equations: no use among pure statements

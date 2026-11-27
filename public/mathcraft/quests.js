@@ -61,8 +61,8 @@
     ["pow", L.machine({ id: "pow0", name: "Power zero", stmt: "a^0=1" })],
     ["pow", L.machine({ id: "powS", name: "Power of a successor", stmt: "a^S(b)=a^b*a" })],
   ].map(([w, m]) => ({ ...m, w }));
-  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["iff", "Equivalence"], ["quant", "Quantifiers"], ["peano", "Successors"], ["mul", "Multiplication"], ["pow", "Powers"]];
-  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], iff: ["prop", "logic", "iff", "eq"], quant: ["prop", "logic", "iff", "add", "eq", "quant"], peano: ["add", "eq", "prop", "logic", "iff", "peano"], mul: ["add", "mul", "eq"], pow: ["add", "mul", "eq", "pow"] };
+  const WORLDS = [["add", "Addition"], ["prop", "Implication"], ["eq", "Equality"], ["logic", "Logic"], ["iff", "Equivalence"], ["quant", "Quantifiers"], ["peano", "Successors"], ["ord", "Order"], ["mul", "Multiplication"], ["pow", "Powers"]];
+  const SEES = { add: ["add", "eq"], prop: ["prop"], eq: ["eq", "prop"], logic: ["prop", "logic"], iff: ["prop", "logic", "iff", "eq"], quant: ["prop", "logic", "iff", "add", "eq", "quant"], peano: ["add", "eq", "prop", "logic", "iff", "peano"], ord: ["add", "eq", "prop", "logic", "iff", "quant", "peano", "ord"], mul: ["add", "mul", "eq"], pow: ["add", "mul", "eq", "pow"] };
   /* does a quest in `world` see things from world w? (no world = bounties and the playground: everything) */
   const sees = (world, w) => !world || w === "any" || SEES[world].includes(w);
   /* tactics open workshops instead of stating something */
@@ -500,6 +500,80 @@
       proof: [induct("b"), assume("b"), refl("ba", "0"), assume("s"), rw("sa", [0], "addS"), rule("sa", 0, "szero"), rule("sa", 0, "lefq", [], { P: "S(b)=0" })],
     },
 
+    /* ---- order (#33): a ≤ b is a definition, ∃c. a + c = b. Witness and Take a witness read it as that ∃. The
+       world leans on everything before it: quantifiers, both Peano axioms, Adding cancels. ---- */
+    {
+      id: "ole", world: "ord", after: ["qo", "szsum"], name: "No bigger than itself", pay: 3, goal: "a<=a", guide: true,
+      intro: "A new sign, and no new axiom. $a \\le b$ is a definition: it is short for $\\exists c.\\ a + c = b$, \"something added to $a$ gives $b$\". Unfold shows it written out, but you rarely need to: <b>Witness</b> and <b>Take a witness</b> read a $\\le$ as its $\\exists$. So to craft $a \\le b$, name the number that fills the gap.",
+      hint: "What do you add to $a$ to get $a$? Give it as the witness; what is left is an equation from quest 1.",
+      proof: [witness("", "0"), refl("w", "a+0"), rw("w", [1], "add0")],
+    },
+    {
+      id: "ozero", world: "ord", name: "Zero is the least", pay: 3, goal: "0<=a",
+      intro: "Nothing is below $0$.",
+      hint: "The gap between $0$ and $a$ is $a$ itself. <i>Zero on the left</i> does the rest.",
+      proof: [witness("", "a"), refl("w", "0+a"), rw("w", [1], "zadd")],
+    },
+    {
+      id: "osucc", world: "ord", name: "The next one is no smaller", pay: 3, goal: "a<=S(a)",
+      intro: "Every number is at most its successor.",
+      hint: "The gap is $S(0)$. Then $a + S(0)$ becomes $S(a+0)$, and that becomes $S(a)$.",
+      proof: [witness("", "S(0)"), refl("w", "a+S(0)"), rw("w", [1], "addS"), rw("w", [1, 0], "add0")],
+    },
+    {
+      id: "otrans", world: "ord", name: "≤ is transitive", pay: 5, goal: "a<=b->(b<=c->a<=c)",
+      intro: "Using a $\\le$ you hold: <b>Take a witness</b> gives the gap a name. Here there are two gaps, and the one from $a$ to $c$ is made of both.",
+      hint: "Assume twice, and take a witness from each: you hold $a + d = b$ and $b + e = c$. Give $d + e$ as the witness. Then put $a + d$ for the $b$ in $b + e = c$ and move the brackets.",
+      proof: [assume(""), assume("a"), obtain("aa", 0), obtain("aao", 0), witness("aaoo", "d+e"),
+        { ...rw("aaoow", [0, 0], "h2", "rl"), b: 1 }, { ...rw("aaoow", [0], "assoc"), b: 1 }],
+    },
+    {
+      id: "oadd", world: "ord", name: "Adding keeps the order", pay: 5, goal: "a<=b->a+c<=b+c",
+      intro: "Add the same number to both sides and the order stays.",
+      hint: "Assume and take a witness: $a + d = b$. The same $d$ is the gap between $a + c$ and $b + c$. Start from $(a+c)+d$ with refl and shuffle it into $(a+d)+c$: brackets, swap, brackets back.",
+      proof: [assume(""), obtain("a", 0), witness("ao", "d"), refl("aow", "(a+c)+d"),
+        { ...rw("aow", [1], "assoc"), b: 1 }, { ...rw("aow", [1, 1], "comm"), b: 1 }, { ...rw("aow", [1], "assoc", "rl"), b: 1 }, { ...rw("aow", [1, 0], "h1"), b: 1 }],
+    },
+    {
+      id: "oz", world: "ord", name: "Only zero is below zero", pay: 4, goal: "a<=0->a=0",
+      intro: "If $a \\le 0$ then $a$ is $0$. This is where the Successors world pays off: it is false in a world where numbers wrap around.",
+      hint: "Assume and take a witness: $a + c = 0$. <i>Nothing adds up to zero</i> tells you about the number on the right of the $+$, so swap the sum round first.",
+      proof: [assume(""), obtain("a", 0), rw("ao", [0], "comm"), rule("ao", 0, "szsum")],
+    },
+    {
+      id: "onil", world: "ord", name: "Adding nothing", pay: 4, goal: "a+b=a->b=0",
+      intro: "A detour without a $\\le$ in it, needed for the next quest: if adding $b$ changes nothing, $b$ is $0$.",
+      hint: "Assume. Write the lone $a$ on the right as $a + 0$, swap both sums round, and <i>Adding cancels</i> takes the $a$ off both sides.",
+      proof: [assume(""), rw("a", [1], "add0", "rl"), rw("a", [0], "comm"), rw("a", [1], "comm"), rule("a", 0, "scancel")],
+    },
+    {
+      id: "oanti", world: "ord", name: "Squeezed", pay: 6, needs: ["have"], goal: "a<=b->(b<=a->a=b)",
+      intro: "If $a \\le b$ and $b \\le a$ then $a = b$: the two gaps add up to nothing, so each is nothing. A block can't rewrite another block, only a fact you hold can. The <b>Lemma</b> machine turns something you can craft into a fact you hold: state it, craft it in a workshop of its own, and carry on with it.",
+      hint: "Assume twice and take both witnesses: $a + c = b$ and $b + d = a$. State the lemma $c = 0$. To craft it, put $a + c$ for the $b$ in $b + d = a$: now $a + (c + d) = a$, so <i>Adding nothing</i> gives $c + d = 0$, and after a swap <i>Nothing adds up to zero</i> gives $c = 0$. With the lemma, $a + c = b$ turns into $a = b$.",
+      proof: [assume(""), assume("a"), obtain("aa", 0), obtain("aao", 0), { op: "have", at: "aaoo", s: "c=0" },
+        { ...rw("aaool", [0, 0], "h2", "rl"), b: 1 }, { ...rw("aaool", [0], "assoc"), b: 1 }, rule("aaool", 1, "onil"), { ...rw("aaool", [0], "comm"), b: 1 }, rule("aaool", 1, "szsum"),
+        rw("aaooc", [0, 1], "h4"), rw("aaooc", [0], "add0")],
+    },
+    {
+      id: "ostep", world: "ord", name: "Equal or a step below", pay: 6, goal: "a<=b->a=b|S(a)<=b",
+      intro: "If $a \\le b$, then either $a$ is $b$ or even $S(a) \\le b$. It depends on the gap: it is $0$, or it comes after some number.",
+      hint: "Assume and take a witness: $a + c = b$. Stamp <i>Zero or a successor</i>, specialise it to $c$ and take the $\\lor$ apart with Cases. If $c = 0$ you get $a = b$. If $c = S(d)$, the gap from $S(a)$ to $b$ is $d$.",
+      proof: [assume(""), obtain("a", 0), make("ao", "qzs", {}), spec("ao", 1, "c"), cases("ao", 1),
+        rw("aop", [0, 1], "h2"), rw("aop", [0], "add0"), rule("aop", 0, "le", [], { Q: "S(a)<=b" }),
+        obtain("aoq", 1), applyR("aoqo", "lre"), witness("aoqo1", "d"), rw("aoqo1w", [0, 1], "h3"), rw("aoqo1w", [0], "addS"), rw("aoqo1w", [0], "sadd", "rl")],
+    },
+    {
+      id: "ototal", world: "ord", name: "One way or the other", pay: 8, goal: "a<=b|b<=a",
+      intro: "Any two numbers can be compared. The first induction of this world, and the reason for the last quest.",
+      hint: "Induct on $a$. Base: $0 \\le b$. In the step, put the induction hypothesis on the bench and take it apart with Cases. If $b \\le a$, then $b \\le S(a)$ by transitivity. If $a \\le b$, <i>Equal or a step below</i> gives two more cases: $a = b$, so $b \\le S(a)$; or $S(a) \\le b$, which is the goal's left side.",
+      proof: [induct("a"), make("b", "ozero", { a: "b" }), rule("b", 0, "le", [], { Q: "b<=0" }),
+        hyp("s", 0), cases("s", 0),
+        rule("sp", 0, "ostep"), cases("sp", 0),
+        make("spp", "osucc", { a: "a" }), { ...rw("spp", [0], "h2"), b: 1 }, rule("spp", 1, "lre", [], { P: "S(a)<=b" }),
+        rule("spq", 0, "le", [], { Q: "b<=S(a)" }),
+        make("sq", "osucc", { a: "a" }), rule("sq", 0, "otrans", [1]), rule("sq", 0, "lre", [], { P: "S(a)<=b" })],
+    },
+
     /* ---- multiplication: two more axioms, on top of all of addition ---- */
     {
       id: "mz", world: "mul", after: ["assoc"], name: "Zero times", pay: 3, needs: ["mul0", "mulS"], goal: "0*a=0",
@@ -591,6 +665,8 @@
     assoc: [["b", { a: "a+b" }], ["s", { a: "a+b", b: "c" }]],
     qa: [["f", { a: "a" }]],
     qex: [["a", { a: "0" }]],
+    ole: [["w", { a: "a" }]],
+    ozero: [["w", { a: "a" }]],
     mz: [["b", { a: "0" }], ["s", { a: "0", b: "a" }]],
     ms: [["b", { a: "S(a)" }], ["s", { a: "S(a)", b: "b" }]],
     mcomm: [["b", { a: "a" }], ["s", { a: "a", b: "b" }]],
@@ -663,7 +739,7 @@
     { id: "addS", gate: true, price: 0, after: ["zz"] },
     { id: "induct", gate: true, price: 0, after: ["zz"] },
     { id: "assume", gate: true, price: 0, after: ["zz"] },
-    { id: "have", gate: true, extra: true, price: 0, after: ["pchain"] },
+    { id: "have", gate: true, price: 0, after: ["pchain"] },
     { id: "dne", gate: true, price: 0, after: ["lnn"] },
     { id: "apply", gate: true, price: 0, after: ["landi"] },
     { id: "byc", gate: true, price: 0, after: ["landr"] },

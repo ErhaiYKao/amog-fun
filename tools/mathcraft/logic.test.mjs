@@ -363,7 +363,7 @@ test("the goal can be scanned, translated and rewritten", () => {
   assert.equal(L.show(g.root.goal), "(¬P → Q) → (¬Q → P)");
   L.step(g, { op: "unfoldg", at: "", path: [0], as: "∨" });
   assert.equal(L.show(g.root.goal), "P ∨ Q → (¬Q → P)");
-  assert.throws(() => L.step(g, { op: "unfoldg", at: "", path: [0, 0] }), /only ∧, ∨, ↔, ⊤ and numerals unfold/);
+  assert.throws(() => L.step(g, { op: "unfoldg", at: "", path: [0, 0] }), /only ∧, ∨, ↔, ⊤, ∃, ≤ and numerals unfold/);
   assert.equal(L.count(g.steps), 0);
   const r = L.start(Q.QUESTS[idx("comm")], everything());
   assert.ok(L.options(r, "", "g", [1]).some(x => x.step.op === "rwg" && x.step.m === "comm"), "rewrites on a part of the goal");
@@ -790,7 +790,7 @@ test("the shop has no dead ends: whatever is bought, in any order, every quest c
 test("random play only ever makes true statements", () => {
   let seed = 12345;
   const rnd = n => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
-  const sides = t => (t[0] === "=" ? [t[1], t[2]] : "→∧∨↔".includes(t[0]) ? [...sides(t[1]), ...sides(t[2])] : "∀∃".includes(t[0]) ? sides(t[2]) : []);
+  const sides = t => (t[0] === "=" || t[0] === "≤" ? [t[1], t[2]] : "→∧∨↔".includes(t[0]) ? [...sides(t[1]), ...sides(t[2])] : "∀∃".includes(t[0]) ? sides(t[2]) : []);
   let checked = 0, conditional = 0, quantified = 0;
   // quantifiers and predicates are checked in the integers mod 5: every axiom and induction hold there, and ∀ can
   // try all five numbers (no powers: they mean nothing modulo 5; no successor axioms: S(4) = 0 there)
@@ -802,6 +802,10 @@ test("random play only ever makes true statements", () => {
     [{ id: "qmix3", world: "quant", goal: "(forall a. a+b=a)->((exists c. R(c,b))->(forall a. R(a,a)|a*b=0))" }, noPow],
     // traps: each of these is false, and one careless rule away from "proved" (a fixed number that isn't arbitrary, a
     // witness that isn't new, a substitution that captures, a held fact rewriting a bound letter)
+    // order is checked in the natural numbers (a ≤ b mod 5 is always true): a mix, and two false goals
+    [{ id: "omix", world: "ord", goal: "a<=b->(b<=c->(S(a)<=S(c)|c+a<=b))" }, everything()],
+    [{ id: "otrap1", world: "ord", trap: true, goal: "a<=b->b<=a" }, everything()],
+    [{ id: "otrap2", world: "ord", trap: true, goal: "a<=b->S(a)<=b" }, everything()],
     [{ id: "trap1", world: "quant", trap: true, goal: "R(a,b)->forall a. R(a,b)" }, noPow],
     [{ id: "trap2", world: "quant", trap: true, goal: "(exists a. R(a,b))->R(b,b)" }, noPow],
     [{ id: "trap3", world: "quant", trap: true, goal: "(forall a. exists b. R(a,b))->(Q(b)->exists b. R(b,b))" }, noPow],
@@ -812,7 +816,7 @@ test("random play only ever makes true statements", () => {
     for (let run = 0; run < (q.trap ? 120 : 30); run++) {
       const g = L.start(q, machines);
       for (let move = 0; move < 30; move++) {
-        const ws = L.shops(g).filter(x => !x.c.kids), at = ws[rnd(ws.length)].at, c = L.ctxAt(g, at), r = rnd(mod ? 17 : 13);
+        const ws = L.shops(g).filter(x => !x.c.kids), at = ws[rnd(ws.length)].at, c = L.ctxAt(g, at), r = rnd(mod || q.world === "ord" ? 17 : 13);
         const nums = [...g.names].filter(n => !L.upper(n)), num = () => { const k = rnd(nums.length + 2); return k < nums.length ? nums[k] : k === nums.length ? "0" : nums.length ? "S(" + nums[rnd(nums.length)] + ")" : "1"; };
         try {
           if (r === 0 && nums.length) L.step(g, { op: "induct", at, v: nums[rnd(nums.length)] });
@@ -893,4 +897,48 @@ test("airetho's round: held implications are rules, a ↔ stamps one way, mp sta
   assert.ok(!Q.QUESTS.some(q => q.id === "pmp"));
   assert.equal(Q.earned({ pmp: 3 }) - Q.earned({}), 3 + Q.PAR_BONUS);
   for (const [up, olds] of Object.entries(Q.SUPERSEDES)) assert.ok(idx(up) > Math.max(...olds.filter(id => idx(id) >= 0).map(idx)), up + " comes after what it folds away");
+});
+
+test("order: a ≤ b is a definition, ∃c. a + c = b, read as its ∃ by Witness and Take a witness", () => {
+  const ids = Q.QUESTS.filter(q => q.world === "ord").map(q => q.id);
+  assert.deepEqual(ids, ["ole", "ozero", "osucc", "otrans", "oadd", "oz", "onil", "oanti", "ostep", "ototal"]);
+  // text
+  for (const t of ["a ≤ b", "a+b ≤ S(c)", "¬(a ≤ b)", "a ≤ b ∨ b ≤ a", "a ≤ b → a+c ≤ b+c"]) assert.equal(L.show(L.parse(t)), t);
+  assert.equal(L.show(L.parse("a<=b")), "a ≤ b");
+  assert.equal(L.show(L.parse("P<=>Q")), "P ↔ Q");
+  assert.throws(() => L.parse("P<=Q"), /takes numbers/);
+  // the definition: the bound letter is the first from c on that neither side uses, and it folds back
+  assert.equal(L.show(L.unfold(L.parse("a<=b"))), "∃c. a+c = b");
+  assert.equal(L.show(L.unfold(L.parse("c<=d"))), "∃e. c+e = d");
+  assert.deepEqual(L.folds(L.parse("exists x. a+x=b")).map(L.show), ["a ≤ b"]);
+  assert.deepEqual(L.folds(L.parse("exists x. x+x=b")).map(L.show), [], "the gap may not appear in what it is added to");
+  assert.deepEqual(L.folds(L.parse("exists x. a+x=x")).map(L.show), []);
+  assert.ok(L.sameDef(L.parse("a<=b"), L.parse("exists z. a+z=b")));
+  // truth: the real order in the natural numbers; modulo 5 some number always closes the gap
+  assert.ok(L.holds(L.parse("a<=b"), { a: 2, b: 3 }) && L.holds(L.parse("a<=b"), { a: 3, b: 3 }) && !L.holds(L.parse("a<=b"), { a: 4, b: 3 }));
+  assert.ok(L.holds(L.parse("a<=b"), { a: 4, b: 3 }, 5));
+  for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) for (const q of Q.QUESTS.filter(x => x.world === "ord")) {
+    let ok; try { ok = L.holds(L.term(q.goal), { a, b, c: (a + 2 * b) % 5 }); } catch (e) { continue; }
+    assert.ok(ok, q.id + " is true of the natural numbers");
+  }
+  // Witness on a goal a ≤ b, Take a witness on a block a ≤ b; other machines for ∃ want it unfolded first
+  const i = idx("otrans"), g = L.start(Q.QUESTS[i], Q.machinesFor(i, allDone(i)));
+  L.step(g, { op: "assume", at: "" }); L.step(g, { op: "assume", at: "a" });
+  L.step(g, { op: "obtain", at: "aa", b: 0 });
+  assert.deepEqual(bench(g, "aao"), ["b ≤ c", "a+d = b"]);
+  assert.throws(() => L.step(g, { op: "obtain", at: "aao", b: 0, v: "d" }), /new here/);
+  L.step(g, { op: "witness", at: "aao", t: "c" });
+  assert.equal(L.show(L.ctxAt(g, "aaow").goal), "a+c = c");
+  assert.throws(() => L.step(g, { op: "spec", at: "aao", b: 0, t: "0" }), /∀/);
+  L.step(g, { op: "unfold", at: "aao", b: 0, path: [] });
+  assert.equal(bench(g, "aao")[0], "∃d. b+d = c");
+  L.step(g, { op: "unfold", at: "aao", b: 0, path: [], as: "≤" });
+  assert.equal(bench(g, "aao")[0], "b ≤ c");
+  // an equality rewrites inside a ≤
+  L.step(g, { op: "rw", at: "aao", b: 0, path: [0], m: "h2", dir: "rl" });
+  assert.equal(bench(g, "aao")[0], "a+d ≤ c");
+  // the quantifier world (checked mod 5) doesn't see the order theorems, which are false there
+  assert.ok(!L.holds(L.parse("a<=0->a=0"), { a: 2 }, 5));
+  const quant = Q.machinesFor(idx("qen"), allDone(Q.QUESTS.length)).map(m => m.id);
+  assert.ok(!ids.some(id => quant.includes(id)));
 });

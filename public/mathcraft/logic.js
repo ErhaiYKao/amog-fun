@@ -11,6 +11,8 @@
  * Statements: ["=", l, r] between numbers; ["→", A, B], ["∧", A, B], ["∨", A, B], ["↔", A, B] between statements; ["⊥"] (false),
  * ["⊤"] (true); ["v", "P"] (capital letter). "not A" is A → ⊥ and has no node of its own: `show` (and the page)
  * just write A → ⊥ as ¬A, as notation (#33), so ¬(P → ¬Q) is how the definition of P ∧ Q reads.
+ * Order (#33): ["≤", a, b] between numbers is a definition too, ∃c. a + c = b (c the first letter from c on that a
+ * and b don't use). Witness and Take a witness read a ≤ as that ∃; Unfold shows it.
  * Definitions (#33): A ∨ B is ¬A → B, A ∧ B is ¬(A → ¬B), ⊤ is ⊥ → ⊥, A ↔ B is (A → B) ∧ (B → A) (`unfold`,
  * `folds`). The engine sees through them one way only: wherever a pattern wants an implication (modus ponens,
  * Assume, Apply, any → in a machine), a ∧ / ∨ / ⊤ / ↔ is read as its definition, and where it wants an ∧ so is a
@@ -95,7 +97,7 @@
   const upper = n => n >= "A" && n <= "Z";
   /* statements (as opposed to numbers) */
   const CONNECTIVES = "→∧∨↔", QUANT = "∀∃";
-  const isForm = t => t[0] === "=" || CONNECTIVES.includes(t[0]) || QUANT.includes(t[0]) || t[0] === "@" || t[0] === "⊥" || t[0] === "⊤" || (isVar(t) && upper(t[1]));
+  const isForm = t => t[0] === "=" || t[0] === "≤" || CONNECTIVES.includes(t[0]) || QUANT.includes(t[0]) || t[0] === "@" || t[0] === "⊥" || t[0] === "⊤" || (isVar(t) && upper(t[1]));
   /* the parts of a term, which is what paths count: a quantifier has one (its body, not the variable it binds), a
      predicate P(a, b) has its arguments (not its name) */
   const off = t => (QUANT.includes(t[0]) || t[0] === "@" ? 2 : 1);
@@ -215,8 +217,12 @@
   }
 
   /* ---------- definitions ---------- */
-  const DEFS = "∧∨⊤↔∃", F = ["⊥"], isF = t => t[0] === "⊥";
+  const DEFS = "∧∨⊤↔∃≤", F = ["⊥"], isF = t => t[0] === "⊥";
   function unfold(t) {
+    if (t[0] === "≤") {                                                   // a ≤ b: some number added to a gives b
+      const taken = new Set([...vars(t[1]), ...vars(t[2])]), x = [..."cdefghijklmnopqrstuvwxyzab"].find(l => !taken.has(l)) || "c'";
+      return ["∃", V(x), eq(plus(t[1], V(x)), t[2])];
+    }
     if (t[0] === "∃") return ["→", ["∀", t[1], ["→", t[2], F]], F];
     if (t[0] === "#") return S(t[1] > 1 ? ["#", t[1] - 1] : Z);
     if (t[0] === "↔") return ["∧", ["→", t[1], t[2]], ["→", t[2], t[1]]];
@@ -230,6 +236,7 @@
     const out = [];
     if (t[0] === "S" && (t[1][0] === "0" || (t[1][0] === "#" && t[1][1] < 20))) out.push(["#", t[1][0] === "0" ? 1 : t[1][1] + 1]);
     if (t[0] === "∧" && t[1][0] === "→" && t[2][0] === "→" && same(t[1][1], t[2][2]) && same(t[1][2], t[2][1])) out.push(["↔", t[1][1], t[1][2]]);
+    if (t[0] === "∃" && t[2][0] === "=" && t[2][1][0] === "+" && same(t[2][1][2], t[1]) && !vars(t[2][1][1]).has(t[1][1]) && !vars(t[2][2]).has(t[1][1])) out.push(["≤", t[2][1][1], t[2][2]]);
     if (t[0] !== "→") return out;
     const [a, b] = [t[1], t[2]];
     if (isF(b) && a[0] === "∀" && neg(a[2])) out.push(["∃", a[1], a[2][1]]);
@@ -248,7 +255,7 @@
   /* ---------- text ---------- */
   function show(t) {
     const wrap = (k, ops) => ((ops.includes(k[0]) && !neg(k)) || (QUANT.includes(k[0]) && ops !== "") ? "(" + show(k) + ")" : show(k));
-    if (neg(t)) return "¬" + wrap(t[1], "=" + CONNECTIVES);
+    if (neg(t)) return "¬" + wrap(t[1], "=≤" + CONNECTIVES);
     switch (t[0]) {
       case "0": return "0";
       case "#": return String(t[1]);
@@ -258,6 +265,7 @@
       case "*": return wrap(t[1], "+*") + "·" + wrap(t[2], "+*");
       case "^": return wrap(t[1], "+*^") + "^" + wrap(t[2], "+*^");
       case "=": return show(t[1]) + " = " + show(t[2]);
+      case "≤": return show(t[1]) + " ≤ " + show(t[2]);
       case "→": return wrap(t[1], "→↔") + " → " + wrap(t[2], "→↔");
       case "↔": return wrap(t[1], "→↔") + " ↔ " + wrap(t[2], "→↔");
       case "∧": return wrap(t[1], CONNECTIVES) + " ∧ " + wrap(t[2], CONNECTIVES);
@@ -269,7 +277,7 @@
     throw new Error("bad term");
   }
   function parse(src) {
-    const s = String(src).replace(/\b(forall|all|every)\b/gi, "∀").replace(/\b(exists|some)\b/gi, "∃").replace(/<->|<=>|⇔|\biff\b/gi, "↔").replace(/\band\b/gi, "∧").replace(/\bor\b/gi, "∨").replace(/\bnot\b/gi, "¬").replace(/\bfalse\b/gi, "⊥").replace(/\btrue\b/gi, "⊤")
+    const s = String(src).replace(/\b(forall|all|every)\b/gi, "∀").replace(/\b(exists|some)\b/gi, "∃").replace(/<->|<=>|⇔|\biff\b/gi, "↔").replace(/<=|=</g, "≤").replace(/\band\b/gi, "∧").replace(/\bor\b/gi, "∨").replace(/\bnot\b/gi, "¬").replace(/\bfalse\b/gi, "⊥").replace(/\btrue\b/gi, "⊤")
       .replace(/\s+/g, "").replace(/->|⇒|=>/g, "→").replace(/[·×]/g, "*").replace(/&+|\/\\/g, "∧").replace(/\|+|\\\//g, "∨").replace(/[~!]/g, "¬");
     let i = 0;
     const fail = msg => { throw new Error(msg); };
@@ -316,7 +324,7 @@
     function pow() { const t = atom(); if (s[i] !== "^") return t; i++; return ["^", num(t, "^"), num(pow(), "^")]; }
     function prod() { let t = pow(); while (s[i] === "*") { i++; t = ["*", num(t, "·"), num(pow(), "·")]; } return t; }
     function sum() { let t = prod(); while (s[i] === "+") { i++; t = plus(num(t, "+"), num(prod(), "+")); } return t; }
-    function cmp() { const t = sum(); if (s[i] !== "=") return t; i++; return eq(num(t, "="), num(sum(), "=")); }
+    function cmp() { const t = sum(), op = s[i]; if (op !== "=" && op !== "≤") return t; i++; return [op, num(t, op), num(sum(), op)]; }
     const join = (next, op, word) => function level() {
       let t = next();
       while (s[i] === op) { i++; const r = next(); if (!isForm(t) || !isForm(r)) fail(word + " joins statements, not numbers"); t = [op, t, r]; }
@@ -443,7 +451,7 @@
   function translate(sub, as) {
     if (!sub) throw new Error("no such part");
     const to = as ? folds(sub).find(f => f[0] === as) : unfold(sub);
-    if (!to) throw new Error(as ? "that isn't the definition of " + (as === "#" ? "a numeral" : as) : "only ∧, ∨, ↔, ⊤ and numerals unfold");
+    if (!to) throw new Error(as ? "that isn't the definition of " + (as === "#" ? "a numeral" : as) : "only ∧, ∨, ↔, ⊤, ∃, ≤ and numerals unfold");
     return to;
   }
   /* work out what a step does without doing it: returns a function that applies it */
@@ -621,19 +629,20 @@
       case "witness": {
         if (!have("witness")) throw new Error("you don't have the Witness machine yet");
         if (c.kids) throw new Error("this workshop is already split");
-        if (c.goal[0] !== "∃") throw new Error("Witness needs a goal of the form ∃a. …");
-        const goal = subst(c.goal[2], { [c.goal[1][1]]: supplied(game, c.goal[1][1], st.t) });
+        const ex = c.goal[0] === "≤" ? unfold(c.goal) : c.goal;             // a ≤ b is read as its ∃
+        if (ex[0] !== "∃") throw new Error("Witness needs a goal of the form ∃a. … (or a ≤ b)");
+        const goal = subst(ex[2], { [ex[1][1]]: supplied(game, ex[1][1], st.t) });
         return () => { c.kids = { kind: "witness", list: [["w", child(goal, c.hyps, carry(c.bench))]] }; };
       }
       case "obtain": {
         if (!have("obtain")) throw new Error("you don't have the Take a witness machine yet");
         if (c.kids) throw new Error("this workshop is already split");
-        const b = block(st.b);
-        if (b.s[0] !== "∃") throw new Error("Take a witness takes a block of the form ∃a. …");
-        const v = st.v || newName(c, b.s[1][1]);
+        const b = block(st.b), ex = b.s[0] === "≤" ? unfold(b.s) : b.s;    // a ≤ b is read as its ∃
+        if (ex[0] !== "∃") throw new Error("Take a witness takes a block of the form ∃a. … (or a ≤ b)");
+        const v = st.v || newName(c, ex[1][1]);
         // the witness is a number nothing else is known about: a letter this workshop doesn't speak about
         if (!/^[a-z]$/.test(v) || spoken(c).has(v)) throw new Error("the witness needs a letter that is new here");
-        const s = subst(b.s[2], { [b.s[1][1]]: V(v) }), rest = c.bench.filter((_, i) => i !== st.b), n = c.hyps.length;
+        const s = subst(ex[2], { [ex[1][1]]: V(v) }), rest = c.bench.filter((_, i) => i !== st.b), n = c.hyps.length;
         return () => { game.names.add(v); c.kids = { kind: "obtain", v, list: [["o", child(c.goal, [...c.hyps, s], [...carry(rest), { s, deps: [n] }])]] }; };
       }
       case "cases": {
@@ -835,6 +844,7 @@
   function holds(s, env, mod) {
     const h = x => holds(x, env, mod);
     if (s[0] === "=") return value(s[1], env, mod) === value(s[2], env, mod);
+    if (s[0] === "≤") return mod ? true : value(s[1], env) <= value(s[2], env);   // modulo, some number always closes the gap
     if (s[0] === "→") return !h(s[1]) || h(s[2]);
     if (s[0] === "∧") return h(s[1]) && h(s[2]);
     if (s[0] === "∨") return h(s[1]) || h(s[2]);
