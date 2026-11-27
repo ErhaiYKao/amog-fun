@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dots and Boxes vs. AI · amog.fun</title>
-<meta name="description" content="Play Dots and Boxes against Amog Magnussen, an AI that knows about double-crosses.">
+<meta name="description" content="Play Dots and Boxes against Amog Magnussen, an AI that knows about double-crosses, or against a friend online.">
 <!-- seo -->
 <link rel="canonical" href="https://amog.fun/dotsandboxes/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Magnussen Institute for Applied Fun">
 <meta property="og:url" content="https://amog.fun/dotsandboxes/">
 <meta property="og:title" content="Dots &amp; Boxes">
-<meta property="og:description" content="Play Dots and Boxes against Amog Magnussen, an AI that knows about double-crosses.">
+<meta property="og:description" content="Play Dots and Boxes against Amog Magnussen, an AI that knows about double-crosses, or against a friend online.">
 <meta property="og:image" content="https://amog.fun/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -79,6 +79,14 @@
   .seg button:hover { color: var(--ink); }
   .seg button[aria-pressed="true"] { background: var(--bg-3); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset; }
   .record { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+  [hidden] { display: none !important; }
+  .err { font-family: var(--mono); font-size: 12.5px; color: var(--g2); min-height: 0; }
+  .roombox { padding: 12px 14px; border: 1px dashed var(--line-2); border-radius: 12px; font-family: var(--mono); font-size: 13px; color: #d3cfc5; display: grid; gap: 8px; }
+  .roombox code { color: var(--g3); overflow-wrap: anywhere; }
+  .roombox .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .mini { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-3); color: var(--ink); cursor: pointer; }
+  .mini:hover { border-color: var(--muted); }
+  .pres { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 5px; } .pres.on { background: var(--g3); }
 
   details.rules { border-top: 1px solid var(--line); padding-top: 14px; font-size: 16px; color: #cfcbc1; }
   details.rules summary { font-family: var(--mono); font-size: 13px; color: var(--muted); cursor: pointer; }
@@ -129,25 +137,32 @@
 
     <aside class="panel">
       <div class="scores">
-        <div class="score you" id="sc-you"><div class="who">you</div><div class="n" id="n-you">0</div></div>
-        <div class="score amog" id="sc-amog"><div class="who">amog</div><div class="n" id="n-amog">0</div></div>
+        <div class="score you" id="sc-you"><div class="who" id="who-you">you</div><div class="n" id="n-you">0</div></div>
+        <div class="score amog" id="sc-amog"><div class="who" id="who-amog">amog</div><div class="n" id="n-amog">0</div></div>
       </div>
       <div class="status" id="status"></div>
+      <div class="err" id="err"></div>
+      <div class="roombox" id="roombox" hidden></div>
 
       <div class="controls">
-        <div class="field"><span>Board</span>
+        <div class="field"><span>Opponent</span>
+          <div class="seg" data-key="mode">
+            <button data-v="amog">Amog</button><button data-v="online">a friend online</button>
+          </div>
+        </div>
+        <div class="field setup"><span>Board</span>
           <div class="seg" data-key="size">
             <button data-v="3">3×3</button><button data-v="4">4×4</button><button data-v="5">5×5</button><button data-v="6">6×6</button>
           </div>
         </div>
-        <div class="field"><span>Amog's level</span>
+        <div class="field" id="f-level"><span>Amog's level</span>
           <div class="seg" data-key="level">
             <button data-v="easy">undergrad</button><button data-v="medium">postdoc</button><button data-v="hard">Magnussen</button>
           </div>
         </div>
-        <div class="field"><span>First move</span>
+        <div class="field setup"><span>First move</span>
           <div class="seg" data-key="first">
-            <button data-v="you">you</button><button data-v="amog">amog</button>
+            <button data-v="you">you</button><button data-v="amog" id="first-them">amog</button>
           </div>
         </div>
         <button class="btn" id="new">New game</button>
@@ -168,6 +183,7 @@
   </footer>
 </div>
 
+<script src="rules.js"></script>
 <script src="ai.js"></script>
 <script>
 (() => {
@@ -190,13 +206,17 @@
     size: store.get("size", innerWidth < 600 ? 4 : 5),
     level: store.get("level", "medium"),
     first: store.get("first", "you"),
+    mode: "amog", // "online" = a friend, one Durable Object per room (worker/dotsandboxes.js)
   };
+  const params = new URLSearchParams(location.search);
 
   let G, drawn, drawnBy, owner, score, turn, over, lastEdge, busy, aiTimer, gameId = 0, declined = false;
+  let net = null; // online: {room, seat, ws, you: host|guest|watch, me: 0|1, round, online, joined, pending, closed, tries}
   let edgeEls, boxEls, hitEls, layers;
 
   // ---------- setup ----------
   function newGame() {
+    if (opts.mode === "online") return;
     clearTimeout(aiTimer);
     gameId++;
     const n = +opts.size;
@@ -208,6 +228,7 @@
     turn = opts.first === "you" ? 0 : 1;
     over = false; lastEdge = -1; busy = false; declined = false;
     $("overlay").classList.remove("show");
+    $("again").textContent = "Play again"; $("again").hidden = false;
     buildBoard();
     render();
     if (turn === 1) setStatus(`<span class="thinking">Amog opens</span>`), scheduleAI(500);
@@ -259,7 +280,12 @@
   }
 
   function humanMove(e) {
-    if (over || busy || turn !== 0 || drawn[e]) return;
+    if (net) {
+      if (!canMoveOnline() || drawn[e]) return;
+      net.pending = true; svg.classList.add("locked");
+      return send({ t: "move", e });
+    }
+    if (opts.mode === "online" || over || busy || turn !== 0 || drawn[e]) return;
     const couldTake = DBAI.computeSides(G, drawn).some(x => x === 3);
     const got = apply(e, 0);
     if (couldTake && !got && !over) declined = true; // turned down a box: a double-cross if it works out
@@ -304,7 +330,7 @@
       if (owner[b] >= 0 && B.rect.getAttribute("opacity") === "0") {
         const cls = owner[b] ? "amog" : "you";
         B.rect.setAttribute("class", `boxfill ${cls}`); B.rect.setAttribute("opacity", ".16");
-        B.txt.setAttribute("class", `boxlabel ${cls} pop`); B.txt.textContent = owner[b] ? "A" : "Y";
+        B.txt.setAttribute("class", `boxlabel ${cls} pop`); B.txt.textContent = letters()[owner[b]];
       }
     }
     $("n-you").textContent = score[0]; $("n-amog").textContent = score[1];
@@ -315,6 +341,7 @@
   function setStatus(html) { $("status").innerHTML = html; }
 
   function finish() {
+    if (net) return finishOnline();
     const [y, a] = score;
     const rec = store.get("record", {});
     const k = `${opts.level}-${opts.size}`;
@@ -357,16 +384,187 @@
       const b = ev.target.closest("button"); if (!b) return;
       ev.preventDefault();
       opts[key] = key === "size" ? +b.dataset.v : b.dataset.v;
-      store.set(key, opts[key]);
+      if (key !== "mode") store.set(key, opts[key]);
       sync();
+      if (key === "mode") return setMode();
+      if (opts.mode === "online") return setupOnline();
       newGame();
     });
+    seg.sync = sync;
     sync();
   });
-  $("new").addEventListener("click", newGame);
-  $("again").addEventListener("click", newGame);
+  $("new").addEventListener("click", () => (opts.mode === "online" ? createRoom() : newGame()));
+  $("again").addEventListener("click", () => (net ? send({ t: "again" }) : newGame()));
 
-  newGame();
+  // ---------- online: one Durable Object per room (worker/dotsandboxes.js), refereed with rules.js ----------
+  // Locally player 0 is always "you" (cyan) and 1 the other side; a watcher sees the host as 0.
+  const SEATS = "amog.dotsandboxes.seats"; // {room: seat token}
+  const readSeats = () => { try { return JSON.parse(localStorage.getItem(SEATS)) || {}; } catch { return {}; } };
+  const token = () => Array.from(crypto.getRandomValues(new Uint8Array(18)), b => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"[b % 64]).join("");
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const watching = () => net && net.you === "watch";
+  const letters = () => (!net ? ["Y", "A"] : watching() ? ["H", "G"] : ["Y", "F"]);
+  const names = () => (!net && opts.mode !== "online" ? ["you", "amog"] : watching() ? ["host", "guest"] : ["you", "friend"]);
+  const bothHere = () => net && net.online.host && net.online.guest;
+  const canMoveOnline = () => net && !watching() && net.you && !over && turn === 0 && bothHere() && !net.pending;
+
+  function rememberSeat(room, seat) {
+    const s = readSeats(); s[room] = seat;
+    const keys = Object.keys(s); if (keys.length > 20) delete s[keys[0]];
+    try { localStorage.setItem(SEATS, JSON.stringify(s)); } catch {}
+  }
+
+  function labels() {
+    const [a, b] = names();
+    $("who-you").textContent = a; $("who-amog").textContent = b;
+    $("first-them").textContent = opts.mode === "online" ? "friend" : "amog";
+  }
+
+  // Show the right controls for the mode: setup fields until you're in a room, the room box once you are.
+  function panel() {
+    const inRoom = !!net, online = opts.mode === "online";
+    document.querySelectorAll(".setup").forEach(f => (f.hidden = inRoom));
+    $("f-level").hidden = online;
+    $("new").hidden = inRoom;
+    $("new").textContent = online ? "Make a room" : "New game";
+    $("record").hidden = online;
+    $("roombox").hidden = !inRoom;
+    labels();
+  }
+
+  function setMode() {
+    if (opts.mode === "amog") { leave(); panel(); svg.classList.remove("locked"); return newGame(); }
+    setupOnline();
+  }
+
+  function setupOnline() {
+    if (net) return;
+    clearTimeout(aiTimer); gameId++; busy = false;
+    panel();
+    $("overlay").classList.remove("show");
+    G = DBAI.makeGeometry(+opts.size, +opts.size); // a blank preview of the board you'll get
+    drawn = new Uint8Array(G.E); drawnBy = new Int8Array(G.E).fill(-1); owner = new Int8Array(G.NB).fill(-1);
+    score = [0, 0]; turn = opts.first === "you" ? 0 : 1; over = false; lastEdge = -1;
+    buildBoard(); render(); svg.classList.add("locked");
+    setStatus("Pick a board and who opens, then make a room and send your friend the link.");
+  }
+
+  function leave() {
+    if (!net) return;
+    net.closed = true; try { net.ws.close(); } catch {}
+    net = null; $("err").textContent = "";
+    history.replaceState(null, "", location.pathname);
+  }
+
+  async function createRoom() {
+    $("new").disabled = true; $("err").textContent = "";
+    try {
+      const r = await fetch("/api/dotsandboxes/new", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ n: +opts.size, first: opts.first === "you" ? "host" : "guest" }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { $("err").textContent = j.error || "Couldn't make a room."; return; }
+      rememberSeat(j.room, j.seat);
+      history.replaceState(null, "", `?room=${j.room}`);
+      join(j.room);
+    } catch { $("err").textContent = "Couldn't reach the server."; }
+    finally { $("new").disabled = false; }
+  }
+
+  function join(room) {
+    clearTimeout(aiTimer); gameId++; busy = false;
+    opts.mode = "online"; document.querySelector('.seg[data-key="mode"]').sync();
+    if (!readSeats()[room]) rememberSeat(room, token());
+    net = { room, seat: readSeats()[room], ws: null, you: null, me: 0, round: 0, online: {}, joined: false, pending: false, closed: false, tries: 0, shown: 0 };
+    G = null; svg.innerHTML = "";
+    panel(); roomBox();
+    $("overlay").classList.remove("show");
+    setStatus("Connecting…");
+    connect();
+  }
+
+  function roomBox() {
+    const link = location.origin + location.pathname + "?room=" + net.room;
+    const role = net.you === "watch" ? " · you're watching" : net.you ? ` · you're the ${net.you}` : "";
+    $("roombox").innerHTML = `<div>Room <code>${esc(net.room)}</code>${role}</div>
+      <div class="row"><code>${esc(link)}</code><button class="mini" id="copy">copy link</button></div>
+      <div class="row"><span><span class="pres ${net.online.host ? "on" : ""}"></span>host</span><span><span class="pres ${net.online.guest ? "on" : ""}"></span>guest</span>
+        <button class="mini" id="leave" style="margin-left:auto">leave room</button></div>`;
+    $("copy").onclick = () => navigator.clipboard && navigator.clipboard.writeText(link).then(() => ($("copy").textContent = "copied"));
+    $("leave").onclick = () => { opts.mode = "amog"; document.querySelector('.seg[data-key="mode"]').sync(); setMode(); };
+  }
+
+  function connect() {
+    if (!net || net.closed) return;
+    const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/dotsandboxes/ws?room=${encodeURIComponent(net.room)}&seat=${encodeURIComponent(net.seat)}`);
+    net.ws = ws;
+    ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } onMsg(m); };
+    ws.onopen = () => { net.tries = 0; };
+    ws.onclose = ev => {
+      if (!net || net.closed || net.ws !== ws) return;
+      net.pending = false;
+      if (ev.code === 4404) { setStatus("That room doesn't exist (rooms expire after a week of quiet)."); return; }
+      setStatus("Connection lost. Reconnecting…");
+      setTimeout(connect, Math.min(10000, 500 * 2 ** net.tries++));
+    };
+  }
+  const send = m => {
+    if (net && net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(m));
+    else { $("err").textContent = "Not connected right now."; if (net) net.pending = false; }
+  };
+
+  function onMsg(m) {
+    if (m.t === "error") { $("err").textContent = m.msg; net.pending = false; return onlineStatus(); }
+    if (m.t !== "state") return;
+    $("err").textContent = "";
+    const s = m.s, me = m.you === "guest" ? 1 : 0;
+    const rebuild = !G || G.R !== s.n || net.round !== s.round || net.me !== me;
+    const before = rebuild ? -1 : drawn.reduce((a, x) => a + x, 0);
+    Object.assign(net, { you: m.you, me, round: s.round, online: s.online, joined: s.joined, pending: false });
+    if (rebuild) {
+      G = DBAI.makeGeometry(s.n, s.n);
+      drawn = new Uint8Array(G.E); drawnBy = new Int8Array(G.E).fill(-1); owner = new Int8Array(G.NB).fill(-1);
+      buildBoard();
+      $("overlay").classList.remove("show");
+    }
+    for (let e = 0; e < G.E; e++) if (s.by[e] !== -1) { drawn[e] = 1; drawnBy[e] = s.by[e] ^ me; }
+    for (let b = 0; b < G.NB; b++) owner[b] = s.owner[b] === -1 ? -1 : s.owner[b] ^ me;
+    score = me ? [s.score[1], s.score[0]] : s.score.slice();
+    turn = s.turn ^ me; over = s.over; lastEdge = s.last;
+    const moved = before >= 0 && drawn.reduce((a, x) => a + x, 0) > before;
+    render(moved ? s.last : -1);
+    roomBox(); panel();
+    if (over && net.shown !== s.round) { net.shown = s.round; finishOnline(); }
+    onlineStatus(moved && drawnBy[s.last] === turn && !over);
+  }
+
+  function onlineStatus(again) {
+    svg.classList.toggle("locked", !canMoveOnline());
+    if (!net.you) return;
+    if (over) return;
+    if (!net.joined) return setStatus(net.you === "host" ? "Waiting for your friend to open the link…" : "Waiting for a second player…");
+    if (!bothHere()) return setStatus(watching() ? "A player is offline." : "Your friend is offline. Waiting for them to come back…");
+    const [a, b] = names();
+    if (watching()) return setStatus(`The ${turn ? b : a} to move.`);
+    if (turn === 0) setStatus(again ? "Box! Go again." : "Your move.");
+    else setStatus(`<span class="thinking">${again ? "Your friend closed a box and goes again" : "Your friend is thinking"}</span>`);
+  }
+
+  function finishOnline() {
+    const [y, f] = score, [a, b] = names();
+    let title;
+    if (watching()) title = y === f ? "A draw." : `The ${y > f ? a : b} wins.`;
+    else title = y > f ? "You win." : y < f ? "Your friend wins." : "A draw.";
+    const text = `${Math.max(y, f)}–${Math.min(y, f)}.` + (watching() ? "" : " Rematch? The other player opens.");
+    setStatus(title + " " + text);
+    $("ov-title").textContent = title; $("ov-text").textContent = text;
+    $("again").textContent = "Rematch"; $("again").hidden = watching();
+    $("overlay").classList.add("show");
+    if (!watching() && window.AmogAch) AmogAch.unlock("dab.online");
+  }
+
+  const room = params.get("room") || "";
+  if (/^[a-z0-9]{8}$/.test(room)) join(room);
+  else { panel(); newGame(); }
 })();
 </script>
 </body>

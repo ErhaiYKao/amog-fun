@@ -59,6 +59,7 @@
     { id: "dab.second", tier: "conj", name: "Second Mover Advantage", desc: "Beat Magnussen on 6×6 with Amog moving first." },
     { id: "dab.shutout", tier: "thm", name: "Empty Set", desc: "Win on 4×4 or bigger against postdoc or Magnussen without Amog closing a single box." },
     { id: "dab.decline", tier: "prop", secret: true, hint: "Sometimes the best box is the one you don't take.", name: "All But Two", desc: "Beat postdoc or Magnussen after turning down boxes you could have taken.", math: "The double-cross: take all but the last two boxes of a chain and leave them as a domino, so your opponent has to open the next chain." },
+    { id: "dab.online", tier: "lemma", name: "Dot Product", desc: "Finish an online game of Dots & Boxes with a friend." },
     // Nim & Friends
     { id: "nim.novice", tier: "lemma", name: "Warm-Up", desc: "Beat the novice at any Nim variant." },
     ...NIM.map(([k, g, name, math]) => ({ id: "nim." + k, tier: "prop", name, desc: `Beat Amog at full strength at ${g}, from a dealt start, without “show the math”.`, math })),
