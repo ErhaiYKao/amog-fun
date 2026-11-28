@@ -36,10 +36,10 @@ test("parse and show round-trip", () => {
 
 test("every quest's reference proof replays to done, using only earlier quests and the machines it says it needs", () => {
   Q.QUESTS.forEach((q, i) => {
-    const g = L.replay(q, Q.machinesFor(i, allDone(i)), q.proof);
+    const g = L.replay(q, Q.machinesFor(i, allDone(i)), q.proof, Q.PIN);
     assert.ok(L.closeAll(g).root.done, q.id);
     assert.ok(Q.par(q) >= 1 && Q.par(q) <= 16, q.id + " par");
-    for (let k = 0; k < q.proof.length; k++) assert.ok(!L.replay(q, Q.machinesFor(i, allDone(i)), q.proof.slice(0, k)).root.done, q.id + " done early");
+    for (let k = 0; k < q.proof.length; k++) assert.ok(!L.replay(q, Q.machinesFor(i, allDone(i)), q.proof.slice(0, k), Q.PIN).root.done, q.id + " done early");
     // `needs` is exactly the shop machines the proof uses that no quest on the way here asked for
     const pre = [...before(q)].map(id => Q.QUESTS[idx(id)]), owned = new Set([...pre, q].flatMap(x => x.needs || []));
     const used = new Set(q.proof.flatMap(s => [Q.TACTICS.includes(s.op) ? s.op : null, s.m]).filter(m => m && Q.gate(m)));
@@ -348,10 +348,10 @@ test("nothing finishes by itself: a free qed step uses a block that is the goal"
   L.step(h, { op: "qed", at: "aa", b: 0 });
   assert.ok(h.root.done, "a split workshop is done when its parts are");
   // old step lists get their qed steps back
-  const q = Q.QUESTS[idx("zadd")], bare = q.proof.filter(s => s.op !== "qed");
-  assert.ok(!L.replay(q, everything(), bare).root.done);
-  assert.deepEqual(L.withQed(q, everything(), bare), q.proof);
-  assert.deepEqual(L.withQed(q, everything(), q.proof), q.proof, "and keeps the ones it has");
+  const q = Q.QUESTS[idx("oz")], bare = q.proof.filter(s => s.op !== "qed");
+  assert.ok(bare.length < q.proof.length && !L.replay(q, everything(), bare, Q.PIN).root.done);
+  assert.deepEqual(L.withQed(q, everything(), bare, Q.PIN), q.proof);
+  assert.deepEqual(L.withQed(q, everything(), q.proof, Q.PIN), q.proof, "and keeps the ones it has");
 });
 
 test("the goal can be scanned, translated and rewritten", () => {
@@ -394,7 +394,7 @@ test("follow: the next step of Amog's proof from where the player stands, one wo
   // taking the advice, in whatever order the workshops are visited, finishes everything in par
   for (const [q, ms] of [...Q.QUESTS.map((q, i) => [q, Q.machinesFor(i, all)]), ...Q.BOUNTIES.map(b => [b, Q.playMachines(all, undefined, b.worlds)])]) {
     for (const pick of [ws => ws[0], ws => ws[ws.length - 1]]) {
-      const g = L.start(q, ms);
+      const g = L.start(q, ms, Q.PIN);
       for (let n = 0; !g.root.done; n++) {
         assert.ok(n < 60, q.id);
         const at = pick(L.shops(g).filter(x => !x.c.kids && !x.c.done)).at, st = L.follow(g, at, q.proof, ms);
@@ -404,24 +404,25 @@ test("follow: the next step of Amog's proof from where the player stands, one wo
       assert.equal(L.count(g.steps), Q.par(q), q.id);
     }
   }
-  // the first induction (airetho's friend): reaching for the hypothesis doesn't lose the thread
-  const i = idx("zadd"), q = Q.QUESTS[i], ms = Q.machinesFor(i, all), g = L.start(q, ms);
+  // the first induction: Amog rewrites the goal now, and a block made on the side doesn't lose the thread
+  const i = idx("zadd"), q = Q.QUESTS[i], ms = Q.machinesFor(i, all), g = L.start(q, ms, Q.PIN);
   assert.equal(L.follow(g, "", q.proof, ms).op, "induct");
   L.step(g, { op: "induct", at: "", v: "a" });
   assert.equal(L.follow(g, "", q.proof, ms), null, "a split workshop has no step of its own");
-  L.step(g, { op: "hyp", at: "s", i: 0 });
-  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "refl", at: "s", t: "0+S(a)" });
-  L.step(g, { op: "refl", at: "s", t: "0+S(a)" });
-  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "rw", at: "s", b: 1, path: [1], m: "addS", dir: "lr" }, "block numbers are the player's");
-  L.step(g, { op: "rw", at: "s", b: 1, path: [1], m: "addS", dir: "lr" });
-  L.step(g, { op: "dup", at: "s", b: 1 });
-  L.step(g, { op: "rw", at: "s", b: 2, path: [1, 0], m: "h0", dir: "lr" });
-  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "qed", at: "s", b: 2 }, "the furthest point of the proof that is on the bench");
-  L.step(g, { op: "qed", at: "s", b: 2 });
+  assert.deepEqual(bench(g, "s"), ["0+a = a"], "the induction hypothesis starts on the bench, pinned");
+  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "rwg", at: "s", path: [0], m: "addS", dir: "lr" });
+  L.step(g, { op: "refl", at: "s", t: "0" });
+  assert.equal(L.follow(g, "s", q.proof, ms).op, "rwg", "an extra block changes nothing");
+  L.step(g, { op: "rwg", at: "s", path: [0], m: "addS", dir: "lr" });
+  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "rwg", at: "s", path: [0, 0], m: "h0", dir: "lr" });
+  L.step(g, { op: "rwg", at: "s", path: [0, 0], m: "b0", dir: "lr" });       // the pinned block does what the held fact does
+  assert.equal(L.show(L.ctxAt(g, "s").goal), "S(a) = S(a)");
+  assert.deepEqual(L.follow(g, "s", q.proof, ms), { op: "reflg", at: "s" });
+  L.step(g, { op: "reflg", at: "s" });
   assert.equal(L.follow(g, "s", q.proof, ms), null, "nothing left to do there");
-  assert.equal(L.follow(g, "b", q.proof, ms).op, "refl");
+  assert.equal(L.follow(g, "b", q.proof, ms).op, "rwg");
   // another route (induction on the other letter) is not Amog's: no advice rather than wrong advice
-  const j = idx("comm"), h = L.start(Q.QUESTS[j], Q.machinesFor(j, all));
+  const j = idx("comm"), h = L.start(Q.QUESTS[j], Q.machinesFor(j, all), Q.PIN);
   L.step(h, { op: "induct", at: "", v: "a" });
   assert.equal(L.follow(h, "s", Q.QUESTS[j].proof, Q.machinesFor(j, all)), null);
   assert.equal(L.follow(h, "zz", Q.QUESTS[j].proof, Q.machinesFor(j, all)), null);
@@ -547,7 +548,7 @@ test("Amog's proof is the natural one; where a trick is shorter it is kept as th
   assert.equal(L.count(Q.QUESTS[idx("p1")].short.proof), 5, "airetho's 1^a = 1 in five");
   assert.equal(Q.par(Q.QUESTS[idx("lcp")]), 3, "Contrapositive: two Assumes and Chain (airetho)");
   for (const q of shorts) {
-    const g = L.replay(q, Q.machinesFor(idx(q.id), all), q.short.proof);
+    const g = L.replay(q, Q.machinesFor(idx(q.id), all), q.short.proof, Q.PIN);
     assert.ok(g.root.done && L.count(q.short.proof) < Q.par(q), q.id);
     assert.ok(q.short.hint && !/[.]$/.test(q.short.hint), "the hint completes Amog's sentence");
   }
@@ -674,7 +675,7 @@ test("a world only sees the machines of the worlds it builds on", () => {
 test("bounties are provable from the finished quests", () => {
   const done = allDone(Q.QUESTS.length);
   for (const b of Q.BOUNTIES) {
-    const g = L.replay(b, Q.playMachines(done), b.proof);
+    const g = L.replay(b, Q.playMachines(done), b.proof, Q.PIN);
     assert.ok(L.closeAll(g).root.done, b.id);
     for (const blk of g.root.bench) assert.ok(L.holds(blk.s, { a: 3, b: 5, c: 2, d: 7 }), b.id);
   }
@@ -694,7 +695,7 @@ test("owned shop machines gate what a quest can use", () => {
   assert.deepEqual(ids(1, ["add0"]), ["add0", "refl0"]);
   assert.ok(!ids(idx("zadd"), ["add0", "addS"]).includes("induct"));
   assert.ok(ids(idx("zadd"), ["add0", "addS", "induct"]).includes("induct"));
-  assert.throws(() => L.replay(Q.QUESTS[1], Q.machinesFor(1, allDone(1), new Set()), Q.QUESTS[1].proof), /don't have/);
+  assert.throws(() => L.replay(Q.QUESTS[1], Q.machinesFor(1, allDone(1), new Set()), Q.QUESTS[1].proof, Q.PIN), /don't have/);
   assert.deepEqual(Q.playMachines(new Set(["refl0", "zz"]), new Set(["add0", "assume"])).map(m => m.id), ["add0", "assume", "refl0", "zz"]);
 });
 
@@ -724,16 +725,18 @@ test("payouts", () => {
   assert.equal(Q.earned({ refl0: 9, b11: 3, nonsense: 1 }), 2 + 1);
   assert.match(Q.canBuy("addS", {}, new Set()), /not on sale/);
   assert.match(Q.canBuy("add0", {}, new Set()), /not on sale/);
-  assert.match(Q.canBuy("scanner", { refl0: 9 }, new Set()), /need ∎2 more/);
+  assert.match(Q.canBuy("scanner", { refl0: 9 }, new Set()), /need ∎4 more/);
   // machines are free (airetho): none costs anything, so ∎ only ever goes on upgrades and can't strand a quest
   for (const x of Q.SHOP) assert.equal(x.price > 0, !x.gate, x.id);
   assert.equal(Q.canBuy("add0", { refl0: 9 }, new Set()), "");
-  assert.equal(Q.canBuy("autofill", { refl0: 9 }, new Set()), "", "an upgrade is safe to buy at once");
+  assert.equal(Q.canBuy("autofill", { refl0: 1 }, new Set()), "", "an upgrade is safe to buy at once");
   const d = { refl0: 9, zz: 9 }, own = new Set(["add0"]);
   assert.equal(Q.balance(d, own), 5);
   assert.equal(Q.balance(d, new Set(["add0", "addS", "induct", "assume"])), 5, "owning machines costs nothing");
-  assert.equal(Q.canBuy("scanner", d, own), "");
-  assert.match(Q.canBuy("goalrw", d, own), /on sale once/);
+  assert.match(Q.canBuy("scanner", d, own), /need ∎1 more/);
+  // Block press and the Goal lever are everyone's now (airetho): not for sale, and a save that bought them is refunded
+  assert.match(Q.canBuy("goalrw", d, own), /no such thing/);
+  assert.equal(Q.balance(d, new Set(["add0", "press", "goalrw"])), 5);
   // retired quests and bounties keep paying what they paid
   assert.equal(Q.earned({ pmp: 3 }), 3 + Q.PAR_BONUS);
   assert.equal(Q.earned({ beq: 1 }), 2);
@@ -814,10 +817,12 @@ test("random play only ever makes true statements", () => {
     const mod = q.world === "quant" ? 5 : undefined, pr = L.preds(L.term(q.goal));
     const letters = [...L.vars(L.term(q.goal))].filter(n => !L.upper(n)).concat(["a", "b", "x"]);
     for (let run = 0; run < (q.trap ? 120 : 30); run++) {
-      const g = L.start(q, machines);
+      const g = L.start(q, machines, run % 2 ? Q.PIN : undefined);          // half the runs with pins (round 2)
       for (let move = 0; move < 30; move++) {
         const ws = L.shops(g).filter(x => !x.c.kids), at = ws[rnd(ws.length)].at, c = L.ctxAt(g, at), r = rnd(mod || q.world === "ord" ? 17 : 13);
         const nums = [...g.names].filter(n => !L.upper(n)), num = () => { const k = rnd(nums.length + 2); return k < nums.length ? nums[k] : k === nums.length ? "0" : nums.length ? "S(" + nums[rnd(nums.length)] + ")" : "1"; };
+        try { if (rnd(8) === 0 && c.bench.length) L.step(g, { op: "pin", at, b: rnd(c.bench.length) }); } catch (e) {}
+        try { if (rnd(8) === 0) L.step(g, { op: "reflg", at }); } catch (e) {}
         try {
           if (r === 0 && nums.length) L.step(g, { op: "induct", at, v: nums[rnd(nums.length)] });
           else if (r === 12) { const o = L.options(g, at, "g", rnd(2) ? [] : [rnd(2)]); L.step(g, o.length && rnd(3) ? o[rnd(o.length)].step : rnd(2) && c.bench.length ? { op: "cases", at, b: rnd(c.bench.length) } : { op: "byc", at }); }
@@ -948,4 +953,57 @@ test("first hints are nudges, and airetho's Order records are the best knowns", 
   assert.ok(Q.QUESTS.filter(q => q.nudge).length > 60);
   assert.equal(L.count(Q.QUESTS[idx("onil")].short.proof), 4);
   assert.equal(L.count(Q.QUESTS[idx("oadd")].short.proof), 7);
+});
+
+test("round 2 (airetho): pins, blocks as machines, refl closes a goal", () => {
+  const ms = everything();
+  // refl closes a goal t = t in one step, and only that
+  let g = L.start({ goal: "a+0=a" }, ms, Q.PIN);
+  assert.throws(() => L.step(g, { op: "reflg", at: "" }), /two sides/);
+  L.step(g, { op: "rwg", at: "", path: [0], m: "add0", dir: "lr" });
+  L.step(g, { op: "reflg", at: "" });
+  assert.ok(g.root.done && L.count(g.steps) === 2);
+  assert.throws(() => L.step(L.start({ goal: "P->P" }, ms), { op: "reflg", at: "" }), /two sides/);
+  // what a workshop holds starts on its bench, pinned; without the option nothing is pinned (old saves)
+  g = L.start({ goal: "a=b->(b=c->a=c)" }, ms, Q.PIN);
+  L.step(g, { op: "assume", at: "" }); L.step(g, { op: "assume", at: "a" });
+  assert.deepEqual(L.ctxAt(g, "aa").bench.map(b => !!b.pin), [true, true]);
+  const old = L.start({ goal: "a=b->(b=c->a=c)" }, ms);
+  L.step(old, { op: "assume", at: "" });
+  assert.ok(!L.ctxAt(old, "a").bench[0].pin);
+  // a block rewrites another block; a pinned block stays and the result goes next to it
+  L.step(g, { op: "rw", at: "aa", b: 0, path: [1], m: "b1", dir: "lr" });
+  assert.deepEqual(bench(g, "aa"), ["a = b", "a = c", "b = c"]);
+  assert.deepEqual(L.ctxAt(g, "aa").bench.map(b => !!b.pin), [true, false, true]);
+  assert.deepEqual(L.ctxAt(g, "aa").bench[1].deps, [0, 1], "and it depends on what both blocks depend on");
+  assert.throws(() => L.step(g, { op: "rw", at: "aa", b: 1, path: [0], m: "b1", dir: "lr" }), /itself/);
+  assert.throws(() => L.step(g, { op: "rw", at: "aa", b: 1, path: [0], m: "b9", dir: "lr" }), /no such block/);
+  // a block is about these numbers: no slots
+  assert.throws(() => L.step(g, { op: "refl", at: "aa", t: "c" }) && L.step(g, { op: "rw", at: "aa", b: 3, path: [0], m: "b0", dir: "lr" }), /doesn't fit/);
+  // pinned blocks can't be thrown away, and a rule doesn't use them up; unpinned, they go
+  assert.throws(() => L.step(g, { op: "del", at: "aa", b: 0 }), /pinned/);
+  L.step(g, { op: "rule", at: "aa", b: 0, m: "sym", others: [] });
+  assert.deepEqual(bench(g, "aa").slice(0, 2), ["a = b", "b = a"]);
+  L.step(g, { op: "pin", at: "aa", b: 0 });
+  assert.equal(L.count(g.steps.filter(s => s.op === "pin")), 0, "pinning is free");
+  L.step(g, { op: "rule", at: "aa", b: 0, m: "sym", others: [] });
+  assert.deepEqual(bench(g, "aa").slice(0, 2), ["b = a", "b = a"]);
+  L.step(g, { op: "del", at: "aa", b: 0 });
+  // a block A → B is a rule about these statements, and it is not used up
+  const h = L.start({ goal: "(P->Q)->(P->Q)" }, ms, Q.PIN);
+  L.step(h, { op: "assume", at: "" }); L.step(h, { op: "assume", at: "a" });
+  L.step(h, { op: "pin", at: "aa", b: 1 });
+  L.step(h, { op: "rule", at: "aa", b: 1, m: "b0", others: [] });
+  assert.deepEqual(bench(h, "aa"), ["P → Q", "Q"]);
+  assert.throws(() => L.step(h, { op: "rule", at: "aa", b: 0, m: "b0", others: [] }), /itself/);
+  // the induction hypothesis is on the bench of the step, pinned
+  const k = L.start({ goal: "0+a=a" }, ms, Q.PIN);
+  L.step(k, { op: "induct", at: "", v: "a" });
+  assert.deepEqual(bench(k, "s"), ["0+a = a"]);
+  assert.deepEqual(bench(k, "b"), []);
+  // Squeezed no longer needs Lemma, and Amog proves equations goal-first
+  assert.ok(!Q.QUESTS[idx("oanti")].proof.some(s => s.op === "have") && Q.par(Q.QUESTS[idx("oanti")]) === 11);
+  assert.deepEqual(Q.QUESTS[idx("zz")].proof, [{ op: "rwg", at: "", path: [0], m: "add0", dir: "lr" }, { op: "reflg", at: "" }]);
+  assert.ok(Q.QUESTS.filter(q => q.proof.some(s => s.op === "reflg")).length >= 25);
+  assert.ok(!Q.QUESTS.some(q => q.proof.some(s => s.op === "hyp" || s.op === "dup")), "with pins nothing is fetched or copied");
 });

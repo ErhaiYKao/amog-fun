@@ -91,22 +91,22 @@
   const QUESTS = [
     {
       id: "refl0", name: "Something from nothing", pay: 2, goal: "0=0", guide: true,
-      intro: "Of course $0 = 0$. But here nothing counts as true until you have crafted it, and machines are all you may use. Your first machine is <b>refl</b>: it makes blocks of the form $t = t$ out of thin air, for any term $t$ you feed it.",
-      hint: "Open refl, type $0$ and run it.",
+      intro: "Of course $0 = 0$. But here nothing counts as true until you have crafted it, and machines are all you may use. Your first machine is <b>refl</b>: anything equals itself, so it closes any goal whose two sides read the same.",
+      hint: "Open refl and press <b>close the goal</b>.",
       proof: [refl("", "0")],
     },
     {
       id: "zz", name: "Zero plus zero", pay: 3, needs: ["add0"], goal: "0+0=0", guide: true,
-      intro: "A new machine: <i>Adding zero</i>, an axiom. It rewrites a part of a block: set its lever, then tap the part (or drag the machine onto it). Most equations are crafted the same way: make a block from one side of the goal with refl, then rewrite its other side until the block is the goal.",
-      hint: "Make $0+0 = 0+0$ with refl. Then open <i>Adding zero</i>, set its lever to $a+0 \\to a$, and tap the $0+0$ on the right side of your block.",
+      intro: "A new machine: <i>Adding zero</i>, an axiom. It rewrites a part of the goal: set its lever, then tap the part (or drag the machine onto it). Most equations go the same way: rewrite the goal until both sides read the same, then refl closes it.",
+      hint: "Open <i>Adding zero</i>, set its lever to $a+0 \\to a$, and tap the $0+0$ in the goal. The goal becomes $0 = 0$, and refl closes it.",
       proof: [refl("", "0+0"), rw("", [1], "add0")],
     },
     /* ---- equality: Symmetry and Transitivity in the logic world's framing (airetho). They sit here in the list
        so the number worlds can use them as rules, but they open after Identity. ---- */
     {
       id: "sym", world: "eq", after: ["pid"], name: "Symmetry", pay: 2, goal: "a=b->b=a",
-      intro: "Equations can be assumed too. To craft $a = b \\to b = a$, run Assume: you get a workshop that holds $a = b$, for two numbers you know nothing else about. A fact you hold is a machine: it rewrites $a$ into $b$, or $b$ back into $a$, but only this $a$ and this $b$.",
-      hint: "Assume. Make $b = b$ with refl, then open the assumption and run it backwards ($b \\to a$) on the right side of that block.",
+      intro: "Equations can be assumed too. To craft $a = b \\to b = a$, run Assume: you get a workshop that holds $a = b$, for two numbers you know nothing else about. What you hold sits on the bench as a pinned block, and a block that is an equation is a machine (its <b>use</b> button): it rewrites $a$ into $b$, or $b$ back into $a$, but only this $a$ and this $b$.",
+      hint: "Assume. The assumption $a = b$ is on the bench, pinned. Press its <b>use</b> button: it is a machine now. Run it backwards ($b \\to a$) on the $b$ in the goal, and refl closes $a = a$.",
       proof: [assume(""), refl("a", "b"), { ...rw("a", [1], "h0", "rl"), b: 1 }],
     },
     {
@@ -117,8 +117,8 @@
     },
     {
       id: "zadd", name: "Zero on the left", pay: 3, needs: ["addS", "induct"], goal: "0+a=a", guide: true,
-      intro: "Addition is defined by two axioms only, both about a number on the <i>right</i>: $a+0 = a$ and $a+S(b) = S(a+b)$. That is Peano arithmetic: every number is $0$ or a successor, and everything else has to be proved. $0+a = a$ looks the same as <i>Adding zero</i>, but it isn't: nobody has proved yet that a sum can be swapped round. A new machine does it: <b>Induction</b>. Craft the goal for $0$, then for $S(a)$ while <i>holding</i> it for $a$. What you hold there is a machine too, but only for this $a$.",
-      hint: "Induct on $a$. Each workshop then goes like <i>Zero plus zero</i>: make a block from the goal's left side with refl, and rewrite its right side until it reads the goal's right side. Don't try to reshape the induction hypothesis into the goal: it is the machine for the last rewrite. In the step, <i>Adding a successor</i> turns $0+S(a)$ into $S(0+a)$, and now there is a $0+a$ inside for the induction hypothesis to work on.",
+      intro: "Addition is defined by two axioms only, both about a number on the <i>right</i>: $a+0 = a$ and $a+S(b) = S(a+b)$. That is Peano arithmetic: every number is $0$ or a successor, and everything else has to be proved. $0+a = a$ looks the same as <i>Adding zero</i>, but it isn't: nobody has proved yet that a sum can be swapped round. A new machine does it: <b>Induction</b>. Craft the goal for $0$, then for $S(a)$ while <i>holding</i> it for $a$. What you hold there is on the bench as a pinned block, and it is a machine too, but only for this $a$.",
+      hint: "Induct on $a$. Each workshop then goes like <i>Zero plus zero</i>: rewrite the left side of the goal until it reads like the right side, then refl. In the step, <i>Adding a successor</i> turns $0+S(a)$ into $S(0+a)$, and now there is a $0+a$ inside for the induction hypothesis to work on: it is the pinned block on the bench, and its <b>use</b> button makes it a machine.",
       proof: [{ op: "induct", at: "", v: "a" }, refl("b", "0+0"), rw("b", [1], "add0"), refl("s", "0+S(a)"), rw("s", [1], "addS"), rw("s", [1, 0], "h0")],
     },
     {
@@ -530,7 +530,7 @@
     {
       id: "oadd", world: "ord", name: "Adding keeps the order", pay: 5, goal: "a<=b->a+c<=b+c",
       intro: "Add the same number to both sides and the order stays.",
-      hint: "Assume and take a witness: $a + d = b$. The same $d$ is the gap between $a + c$ and $b + c$. Start from $(a+c)+d$ with refl and shuffle it into $(a+d)+c$: brackets, swap, brackets back.",
+      hint: "Assume and take a witness: $a + d = b$. The same $d$ is the gap between $a + c$ and $b + c$. Shuffle the goal's $(a+c)+d$ into $(a+d)+c$: brackets, swap, brackets back.",
       proof: [assume(""), obtain("a", 0), witness("ao", "d"), refl("aow", "(a+c)+d"),
         { ...rw("aow", [1], "assoc"), b: 1 }, { ...rw("aow", [1, 1], "comm"), b: 1 }, { ...rw("aow", [1], "assoc", "rl"), b: 1 }, { ...rw("aow", [1, 0], "h1"), b: 1 }],
       short: { hint: "a careful stamp of <i>Associativity of +</i> in place of refl", proof: [assume(""), obtain("a", 0), witness("ao", "d"), make("aow", "assoc", { a: "a", b: "c", c: "d" }),
@@ -550,12 +550,12 @@
       short: { hint: "writing the lone $a$ as $0 + a$ straight away, so that only one sum has to be swapped round", proof: [assume(""), rw("a", [1], "zadd", "rl"), rw("a", [0], "comm"), rule("a", 0, "scancel")] },
     },
     {
-      id: "oanti", world: "ord", name: "Squeezed", pay: 6, needs: ["have"], goal: "a<=b->(b<=a->a=b)",
-      intro: "If $a \\le b$ and $b \\le a$ then $a = b$: the two gaps add up to nothing, so each is nothing. A block can't rewrite another block, only a fact you hold can. The <b>Lemma</b> machine turns something you can craft into a fact you hold: state it, craft it in a workshop of its own, and carry on with it.",
-      hint: "Assume twice and take both witnesses: $a + c = b$ and $b + d = a$. State the lemma $c = 0$. To craft it, put $a + c$ for the $b$ in $b + d = a$: now $a + (c + d) = a$, so <i>Adding nothing</i> gives $c + d = 0$, and after a swap <i>Nothing adds up to zero</i> gives $c = 0$. With the lemma, $a + c = b$ turns into $a = b$.",
-      proof: [assume(""), assume("a"), obtain("aa", 0), obtain("aao", 0), { op: "have", at: "aaoo", s: "c=0" },
-        { ...rw("aaool", [0, 0], "h2", "rl"), b: 1 }, { ...rw("aaool", [0], "assoc"), b: 1 }, rule("aaool", 1, "onil"), { ...rw("aaool", [0], "comm"), b: 1 }, rule("aaool", 1, "szsum"),
-        rw("aaooc", [0, 1], "h4"), rw("aaooc", [0], "add0")],
+      id: "oanti", world: "ord", name: "Squeezed", pay: 6, goal: "a<=b->(b<=a->a=b)", pin: true,
+      intro: "If $a \\le b$ and $b \\le a$ then $a = b$: the two gaps add up to nothing, so each is nothing. A block that is an equation works like a machine too: open it with its <b>use</b> button and it rewrites other blocks.",
+      hint: "Assume twice and take both witnesses: $a + c = b$ and $b + d = a$. Put $a + c$ for the $b$ in $b + d = a$: now $a + (c + d) = a$, so <i>Adding nothing</i> gives $c + d = 0$, and after a swap <i>Nothing adds up to zero</i> gives $c = 0$. Use that block on $a + c = b$.",
+      proof: [assume(""), assume("a"), obtain("aa", 0), obtain("aao", 1),
+        { ...rw("aaoo", [0, 0], "b2", "rl"), b: 3 }, { ...rw("aaoo", [0], "assoc"), b: 4 }, rule("aaoo", 4, "onil"), { ...rw("aaoo", [0], "comm"), b: 4 }, rule("aaoo", 4, "szsum"),
+        { ...rw("aaoo", [0, 1], "b4"), b: 2 }, { ...rw("aaoo", [0], "add0"), b: 3 }],
     },
     {
       id: "ostep", world: "ord", name: "Equal or a step below", pay: 6, goal: "a<=b->a=b|S(a)<=b",
@@ -597,7 +597,7 @@
     {
       id: "mdist", world: "mul", name: "Distributivity", pay: 4, goal: "a*(b+c)=a*b+a*c",
       intro: "The law that ties $\\cdot$ to $+$.",
-      hint: "Induct on $c$. For the base case it is easier to start refl from the right-hand side and work on the left.",
+      hint: "Induct on $c$. In the base case it is easier to work on the right-hand side of the goal.",
       proof: [induct("c"),
         refl("b", "a*b+a*0"), rw("b", [0, 1], "mul0"), rw("b", [0], "add0"), rw("b", [0, 1], "add0", "rl"),
         refl("s", "a*(b+S(c))"), rw("s", [1, 1], "addS"), rw("s", [1], "mulS"), rw("s", [1, 0], "h0"), rw("s", [1], "assoc"), rw("s", [1, 1], "mulS", "rl")],
@@ -691,8 +691,8 @@
   /* First hints (airetho, #33): a nudge that says where to look, not what to tap. The written `hint` is the second
      one ("more"), and "what do I do next?" the third. A quest without an entry here has a hint that is a nudge already. */
   const NUDGE = {
-    zz: "Start from a block that is true for free, then change one side of it.",
-    sym: "An equation you hold is a machine. What could it rewrite?",
+    zz: "Change the goal until both of its sides read the same.",
+    sym: "An equation on your bench is a machine. What could it rewrite?",
     trans: "You hold two equations. One of them can rewrite the other.",
     zadd: "No machine fits while $a$ could be any number. Which machine is for that?",
     sadd: "There are two letters to induct on, and only one of them works. Machines also run backwards.",
@@ -747,12 +747,12 @@
     oadd: "After assuming and taking a witness, the same witness can be used for the goal. From there, it's a matter of some manipulation with brackets and order.",
     oz: "Take the witness. You have a theorem about sums that are $0$, but it speaks about the other number.",
     onil: "You want to cancel $a$ from both sides, but the right side has nothing left over. Give it something.",
-    oanti: "Take both witnesses. Together the two gaps add up to nothing: show that one of them is $0$.",
+    oanti: "Take both witnesses. Together the two gaps add up to nothing: show that one of them is $0$, and use that.",
     ostep: "Take the witness. The gap is either $0$ or it comes after some number: treat the two cases separately.",
     ototal: "Induct on $a$. In the step, what the induction hypothesis says splits into cases.",
     mz: "Induction, as with <i>Zero on the left</i>.",
     ms: "Induct on the letter the axioms can reach. Both sides can be pushed to the same shape.",
-    mdist: "Induct on $c$. A block can be started from either side of the goal.",
+    mdist: "Induct on $c$. Either side of the goal can be the one you rewrite.",
     mcomm: "Induction, with the two theorems before this one for the two cases.",
     massoc: "Induct on $c$. The step needs the distributive law.",
     t1: "Write the $1$ out and let the axioms eat it.",
@@ -798,12 +798,68 @@
         rw("", [1, 0, 0], "idm", "rl"), rw("", [1, 0, 1], "idm", "rl"), rw("", [1, 0], "idm2", "rl"), rw("", [1], "idn")] },
   ].map(b => ({ ...b, bounty: true }));
 
+  const EVERY = [...GATES, ...QUESTS.map(L.questMachine)], PIN = { pin: true };
+  /* The proofs above are written in the old bench rules; the game now plays with pins (airetho, #33): what a
+     workshop holds starts on its bench, pinned, and is never used up. `modern` replays a proof in both rules side
+     by side and moves each block number over to the bench as it is with pins. A `hyp` step falls away (the fact is
+     on the bench already), and so does a `dup` of a pinned block (it is never used up). */
+  function modern(q, proof) {
+    const old = L.start(q, EVERY), neu = L.start(q, EVERY, PIN), out = [];
+    const idx = (at, i) => {
+      const a = L.ctxAt(old, at).bench, b = L.ctxAt(neu, at).bench, used = new Set();
+      let hit = -1;
+      for (let k = 0; k <= i; k++) {
+        const text = L.show(a[k].s);
+        let j = b.findIndex((x, n) => !x.pin && !used.has(n) && L.show(x.s) === text);
+        if (j < 0) j = b.findIndex(x => x.pin && L.show(x.s) === text);
+        if (j < 0) throw new Error(q.id + ": block " + text + " is missing with pins");
+        used.add(j); hit = j;
+      }
+      return hit;
+    };
+    for (const st of proof) {
+      let t = st;
+      if (st.op === "hyp") {
+        const text = L.show(L.ctxAt(old, st.at).hyps[st.i]);
+        if (L.ctxAt(neu, st.at).bench.some(x => x.pin && L.show(x.s) === text)) { L.step(old, st); continue; }
+      } else {
+        if (typeof st.b === "number") t = { ...t, b: idx(st.at, st.b) };
+        if (st.others) t = { ...t, others: st.others.map(o => idx(st.at, o)) };
+        if (st.op === "dup" && L.ctxAt(neu, st.at).bench[t.b].pin) { L.step(old, st); continue; }
+      }
+      L.step(neu, t); L.step(old, st); out.push(t);
+    }
+    return out;
+  }
+  /* Amog proves an equation goal-first now (airetho): where a proof made t = t with refl from one side of the goal
+     and rewrote the other side of that block until it was the goal, it rewrites that side of the goal instead and
+     lets refl close it. The same machines in the same order, and as many steps. */
+  function goalFirst(q, proof) {
+    const done = p => { try { return L.replay(q, EVERY, L.withQed(q, EVERY, p, PIN), PIN).root.done; } catch (e) { return false; } };
+    for (let k = 0; k < proof.length; k++) {
+      const st = proof[k];
+      if (st.op !== "refl") continue;
+      let c, side;
+      try { c = L.ctxAt(L.replay(q, EVERY, proof.slice(0, k), PIN), st.at); } catch (e) { continue; }
+      if (c.kids || c.goal[0] !== "=") continue;
+      const t = L.term(st.t), b = c.bench.length;
+      if (L.same(t, c.goal[1])) side = 0; else if (L.same(t, c.goal[2])) side = 1; else continue;
+      let n = k + 1;
+      while (n < proof.length && proof[n].at === st.at && proof[n].op === "rw" && proof[n].b === b && proof[n].path[0] === 1 - side && !/^b\d+$/.test(proof[n].m)) n++;
+      if (proof.slice(n).some(x => x.at === st.at)) continue;              // the block was used for something else
+      const run = proof.slice(k + 1, n).map(x => { const { b: _, ...rest } = x; return { ...rest, op: "rwg", path: [side, ...x.path.slice(1)] }; });
+      const next = [...proof.slice(0, k), ...run, { op: "reflg", at: st.at }, ...proof.slice(n)];
+      if (done(next)) { proof = next; k += run.length; }
+    }
+    return proof;
+  }
+  for (const q of [...QUESTS, ...BOUNTIES]) q.proof = goalFirst(q, q.pin ? q.proof : modern(q, q.proof));   // `pin: true`: written for the new rules already
+  for (const q of QUESTS) if (q.short) q.short.proof = modern(q, q.short.proof);
   /* a workshop finishes only when the player says so (a qed step, free): add those to the reference proofs */
-  const EVERY = [...GATES, ...QUESTS.map(L.questMachine)];
-  for (const q of [...QUESTS, ...BOUNTIES]) q.proof = L.withQed(q, EVERY, q.proof);
-  for (const q of QUESTS) if (q.short) q.short.proof = L.withQed(q, EVERY, q.short.proof);
+  for (const q of [...QUESTS, ...BOUNTIES]) q.proof = L.withQed(q, EVERY, q.proof, PIN);
+  for (const q of QUESTS) if (q.short) q.short.proof = L.withQed(q, EVERY, q.short.proof, PIN);
   /* a bounty opens once the machines Amog's proof of it uses are there (airetho): shop machines owned, theorems crafted */
-  for (const b of BOUNTIES) b.tools = [...new Set(b.proof.flatMap(s => [TACTICS.includes(s.op) ? s.op : null, s.m]).filter(m => m && !/^h\d+$/.test(m)))];
+  for (const b of BOUNTIES) b.tools = [...new Set(b.proof.flatMap(s => [TACTICS.includes(s.op) ? s.op : null, s.m]).filter(m => m && !/^[hb]\d+$/.test(m)))];
 
   const PAR_BONUS = 1;
   /* Machines are free (airetho): every `gate` costs ∎0 and the page hands it over the moment it goes on sale, so
@@ -817,7 +873,7 @@
     { id: "addS", gate: true, price: 0, after: ["zz"] },
     { id: "induct", gate: true, price: 0, after: ["zz"] },
     { id: "assume", gate: true, price: 0, after: ["zz"] },
-    { id: "have", gate: true, price: 0, after: ["pchain"] },
+    { id: "have", gate: true, extra: true, price: 0, after: ["pchain"] },
     { id: "dne", gate: true, price: 0, after: ["lnn"] },
     { id: "apply", gate: true, price: 0, after: ["landi"] },
     { id: "byc", gate: true, price: 0, after: ["landr"] },
@@ -832,11 +888,11 @@
     { id: "mulS", gate: true, price: 0, after: ["assoc"] },
     { id: "pow0", gate: true, price: 0, after: ["t1"] },
     { id: "powS", gate: true, price: 0, after: ["t1"] },
-    { id: "autofill", name: "Autofill", price: 2, text: "refl offers the two sides of the goal, and Induction offers the letters, so you type less." },
-    { id: "press", name: "Block press", price: 2, text: "Any equality machine can stamp its own statement onto the bench, with the slots filled in as you like." },
-    { id: "quick", name: "Goal buttons", price: 2, text: "When the goal reads t = t (or P ↔ P), a refl button on it crafts that block and uses it. When the goal is an implication or a ¬, an assume button runs Assume; when it is a ∀, a fix button runs Fix. One tap instead of opening the machine." },
-    { id: "scanner", name: "Scanner", price: 4, text: "Tap a part of a block with no machine open to list every machine that fits it, and see where the open machine fits." },
-    { id: "goalrw", name: "Goal lever", price: 4, after: ["assoc"], text: "Equality machines rewrite the goal too: with one open, tap a part of the goal. Craft towards the goal and the goal towards you." },
+    // Block press and the Goal lever used to be sold here; everyone has them from the start now (airetho, #33), and
+    // a save that bought them gets its ∎ back (the balance is derived from what is still on this list)
+    { id: "autofill", name: "Autofill", price: 3, text: "The Block press of refl offers the two sides of the goal, and Induction offers the letters, so you type less." },
+    { id: "quick", name: "Goal buttons", price: 4, text: "When the goal reads t = t (or P ↔ P), a refl button on it closes it. When the goal is an implication or a ¬, an assume button runs Assume; when it is a ∀, a fix button runs Fix. One tap instead of opening the machine." },
+    { id: "scanner", name: "Scanner", price: 6, text: "Tap a part of a block or of the goal with no machine open to list every machine that fits it, and see where the open machine fits." },
   ];
   const price = id => (SHOP.find(x => x.id === id) || { price: 0 }).price;
   const gate = id => GATES.find(m => m.id === id);
@@ -918,5 +974,5 @@
     return [...mine(owned).filter(m => ok(m.w)), ...QUESTS.filter(q => done.has(q.id) && ok(q.world)).map(L.questMachine)];
   }
 
-  root.MathcraftQuests = { GATES, WORLDS, SEES, sees, TACTICS, QUESTS, BOUNTIES, SHOP, PAR_BONUS, SUPERSEDES, RETIRED, gate, machinesFor, playMachines, par, price, isOpen, bountyOpen, numeric, onSale, missing, earned, balance, canBuy };
+  root.MathcraftQuests = { GATES, WORLDS, SEES, sees, TACTICS, QUESTS, BOUNTIES, SHOP, PAR_BONUS, SUPERSEDES, RETIRED, PIN, gate, machinesFor, playMachines, par, price, isOpen, bountyOpen, numeric, onSale, missing, earned, balance, canBuy };
 })(typeof window !== "undefined" ? window : globalThis);

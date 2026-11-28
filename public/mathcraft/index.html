@@ -25,8 +25,8 @@
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/ink.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=21"></script>
-<script src="/mathcraft/quests.js?v=21"></script>
+<script src="/mathcraft/logic.js?v=22"></script>
+<script src="/mathcraft/quests.js?v=22"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -143,6 +143,10 @@
   .block.sel { border-color: var(--g1); }
   .block.goal { border-color: var(--g3); }
   .block.picked { border-color: #f5c04a; }
+  .block.pinned { border-style: dashed; }
+  .block .tag { flex: none; font-family: var(--mono); font-size: 10.5px; color: #f5c04a; border: 1px solid #f5c04a55; border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+  .block .x.pin.on { color: #f5c04a; }
+  @media (max-width: 600px) { .block .tag { display: none; } }
   .block .n { font-family: var(--mono); font-size: 11px; color: var(--faint); width: 14px; }
   .block .scroll { flex: 1; padding: 4px 2px; }
   .block .st { font-size: 26px; }
@@ -289,8 +293,8 @@
      one machine (`fresh`); the ∎ count, the map and the upgrades come with a pop-up when they appear. */
   const TOUR = [
     ["goal", () => !!game && !game.root.done, "#quest .goal", "#quest .goal", "This is the <b>goal</b>. You need to prove this to complete the level."],
-    ["machine", () => !!game && !game.root.done, "#floor .card", "#floor .floor", "This is a <b>machine</b>. You can use it to accomplish a specific kind of task. This machine creates blocks of the form <i>t</i> = <i>t</i>, where <i>t</i> is any term you feed it. Tap it to open it."],
-    ["bench", () => !!game && !game.root.done, "#shop .bench", "#shop .bench", "This is your <b>workbench</b>. It holds statements which you've crafted (proven to be true). You need to craft a statement which is the same as the goal to beat the level."],
+    ["machine", () => !!game && !game.root.done, "#floor .card", "#floor .floor", "This is a <b>machine</b>. You can use it to accomplish a specific kind of task. This machine, refl, finishes any goal of the form <i>t</i> = <i>t</i>. Tap it to open it."],
+    ["bench", () => !!game && !game.root.done, "#shop .bench", "#shop .bench", "This is your <b>workbench</b>. It holds statements which you've crafted (proven to be true). A level is beaten when a machine closes the goal, or when you craft a statement which is the same as the goal."],
     ["coin", () => !fresh(), "#quests .bal", "#quests .top", "These are <b>tombstones</b>, ∎, the mark that ends a proof. Every theorem you craft pays some. Later they buy upgrades: conveniences, never proofs."],
     ["map", () => !fresh(), "#quests .map", "#quests .map", "This is the <b>map</b>. A world is a chain of quests, listed underneath. Every theorem you craft becomes a machine for the quests after it. More worlds open as you go."],
     ["sections", () => !!game && "zz" in save.done, "#floor .sub", "#floor .find, #floor .label", "The floor is sorted. <b>Axioms</b> are taken as given. <b>Theorems</b> are what you have crafted. <b>Tactics</b> (the first one is Induction) don't make blocks: they change the goal, or split the work into smaller workshops."],
@@ -343,6 +347,8 @@
       if ("zadd" in s.done) s.owned.push("addS", "induct");
     }
     if (s.owned.includes("mp") && !("mp" in s.done)) s.done.mp = 1;             // Modus ponens was bought; now it is a one-step quest (#33): keep it
+    if (!s.pin) s.pin = {};
+    if (!s.pinB) s.pinB = {};
     if (!s.best || typeof s.best !== "object") s.best = {};                     // the steps of each best proof, to look through
     if (!s.tips) s.tips = Object.keys(s.done).length > 6 ? Object.fromEntries(TIPS.map(t => [t[0], 1])) : {};   // "by the way" notes are for new players
     const old = Object.keys(s.done).length > 0;
@@ -372,11 +378,15 @@
     save.qed = 1; store();
   }
   function store() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} }
+  /* A proof saved before pins (#33) replays in the rules it was made in: save.pin / save.pinB say which step lists
+     (in progress / best) are in the new rules. Anything started now is. */
+  const rulesOf = (id, best) => ((best ? save.pinB : save.pin)[id] ? Q.PIN : undefined);
+  const rules = () => (game && game.pin ? Q.PIN : undefined);
   const doneSet = () => new Set(Object.keys(save.done));
   /* machines are free (#33): a gate is yours the moment it goes on sale; only the upgrades are bought */
   const freeNow = id => !!Q.gate(id) && Q.onSale(id, save.done);
   const ownedSet = () => new Set([...save.owned, ...Q.GATES.map(g => g.id).filter(freeNow)]);
-  const up = id => save.owned.includes(id) || freeNow(id);
+  const up = id => id === "press" || id === "goalrw" || save.owned.includes(id) || freeNow(id);   // Block press and the Goal lever are everyone's (airetho)
   /* machines are never bought: say which quests bring one that isn't here yet */
   const arrives = id => { const a = ((Q.SHOP.find(x => x.id === id) || {}).after || []).filter(q => !(q in save.done)).map(q => `<i>${esc(Q.QUESTS.find(x => x.id === q).name)}</i>`); return a.length ? `It arrives once you have crafted ${and(a)}.` : "It is yours: open this quest again from the map."; };
   const has = id => !!game && game.machines.some(m => m.id === id);
@@ -402,7 +412,7 @@
   function audit() {
     lemmas().forEach(q => {
       if (!finished(q)) return;
-      try { if (!L.replay(q, machinesOf(q), save.steps[q.id] || []).root.done) throw 0; }
+      try { if (!L.replay(q, machinesOf(q), save.steps[q.id] || [], rulesOf(q.id)).root.done) throw 0; }
       catch (e) { delete save.done[q.id]; save.steps[q.id] = []; }
     });
   }
@@ -499,13 +509,19 @@
       return s[0] === "→" ? { id, name: hypName(+h[1]), kind: "rule", premises: [s[1]], concl: s[2], stmt: s, hyp: true }
         : { id, name: hypName(+h[1]), kind: s[0] === "=" || s[0] === "↔" ? "hyp" : "held", stmt: s, hyp: true };
     }
+    const bk = /^b(\d+)$/.exec(id);
+    if (bk) {                                                            // a block works like a machine (airetho): an equation or a ↔ rewrites, A → B takes a block A
+      const blk = L.ctxAt(game, where).bench[+bk[1]], s = blk && blk.s, name = "block " + (+bk[1] + 1);
+      if (!s || !"=↔→".includes(s[0])) return null;
+      return s[0] === "→" ? { id, name, kind: "rule", premises: [s[1]], concl: s[2], stmt: s, hyp: true, block: true } : { id, name, kind: "hyp", stmt: s, hyp: true, block: true };
+    }
     const m = game.machines.find(x => x.id === id) || (GATES.includes(id) ? { ...Q.gate(id), locked: true } : null);
     return m ? { ...m, kind: Q.TACTICS.includes(m.id) ? m.id : m.premises ? "rule" : m.stmt[0] === "=" ? "eq" : m.stmt[0] === "↔" ? "iff" : "fact" } : null;
   }
   /* machines with a lever: they rewrite a part of a block (numbers for an equation, statements for a ↔) */
   const rewrites = m => !!m && !m.locked && ["eq", "iff", "hyp"].includes(m.kind);
   const BLURB = {
-    refl: "Makes the block <i>t</i> = <i>t</i> out of thin air, for any term <i>t</i> you feed it.",
+    refl: "Anything equals itself. When the two sides of the goal read the same, refl closes it. Its Block press stamps the block <i>t</i> = <i>t</i> for any term <i>t</i> you feed it.",
     induct: "Feed it a letter from the goal. It splits the workshop in two: craft the goal for 0, then craft it for S(<i>n</i>) while holding it for <i>n</i> as a fact. Anything this workshop holds about the letter goes back into the goal first, as <i>A</i> → …",
     eq: "Rewrites a part of a block. Set the lever, then tap the part to feed it. Or drag this machine from the floor onto the part: it runs there, whichever way round fits.",
     iff: "An equivalence: wherever a block has a part that reads like one side, it may read like the other. Set the lever, then tap the part to feed it (a connective stands for the part it joins; the main one for the whole block), or drag this machine from the floor onto the part.",
@@ -550,9 +566,10 @@
   function open(id) {
     item = [...Q.QUESTS, ...Q.BOUNTIES, ...lemmas()].find(q => q.id === id) || Q.QUESTS[0];
     const ms = machinesOf(item);
-    try { game = L.replay(item, ms, save.steps[item.id] || []); } catch (e) { game = L.start(item, ms); save.steps[item.id] = []; }
+    const had = (save.steps[item.id] || []).length > 0;
+    try { game = L.replay(item, ms, save.steps[item.id] || [], had ? rulesOf(item.id) : Q.PIN); } catch (e) { game = L.start(item, ms, Q.PIN); save.steps[item.id] = []; }
     if (game.root.done && item.id in save.done && (!save.best[item.id] || L.count(game.steps) < save.done[item.id]) && L.count(game.steps) <= save.done[item.id]) {
-      save.done[item.id] = L.count(game.steps); save.best[item.id] = game.steps.slice();
+      save.done[item.id] = L.count(game.steps); save.best[item.id] = game.steps.slice(); save.pinB[item.id] = game.pin ? 1 : 0;
     }
     reset(); redo = []; where = firstOpen(); tab = null;
     save.cur = item.id; store();
@@ -567,11 +584,11 @@
     if (f && matchMedia("(hover: hover)").matches) f.focus();
   }
   function settle(wasDone) {
-    save.steps[item.id] = game.steps;
+    save.steps[item.id] = game.steps; save.pin[item.id] = game.pin ? 1 : 0;
     if (game.root.done) {
       const n = L.count(game.steps);
       if (!(item.id in save.done) || n < save.done[item.id]) save.done[item.id] = n;
-      if (n <= save.done[item.id]) save.best[item.id] = game.steps.slice();
+      if (n <= save.done[item.id]) { save.best[item.id] = game.steps.slice(); save.pinB[item.id] = game.pin ? 1 : 0; }
       achievements();
     }
     store();
@@ -589,15 +606,19 @@
   }
   function act(step) {
     const before = leaves().find(l => l.at === where), wasDone = !!(before && before.c.done);
+    const usedAs = /^b\d+$/.test(openM || "") && before ? (x => x && L.show(x.s))(before.c.bench[+openM.slice(1)]) : null;
     try { L.step(game, step); msg = ""; } catch (e) { msg = e.message; redrawKeeping(); return false; }
     if (redo.length && JSON.stringify(redo[redo.length - 1]) === JSON.stringify(game.steps[game.steps.length - 1])) redo.pop(); else redo = [];
     const at0 = where;
     if (Q.TACTICS.includes(step.op) && L.subs(L.ctxAt(game, step.at)).length) { where = step.at + L.subs(L.ctxAt(game, step.at))[0][0]; sel = null; openM = null; }
     else if (step.op === "rule") sel = null;
     else if (step.op !== "rw") sel = null;
+    const wasPin = before && typeof step.b === "number" && before.c.bench[step.b] && before.c.bench[step.b].pin;
     flash = step.op === "rule" ? step.b - step.others.filter(o => o < step.b).length : step.op === "rw" ? step.b : ["refl", "hyp", "make", "stamp"].includes(step.op) ? L.ctxAt(game, step.at).bench.length - 1 : step.op === "dup" ? step.b + 1 : step.op === "unfold" ? step.b : -1;
+    if (wasPin && ["rw", "rule", "spec"].includes(step.op) && flash >= 0) flash++;       // a pinned block stays: what was made is next to it
     if (step.op === "refl") typed = "";
     if (step.op === "have") lemmaText = "";
+    if (/^b\d+$/.test(openM || "")) { const k = where === at0 && usedAs ? L.ctxAt(game, where).bench.findIndex(x => L.show(x.s) === usedAs) : -1; openM = k >= 0 ? "b" + k : null; }
     if (hint === 2) hint = 1;                                             // the next step was asked for once: ask again for another
     settle(wasDone);
     if (where !== at0) { flash = -1; if (/^h/.test(openM || "")) openM = null; }
@@ -608,10 +629,10 @@
     if (!game.steps.length) return;
     const last = game.steps[game.steps.length - 1];
     redo.push(last);
-    game = L.replay(item, game.machines, game.steps.slice(0, -1));
+    game = L.replay(item, game.machines, game.steps.slice(0, -1), rules());
     sel = null; msg = ""; picked = [];
     where = leaves().some(l => l.at === last.at) ? last.at : firstOpen();
-    if (openM && !mach(openM)) openM = null;
+    if (/^b\d+$/.test(openM || "") || (openM && !mach(openM))) openM = null;
     save.steps[item.id] = game.steps; store();
     draw();
   }
@@ -624,16 +645,16 @@
     const best = save.best[item.id];
     if (!best) return;
     if (game.steps.length && !game.root.done && !confirm("This puts your unfinished attempt away. Look at your best proof anyway?")) return;
-    game = L.start(item, game.machines);
+    game = L.start(item, game.machines, rulesOf(item.id, true));
     redo = best.slice().reverse();
     where = ""; sel = null; picked = []; openM = null;
     msg = "Your best proof, from the start: redo steps through it (Ctrl or ⌘ + ⇧ + Z).";
-    save.steps[item.id] = []; store();
+    save.steps[item.id] = []; save.pin[item.id] = game.pin ? 1 : 0; store();
     draw();
   }
   function restart() {
-    redo = [...redo, ...game.steps.slice().reverse()];                 // start over can be redone too
-    game = L.start(item, game.machines);
+    redo = game.pin ? [...redo, ...game.steps.slice().reverse()] : [];  // start over can be redone too (not across a change of rules)
+    game = L.start(item, game.machines, Q.PIN);
     where = ""; sel = null; msg = ""; picked = [];
     if (openM && !mach(openM)) openM = null;
     save.steps[item.id] = []; store();
@@ -643,7 +664,7 @@
     const why = Q.canBuy(id, save.done, ownedSet());
     if (why) { msg = why; return draw(); }
     save.owned.push(id); store();
-    if (game) game = L.replay(item, machinesOf(item), game.steps);
+    if (game) game = L.replay(item, machinesOf(item), game.steps, rules());
     msg = "";
     draw();
   }
@@ -693,7 +714,7 @@
   const ALL = new Set(Q.QUESTS.map(q => q.id));
   const refMachines = () => (item.bounty ? Q.playMachines(ALL, undefined, item.worlds) : Q.machinesFor(Q.QUESTS.indexOf(item), ALL));
   const sm = t => st(t, {}, "small");
-  const mref = id => { const h = /^h(\d+)$/.exec(id); if (h) return "the " + hypName(+h[1]); const m = mach(id); return `<i>${esc(m ? m.name : id)}</i>`; };
+  const mref = id => { const h = /^h(\d+)$/.exec(id); if (h) return "the " + hypName(+h[1]); if (/^b\d+$/.test(id)) return "block " + (+id.slice(1) + 1); const m = mach(id); return `<i>${esc(m ? m.name : id)}</i>`; };
   const isTerm = (text, t) => { try { return L.same(L.term(text), t); } catch (e) { return false; } };
   const keyed = t => { const a = L.show(t), b = a.replace(/¬/g, "not ").replace(/⊥/g, "false").replace(/⊤/g, "true").replace(/→/g, "->").replace(/∧/g, "and").replace(/∨/g, "or").replace(/↔/g, "<->").replace(/·/g, "*").replace(/≤/g, "<=").replace(/∀/g, "forall ").replace(/∃/g, "exists "); return a === b ? "" : ` (type <b>${esc(b)}</b>)`; };
   function buyTip(id) {
@@ -702,8 +723,15 @@
       at: `#quest [data-buy="${id}"], #panel [data-buy="${id}"], #floor [data-m="${id}"]` };
   }
   function say(s, c) {
+    // with pins, what the workshop holds is a block on the bench: point at that block, not at a held fact
+    const hm = game.pin && /^h(\d+)$/.exec(s.m || "");
+    if (hm) {
+      const k = c.bench.findIndex(b => L.same(b.s, c.hyps[+hm[1]]));
+      if (k < 0) return null;
+      s = { ...s, m: "b" + k };
+    }
     const id = Q.TACTICS.includes(s.op) ? s.op : s.m;
-    if (id && !/^h\d+$/.test(id) && !has(id)) {
+    if (id && !/^[hb]\d+$/.test(id) && !has(id)) {
       if (Q.gate(id)) return buyTip(id);
       const q = Q.QUESTS.find(x => x.id === id);
       return { text: `Amog's next step uses <i>${esc(q ? q.name : id)}</i>, a theorem you haven't crafted yet${q ? " (it is in " + Q.WORLDS.find(w => w[0] === q.world)[1] + ")" : ""}. Without it, go by the hint above.` };
@@ -728,10 +756,21 @@
         const [need, miss] = fills();
         let res = ""; try { res = ` The block becomes ${sm(L.preview(game, s))}.`; } catch (e) {}
         const side = blk.s[0] === "=" ? ` on the ${s.path[0] ? "right" : "left"} side` : "";
-        return tip(`Open ${mref(s.m)}${m.hyp ? " (the <b>open</b> button next to it)" : ""}, set its lever to ${arrow(from, to, { slot: !m.hyp })}${s.dir === "rl" ? ", the machine run backwards" : ""}, then tap ${s.path.length ? `${sm(part)}${side} of block ${s.b + 1}` : `the main connective of block ${s.b + 1}, for the whole block`}.` +
+        return tip(`Open ${mref(s.m)}${m.block ? " (its <b>use</b> button)" : m.hyp ? " (the <b>open</b> button next to it)" : ""}, set its lever to ${arrow(from, to, { slot: !m.hyp })}${s.dir === "rl" ? ", the machine run backwards" : ""}, then tap ${s.path.length ? `${sm(part)}${side} of block ${s.b + 1}` : `the main connective of block ${s.b + 1}, for the whole block`}.` +
           (need.length ? ` That direction leaves ${and(need.map(v => `<i>${v}</i>`))} open: ${typeIt(need)}.` : "") + res,
           openM !== s.m ? `[data-m="${s.m}"]` : dir !== s.dir ? `[data-dir="${s.dir}"]` : miss ? `[data-need="${miss}"]` : `.block[data-b="${s.b}"] .t[data-p="${pstr(s.path)}"]`);
       }
+      case "rwg": {
+        const m = mach(s.m), part = L.at(c.goal, s.path), [from, to] = s.dir === "rl" ? [m.stmt[2], m.stmt[1]] : [m.stmt[1], m.stmt[2]];
+        const [need, miss] = fills();
+        let res = ""; try { res = ` The goal becomes ${sm(L.preview(game, s))}.`; } catch (e) {}
+        const side = c.goal[0] === "=" ? ` on the ${s.path[0] ? "right" : "left"} side` : "";
+        return tip(`Change the goal itself. Open ${mref(s.m)}${m.block ? " (its <b>use</b> button)" : ""}, set its lever to ${arrow(from, to, { slot: !m.hyp })}${s.dir === "rl" ? ", the machine run backwards" : ""}, then tap ${sm(part)}${side} of the goal.` +
+          (need.length ? ` That direction leaves ${and(need.map(v => `<i>${v}</i>`))} open: ${typeIt(need)}.` : "") + res,
+          openM !== s.m ? `[data-m="${s.m}"]` : dir !== s.dir ? `[data-dir="${s.dir}"]` : miss ? `[data-need="${miss}"]` : `[data-goal] .t[data-p="${pstr(s.path)}"]`);
+      }
+      case "reflg": return tip(`Both sides of the goal read the same now, and anything equals itself. ${up("quick") ? "Tap <b>refl ✓</b> on the goal" : "Open <b>refl</b> and press <b>close the goal</b>"}.`,
+        up("quick") ? `[data-do="grefl"]` : openM !== "refl" ? `#floor [data-m="refl"]` : `[data-do="reflg"]`);
       case "rule": {
         const idx = [s.b, ...s.others], [need, miss] = fills(), fed = picked.every((b, k) => b === idx[k]);
         let res = ""; try { res = ` ${idx.length > 1 ? "They are" : "It is"} used up, and you get ${sm(L.preview(game, s))}.`; } catch (e) {}
@@ -794,17 +833,12 @@
   /* off Amog's route: what the shape of the goal suggests */
   function generic(c) {
     const g = c.goal, lost = "This isn't the way Amog went, so there is no single next step to point at";
-    if (g[0] === "=" && L.same(g[1], g[2])) return say({ op: "refl", at: where, t: g[1] }, c);
+    if (g[0] === "=" && L.same(L.expand(g)[1], L.expand(g)[2])) return say({ op: "reflg", at: where }, c);
     if (g[0] === "→") return say({ op: "assume", at: where }, c);          // an explicit implication or a ¬ (not an ∧ / ∨ / ↔)
     if (g[0] === "∀") return say({ op: "fix", at: where }, c);
     if ((g[0] === "∧" || g[0] === "↔") && has("apply") && has("landi")) return say({ op: "apply", at: where, m: "landi" }, c);
-    if (g[0] === "=") {
-      const k = c.bench.findIndex(b => b.s[0] === "=" && (L.same(b.s[1], g[1]) || L.same(b.s[2], g[2])));
-      if (k < 0) return say({ op: "refl", at: where, t: g[1] }, c);
-      const b = c.bench[k].s, left = L.same(b[1], g[1]);
-      return { text: `${lost}. But block ${k + 1} already has the goal's ${left ? "left" : "right"} side: keep rewriting its other side, ${sm(left ? b[2] : b[1])}, until it reads ${sm(left ? g[2] : g[1])}. Open a machine, set its lever, and tap the part it should change.` +
-        (up("scanner") ? " With no machine open, tapping a part lists everything that fits it." : "") + (has("induct") && !c.hyps.length && [...L.vars(g)].some(v => !L.upper(v)) ? " If nothing fits because a letter could be any number, that is what Induction is for." : "") };
-    }
+    if (g[0] === "=") return { text: `${lost}. But the way is always the same for an equation: rewrite one side of the goal until both sides read the same, then refl closes it. Open a machine, set its lever, and tap the part of the goal it should change.` +
+      (up("scanner") ? " With no machine open, tapping a part lists everything that fits it." : "") + (has("induct") && !c.hyps.length && [...L.vars(g)].some(v => !L.upper(v)) ? " If nothing fits because a letter could be any number, that is what Induction is for." : "") };
     return { text: `${lost}. The idea in the hint still holds, and <b>undo</b> takes you back one step at a time.` };
   }
   function advice() {
@@ -981,7 +1015,7 @@
     // the goal is only tappable once something can be done to it: unfolding (logic) or the Goal lever (#33)
     const tappable = !c.done && (hasUnfold() || up("goalrw"));
     // Goal buttons (upgrade): refl on a goal t = t, assume on an implication
-    const quick = c.done || !up("quick") ? "" : (c.goal[0] === "=" || (c.goal[0] === "↔" && has("ir"))) && L.same(c.goal[1], c.goal[2]) ? `<button class="use" data-do="grefl" title="make this block${c.goal[0] === "=" ? " with refl" : " (If and only if, stamped)"} and use it (one step)">refl ✓</button>`
+    const quick = c.done || !up("quick") ? "" : (c.goal[0] === "=" || (c.goal[0] === "↔" && has("ir"))) && L.same(c.goal[1], c.goal[2]) ? `<button class="use" data-do="grefl" title="${c.goal[0] === "=" ? "both sides are the same: refl closes the goal" : "make this block (If and only if, stamped) and use it"} (one step)">refl ✓</button>`
       : explicitImp(c.goal) && has("assume") ? `<button class="use" data-do="gassume" title="run Assume on this goal">assume</button>`
       : c.goal[0] === "∀" && has("fix") ? `<button class="use" data-do="gfix" title="run Fix on this goal">fix</button>` : "";
     h += `<div class="given goalline ${c.done ? "done" : ""}" data-goal title="the goal${canApply() ? ": drop a block P → (this goal) here to apply it, or the goal itself to use it" : ""}"><span class="meta">${c.done ? "done ✓" : "goal"}</span><span class="scroll">${st(c.goal, tappable ? { live: true, sel: sel && sel.b === "g" ? pstr(sel.path) : null } : {}, "goalst")}</span>${quick}${gTip ? `<span class="meta">${gTip}</span>` : ""}</div>`;
@@ -993,20 +1027,26 @@
     const note = v => ({ fix: ["fixed", "fixed by Fix: an arbitrary number"], obtain: ["witness", "the witness taken from an ∃ or a ≤"] }[how.get(v)] || ["", !L.upper(v) ? "a number: arbitrary, but one and the same all through this workshop" : v in pr ? "a predicate: some statement about numbers" : "a statement: true or false, you are not told which"]);
     if (letters.length) h += `<div class="given nums"><span class="tag" title="the letters in play here, and what kind of thing each one is">variables</span>` +
       letters.map(v => `<span class="num" title="${note(v)[1]}"><span class="st small"><i>${v}</i>&thinsp;:&thinsp;${typeOf(v)}</span>${note(v)[0] ? ` <span class="meta">${note(v)[0]}</span>` : ""}</span>`).join("") + `</div>`;
-    c.hyps.forEach((s, i) => {
+    if (!game.pin) c.hyps.forEach((s, i) => {                            // a proof from before pins: what is held sits in its own strip, as it did
       h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span>
         <button class="mini tiny ${openM === "h" + i ? "on" : ""}" data-m="h${i}">open</button></div>`;
     });
-    if (c.hyps.length > (item.given || []).length) h += `<p class="meta">What a workshop holds is about these particular numbers and statements: machines without slots.</p>`;
+    if (!game.pin && c.hyps.length > (item.given || []).length) h += `<p class="meta">What a workshop holds is about these particular numbers and statements: machines without slots.</p>`;
     h += `<div class="bench">`;
-    if (!c.bench.length) h += `<p class="empty">The bench is empty. A machine has to make the first block.</p>`;
+    if (!c.bench.length) h += `<p class="empty">The bench is empty. Blocks you make appear here; many goals never need one.</p>`;
     const grips = has("mp") || canApply();
     c.bench.forEach((b, i) => {
       const on = sel && sel.b === i, goal = L.sameDef(b.s, c.goal);
-      h += `<div class="block ${on ? "sel" : ""} ${goal ? "goal" : ""} ${picked.includes(i) ? "picked" : ""} ${flash === i ? "flash" : ""}" data-b="${i}">${grips ? `<span class="grip" data-grip="${i}" title="drag onto a block for modus ponens, or onto the goal to apply it">⠿</span>` : ""}<span class="n">${i + 1}</span>
+      // what the workshop holds is a pinned block with its name on it (airetho): assumption, induction hypothesis, …
+      const heldAs = game.pin && b.deps.length === 1 && c.hyps[b.deps[0]] && L.same(c.hyps[b.deps[0]], b.s) ? hypName(b.deps[0]) : "";
+      const usable = !c.done && "=↔→".includes(b.s[0]);
+      h += `<div class="block ${on ? "sel" : ""} ${goal ? "goal" : ""} ${picked.includes(i) ? "picked" : ""} ${b.pin ? "pinned" : ""} ${flash === i ? "flash" : ""}" data-b="${i}">${grips ? `<span class="grip" data-grip="${i}" title="drag onto a block for modus ponens, or onto the goal to apply it">⠿</span>` : ""}<span class="n">${i + 1}</span>
+        ${heldAs ? `<span class="tag" title="held in this workshop: true here, not outside it">${heldAs}</span>` : ""}
         <span class="scroll">${st(b.s, { live: true, sel: on ? pstr(sel.path) : null, fit: fit[i] })}</span>
+        ${usable ? `<button class="mini tiny ${openM === "b" + i ? "on" : ""}" data-m="b${i}" title="${b.s[0] === "→" ? "use this block as a rule: it takes a block that says its left side" : "use this block as a machine: it rewrites parts of other blocks, or of the goal"}">use</button>` : ""}
         ${goal ? (c.done ? `<span class="ok" title="this block is the goal">✓</span>` : `<button class="use" data-qed="${i}" title="this block is the goal: use it to finish the workshop (free)">✓ use it</button>`) : b.deps.length ? `<span class="dot" title="Made with the ${hypName(b.deps[b.deps.length - 1])}: only true inside this workshop."></span>` : ""}
-        <button class="x" data-dup="${i}" title="duplicate">⧉</button><button class="x" data-del="${i}" title="throw away">✕</button></div>`;
+        <button class="x pin ${b.pin ? "on" : ""}" data-pin="${i}" title="${b.pin ? "pinned: nothing uses this block up or changes it; what is made from it appears next to it. Tap to unpin" : "pin: keep this block when a machine uses it"}" aria-pressed="${!!b.pin}">⚲</button>
+        ${b.pin ? "" : `<button class="x" data-dup="${i}" title="duplicate">⧉</button><button class="x" data-del="${i}" title="throw away">✕</button>`}</div>`;
     });
     put(el, h + `</div>`);
     flash = -1;
@@ -1057,12 +1097,14 @@
       const c = L.ctxAt(game, where), names = [...game.names];
       const stmt = m.premises ? `<div class="scroll"><span class="what">${m.premises.map(p => st(p, { slot: true }, "small")).join(", ")} gives ${st(m.concl, { slot: true }, "small")}</span></div>`
         : m.stmt ? `<div class="scroll">${st(m.stmt, { slot: !m.hyp }, "small")}</div>`
-        : `<div class="meta">${{ refl: "in: a term t · out: the block t = t", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop", apply: "in: a block P → goal, or a rule · out: the goal P", have: "in: a statement · out: a workshop for it, then the goal with it", byc: "in: a goal P · out: a workshop holding ¬P, goal ⊥", cases: "in: a block P ∧ Q, P ∨ Q or P ↔ Q · out: two blocks, or two workshops", fix: "in: a goal ∀a. A · out: a workshop for A about one fixed number", spec: "in: a number and a block ∀a. A · out: A about that number", witness: "in: a number, for a goal ∃a. A or a ≤ b · out: a workshop for A about that number", obtain: "in: a block ∃a. A or a ≤ b · out: a workshop that holds A about a new number", unfold: "in: a part of a block · out: its definition, or back · free" }[m.kind]}</div>`;
+        : `<div class="meta">${{ refl: "in: a goal t = t · out: done", induct: "in: a letter · out: two workshops", assume: "in: a goal A → B · out: a workshop", apply: "in: a block P → goal, or a rule · out: the goal P", have: "in: a statement · out: a workshop for it, then the goal with it", byc: "in: a goal P · out: a workshop holding ¬P, goal ⊥", cases: "in: a block P ∧ Q, P ∨ Q or P ↔ Q · out: two blocks, or two workshops", fix: "in: a goal ∀a. A · out: a workshop for A about one fixed number", spec: "in: a number and a block ∀a. A · out: A about that number", witness: "in: a number, for a goal ∃a. A or a ≤ b · out: a workshop for A about that number", obtain: "in: a block ∃a. A or a ≤ b · out: a workshop that holds A about a new number", unfold: "in: a part of a block · out: its definition, or back · free" }[m.kind]}</div>`;
       h = `<div class="mhead">${icon(m.kind, 60)}<div><h3>${esc(m.name)}</h3>${stmt}</div><button class="x" data-do="close" title="close">✕</button></div>`;
       if (m.locked) {
         h += `<p class="what">${BLURB[m.kind]}</p><p class="meta">Not here yet. ${arrives(m.id)}</p>`;
       } else if (m.kind === "refl") {
-        h += `<p class="what">${BLURB.refl}</p><div class="row"><input class="term" id="rterm" value="${esc(typed)}" placeholder="a term, like S(0)+0" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the term to feed refl"><button class="mini" data-do="refl">run</button></div>` + keypad(names);
+const same = !c.done && !c.kids && c.goal[0] === "=" && L.same(L.expand(c.goal)[1], L.expand(c.goal)[2]);
+        h += `<p class="what">${BLURB.refl}</p><div class="row"><button class="mini ${same ? "on" : ""}" data-do="reflg" ${same ? "" : "disabled"}>close the goal</button><span class="meta">${same ? "both sides of the goal are the same" : "the goal's two sides aren't the same yet: rewrite the goal first"}</span></div>
+          <div class="row" style="margin-top:12px"><span class="meta">block press</span><input class="term" id="rterm" value="${esc(typed)}" placeholder="a term, like S(0)+0" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the term to stamp as t = t"><button class="mini" data-do="refl">stamp t = t</button></div>` + keypad(names);
         if (up("autofill")) {
           const sides = reflSides(c);
           if (sides.length) h += `<div class="row" style="margin-top:10px"><span class="meta">autofill</span>` + sides.map((t, i) => `<button class="mini" data-refl="${i}"><span class="st small" style="font-size:15px">${tHtml(t)}</span></button>`).join("") + `</div>`;
@@ -1104,7 +1146,7 @@
         if (open.length) h += `<div class="form"><span class="meta">tell it</span>` + open.map(v =>
           `<label>${v} =</label><input class="term" data-need="${v}" value="${esc(needVals[v] || "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="what ${v} is">`).join("") + `</div>`;
         if (picked.length) h += `<p class="meta">block ${picked.map(i => i + 1).join(", ")} is in; ${n - picked.length} to go</p>`;
-        if (m.hyp) h += `<div class="form"><button class="mini tiny" data-hyp="${m.id.slice(1)}">put it on the bench as a block</button></div>`;
+        if (m.hyp && !m.block) h += `<div class="form"><button class="mini tiny" data-hyp="${m.id.slice(1)}">put it on the bench as a block</button></div>`;
         else if (m.stmt) h += `<div class="form"><span class="meta">or stamp ${st(m.stmt, { slot: true }, "small")} with</span>` + [...L.vars(m.stmt)].sort().map(v =>
           `<label>${v}</label><input class="term" data-slot="${v}" value="${esc(fillVals[v] != null ? fillVals[v] : game.names.has(v) ? v : "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="what to put for ${v}">`).join("") + `<button class="mini tiny" data-mk="${m.id}">make the block</button></div>`;
       } else {
@@ -1115,7 +1157,7 @@
         const open = m.hyp ? [] : openSlots(m);
         if (open.length) h += `<div class="form"><span class="meta">this direction needs</span>` + open.map(v =>
           `<label>${v} =</label><input class="term" data-need="${v}" value="${esc(needVals[v] || "")}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="term for ${v}">`).join("") + `</div>`;
-        if (m.hyp) h += `<div class="form"><button class="mini tiny" data-hyp="${m.id.slice(1)}">put it on the bench as a block</button></div>`;
+        if (m.hyp && !m.block) h += `<div class="form"><button class="mini tiny" data-hyp="${m.id.slice(1)}">put it on the bench as a block</button></div>`;
         else if (m.kind === "iff" || up("press")) {                       // a ↔ is a statement to start from: always stampable
           const slots = [...L.vars(m.stmt)].sort();
           h += `<div class="form"><span class="meta">${m.kind === "iff" ? "or stamp it with" : "block press"}</span>` + slots.map(v =>
@@ -1313,6 +1355,7 @@
     else if (d.do === "close") openMachine(openM);
     else if (d.do === "plain") { save.plain = !save.plain; store(); msg = ""; draw(); }
     else if (d.do === "refl") runRefl();
+    else if (d.do === "reflg") act({ op: "reflg", at: where });
     else if (d.refl !== undefined) act({ op: "refl", at: where, t: reflSides(c)[+d.refl] });
     else if (d.do === "assume") act({ op: "assume", at: where });
     else if (d.do === "byc") act({ op: "byc", at: where });
@@ -1341,8 +1384,10 @@
       else if (d.do === "gfix") act({ op: "fix", at: where });
       else if (d.do === "grefl") {                                         // the goal reads t = t, or P ↔ P: make it and use it
         const at = where, g = L.ctxAt(game, at).goal;
-        if (act(g[0] === "=" ? { op: "refl", at, t: g[1] } : { op: "make", at, m: "ir", fill: { P: L.show(g[1]) } })) act({ op: "qed", at, b: L.ctxAt(game, at).bench.length - 1 });
+        if (g[0] === "=") act({ op: "reflg", at });
+        else if (act({ op: "make", at, m: "ir", fill: { P: L.show(g[1]) } })) act({ op: "qed", at, b: L.ctxAt(game, at).bench.length - 1 });
       }
+      else if (d.pin !== undefined) act({ op: "pin", at: where, b: +d.pin });
       else if (d.dup !== undefined) act({ op: "dup", at: where, b: +d.dup });
       else if (d.del !== undefined) { picked = []; act({ op: "del", at: where, b: +d.del }); }
       return;

@@ -82,6 +82,17 @@
  *   held implications: a rule step with m "hN" uses hypothesis N, A → B, as a rule taking A (no slots)
  *   { op: "dup", at, b }                      a copy of block b next to it (a step: rules use blocks up)
  *   { op: "del", at, b }                      throw block b away, not counted as a step
+ *   { op: "reflg", at }                       refl closes a goal that reads t = t (airetho): one step, no block
+ *   { op: "pin", at, b }                      free: pin or unpin block b. A pinned block is never used up or changed:
+ *                                             a rule leaves it where it is and puts its conclusion next to it, a
+ *                                             rewrite or Specialise makes a new block right after it, and it can't
+ *                                             be thrown away. With start(…, { pin: true }) (the page, and the
+ *                                             reference proofs) what a workshop holds starts on its bench, pinned:
+ *                                             assumptions, the induction hypothesis, lemmas, cases, witnesses.
+ *                                             Without it (proofs saved before pins) nothing is pinned by default.
+ *   blocks as machines (airetho): m "bN" in a rw / rwg step is block N of the bench, an equation or a ↔ about
+ *                                             these particular numbers (no slots, like a held fact); in a rule
+ *                                             step it is a block A → B, which takes a block A and gives B.
  * A workshop is done once a qed step closes it, or when its sub-workshops are all done.
  * `follow` finds where a player stands on a reference proof, one workshop at a time (the page's hints).
  */
@@ -373,14 +384,22 @@
 
   /* ---------- workshops ---------- */
   const newCtx = (goal, hyps) => ({ goal, hyps, bench: [], kids: null, done: false, closed: false });
-  function start(quest, machines) {
-    const goal = term(quest.goal), hyps = (quest.given || []).map(term);
+  function start(quest, machines, opts) {
+    const goal = term(quest.goal), hyps = (quest.given || []).map(term), pin = !!(opts && opts.pin);
     const names = new Set(); [goal, ...hyps].forEach(t => vars(t, names));
-    return { quest, machines: machines.slice(), root: newCtx(goal, hyps), names, steps: [] };
+    const root = newCtx(goal, hyps);
+    if (pin) root.bench = hyps.map((s, i) => ({ s, deps: [i], pin: true }));
+    return { quest, machines: machines.slice(), root, names, steps: [], pin };
   }
+  /* what a workshop holds, as the block that starts on its bench (pinned, if this game pins) */
+  const heldBlock = (game, s, n) => ({ s, deps: [n], ...(game.pin ? { pin: true } : {}) });
   /* the sub-workshops of a split workshop, as [letter, workshop] */
   const subs = c => (c.kids ? c.kids.list : []);
-  const carry = (bench, f = s => s) => bench.map(b => ({ s: f(b.s), deps: b.deps }));
+  const carry = (bench, f = s => s) => bench.map(b => ({ ...b, s: f(b.s) }));
+  /* put `made` where block i was, or right after it if it is pinned (a pinned block is never changed) */
+  const place = (bench, i, made) => (bench[i].pin ? [...bench.slice(0, i + 1), ...made, ...bench.slice(i + 1)] : [...bench.slice(0, i), ...made, ...bench.slice(i + 1)]);
+  /* the bench without block i, unless it is pinned */
+  const without = (bench, i) => bench.filter((b, k) => k !== i || b.pin);
   const child = (goal, hyps, bench) => Object.assign(newCtx(goal, hyps), { bench });
   function ctxAt(game, where) {
     let c = game.root;
@@ -406,6 +425,12 @@
       if (!s) throw new Error("no such hypothesis");
       return { s, slots: false, dep: [+h[1]], name: "that fact" };
     }
+    const bk = /^b(\d+)$/.exec(id);
+    if (bk) {
+      const blk = c.bench[+bk[1]];
+      if (!blk) throw new Error("no such block");
+      return { s: blk.s, slots: false, dep: blk.deps, name: "that block" };
+    }
     const m = game.machines.find(x => x.id === id);
     if (!m) throw new Error("you don't have that machine");
     if (!m.stmt) throw new Error(m.name + (m.premises ? " is a rule, not an equality" : " doesn't state anything"));
@@ -416,7 +441,10 @@
      these particular numbers and statements (no slots); what it makes depends on the hypothesis (airetho) */
   function heldRule(c, id) {
     const h = /^h(\d+)$/.exec(id || ""), s = h && c.hyps[+h[1]];
-    return s && s[0] === "→" ? { id, name: "that fact", premises: [s[1]], concl: s[2], held: +h[1] } : null;
+    if (s) return s[0] === "→" ? { id, name: "that fact", premises: [s[1]], concl: s[2], held: +h[1] } : null;
+    // a block A → B is one as well (airetho): about the same things, and what it makes depends on what the block does
+    const bk = /^b(\d+)$/.exec(id || ""), blk = bk && c.bench[+bk[1]];
+    return blk && blk.s[0] === "→" ? { id, name: "that block", premises: [blk.s[1]], concl: blk.s[2], held: -1, deps: blk.deps, block: +bk[1] } : null;
   }
   /* ... as something that rewrites, { l, r, slots, dep, iff }: an equation (numbers) or a biconditional (statements) */
   function equation(game, c, id) {
@@ -509,7 +537,8 @@
         }
         const s = put(b.s, st.path || [], e.slots ? subst(to, bind) : to);
         if (goal) return () => { c.goal = s; };
-        return () => { c.bench[st.b] = { s, deps: union(b.deps, e.dep) }; };
+        if (st.m === "b" + st.b) throw new Error("a block can't rewrite itself");
+        return () => { c.bench = place(c.bench, st.b, [{ s, deps: union(b.deps, e.dep) }]); };
       }
       case "rule": {
         const m = heldRule(c, st.m) || game.machines.find(x => x.id === st.m);
@@ -518,14 +547,16 @@
         if (idx.length !== m.premises.length || new Set(idx).size !== idx.length) throw new Error(m.name + " needs " + m.premises.length + " different blocks");
         let bind = {}, deps = [];
         idx.forEach((i, k) => { const b = block(i); bind = bind && match(m.premises[k], b.s, bind, m.held == null); deps = union(deps, b.deps); });
-        if (m.held != null) deps = union(deps, [m.held]);
+        if (m.block != null && idx.includes(m.block)) throw new Error("a block can't be fed to itself");
+        if (m.held != null) deps = union(deps, m.deps || [m.held]);
         if (!bind) throw new Error("those blocks don't fit " + m.name);
         if (m.held == null) for (const v of vars(m.concl)) if (!(v in bind)) {   // a held fact has no slots: its letters are fixed
           if (!st.fill || st.fill[v] == null || st.fill[v] === "") throw new Error(m.name + " needs to be told what " + v + " is");
           bind = { ...bind, [v]: suppliedFor(game, m.concl, v, st.fill[v]) };
         }
         const s = subst(m.concl, bind), used = idx.slice(1);
-        return () => { c.bench = c.bench.map((x, i) => (i === st.b ? { s, deps } : x)).filter((x, i) => !used.includes(i)); };
+        // pinned blocks stay: the conclusion goes next to a pinned first block, and pinned others aren't used up
+        return () => { c.bench = place(c.bench.map((x, i) => (used.includes(i) && !x.pin ? null : x)), st.b, [{ s, deps }]).filter(Boolean); };
       }
       case "induct": {
         if (!have("induct")) throw new Error("you don't have the induction machine yet");
@@ -537,12 +568,12 @@
         const goal = back.reduceRight((g, i) => ["→", c.hyps[i], g], c.goal);
         if (!vars(goal).has(st.v)) throw new Error(st.v + " isn't in the goal");
         const keep = c.hyps.map((h, i) => i).filter(i => !back.includes(i)), hyps = keep.map(i => c.hyps[i]);
-        const bench = c.bench.filter(b => !b.deps.some(d => back.includes(d))).map(b => ({ s: b.s, deps: b.deps.map(d => keep.indexOf(d)) }));
+        const bench = c.bench.filter(b => !b.deps.some(d => back.includes(d))).map(b => ({ ...b, deps: b.deps.map(d => keep.indexOf(d)) }));
         const v = V(st.v), zero = s => subst(s, { [st.v]: Z });
         return () => {
           c.kids = { kind: "induct", v: st.v, back, list: [
             ["b", child(zero(goal), hyps, carry(bench, zero))],
-            ["s", child(subst(goal, { [st.v]: S(v) }), [...hyps, goal], carry(bench))]] };
+            ["s", child(subst(goal, { [st.v]: S(v) }), [...hyps, goal], [...carry(bench), ...(game.pin ? [heldBlock(game, goal, hyps.length)] : [])])]] };
         };
       }
       case "assume": {
@@ -551,7 +582,7 @@
         let g = c.goal;
         while (DEFS.includes(g[0])) g = unfold(g);
         if (g[0] !== "→") throw new Error("Assume needs a goal of the form A → B");
-        return () => { c.kids = { kind: "assume", list: [["a", child(g[2], [...c.hyps, g[1]], [...carry(c.bench), { s: g[1], deps: [c.hyps.length] }])]] }; };
+        return () => { c.kids = { kind: "assume", list: [["a", child(g[2], [...c.hyps, g[1]], [...carry(c.bench), heldBlock(game, g[1], c.hyps.length)])]] }; };
       }
       case "apply": {
         if (!have("apply")) throw new Error("you don't have the Apply machine yet");
@@ -578,7 +609,7 @@
           }
           goals = m.premises.map(p => subst(p, bind));
         }
-        const rest = c.bench.filter((_, i) => i !== used);
+        const rest = used < 0 ? c.bench : without(c.bench, used);
         const f = () => { c.kids = { kind: "apply", list: goals.map((g, k) => [String(k + 1), child(g, c.hyps, carry(rest))]) }; };
         f.goals = goals;
         return f;
@@ -591,7 +622,7 @@
         for (const v of vars(s)) if (!game.names.has(v)) throw new Error("there is nothing called " + v + " here");
         return () => {
           c.kids = { kind: "have", list: [["l", child(s, c.hyps, carry(c.bench))],
-            ["c", child(c.goal, [...c.hyps, s], [...carry(c.bench), { s, deps: [c.hyps.length] }])]] };
+            ["c", child(c.goal, [...c.hyps, s], [...carry(c.bench), heldBlock(game, s, c.hyps.length)])]] };
         };
       }
       case "unfold": {
@@ -608,7 +639,7 @@
         if (!have("dne")) throw new Error("proof by contradiction needs Double negation");
         if (c.kids) throw new Error("this workshop is already split");
         const n = ["→", c.goal, F];
-        return () => { c.kids = { kind: "byc", list: [["x", child(F, [...c.hyps, n], [...carry(c.bench), { s: n, deps: [c.hyps.length] }])]] }; };
+        return () => { c.kids = { kind: "byc", list: [["x", child(F, [...c.hyps, n], [...carry(c.bench), heldBlock(game, n, c.hyps.length)])]] }; };
       }
       case "fix": {
         if (!have("fix")) throw new Error("you don't have the Fix machine yet");
@@ -626,7 +657,7 @@
         const b = block(st.b);
         if (b.s[0] !== "∀") throw new Error("Specialise takes a block of the form ∀a. …");
         const s = subst(b.s[2], { [b.s[1][1]]: supplied(game, b.s[1][1], st.t) });
-        return () => { c.bench[st.b] = { s, deps: b.deps }; };
+        return () => { c.bench = place(c.bench, st.b, [{ s, deps: b.deps }]); };
       }
       case "witness": {
         if (!have("witness")) throw new Error("you don't have the Witness machine yet");
@@ -644,17 +675,17 @@
         const v = st.v || newName(c, ex[1][1]);
         // the witness is a number nothing else is known about: a letter this workshop doesn't speak about
         if (!/^[a-z]$/.test(v) || spoken(c).has(v)) throw new Error("the witness needs a letter that is new here");
-        const s = subst(ex[2], { [ex[1][1]]: V(v) }), rest = c.bench.filter((_, i) => i !== st.b), n = c.hyps.length;
-        return () => { game.names.add(v); c.kids = { kind: "obtain", v, list: [["o", child(c.goal, [...c.hyps, s], [...carry(rest), { s, deps: [n] }])]] }; };
+        const s = subst(ex[2], { [ex[1][1]]: V(v) }), rest = without(c.bench, st.b), n = c.hyps.length;
+        return () => { game.names.add(v); c.kids = { kind: "obtain", v, list: [["o", child(c.goal, [...c.hyps, s], [...carry(rest), heldBlock(game, s, n)])]] }; };
       }
       case "cases": {
         if (!have("cases")) throw new Error("you don't have the Cases machine yet");
         const b = block(st.b), s = b.s[0] === "↔" ? unfold(b.s) : b.s;
-        if (s[0] === "∧") return () => { c.bench.splice(st.b, 1, { s: s[1], deps: b.deps }, { s: s[2], deps: b.deps }); };
+        if (s[0] === "∧") return () => { c.bench = place(c.bench, st.b, [{ s: s[1], deps: b.deps }, { s: s[2], deps: b.deps }]); };
         if (s[0] !== "∨") throw new Error("Cases takes apart a block of the form P ∧ Q, P ∨ Q or P ↔ Q");
         if (c.kids) throw new Error("this workshop is already split");
-        const rest = c.bench.filter((_, i) => i !== st.b), n = c.hyps.length;
-        return () => { c.kids = { kind: "cases", list: [1, 2].map(k => ["pq"[k - 1], child(c.goal, [...c.hyps, s[k]], [...carry(rest), { s: s[k], deps: [n] }])]) }; };
+        const rest = without(c.bench, st.b), n = c.hyps.length;
+        return () => { c.kids = { kind: "cases", list: [1, 2].map(k => ["pq"[k - 1], child(c.goal, [...c.hyps, s[k]], [...carry(rest), heldBlock(game, s[k], n)])]) }; };
       }
       case "qed": {
         if (c.kids) throw new Error("this workshop is split: finish its parts");
@@ -662,8 +693,16 @@
         if (!sameDef(block(st.b).s, c.goal)) throw new Error("that block isn't the goal");
         return () => { c.closed = true; };
       }
+      case "reflg": {
+        if (c.kids) throw new Error("this workshop is split: finish its parts");
+        if (c.closed) throw new Error("this workshop is already done");
+        const g = expand(c.goal);
+        if (g[0] !== "=" || !same(g[1], g[2])) throw new Error("refl closes a goal whose two sides are the same");
+        return () => { c.closed = true; };
+      }
+      case "pin": { const b = block(st.b); return () => { c.bench[st.b] = b.pin ? { s: b.s, deps: b.deps } : { ...b, pin: true }; }; }
       case "dup": { const b = block(st.b); return () => c.bench.splice(st.b + 1, 0, { s: b.s, deps: b.deps }); }
-      case "del": { block(st.b); return () => c.bench.splice(st.b, 1); }
+      case "del": { if (block(st.b).pin) throw new Error("that block is pinned: unpin it first"); return () => c.bench.splice(st.b, 1); }
     }
     throw new Error("unknown step");
   }
@@ -673,12 +712,12 @@
     refresh(game.root);
     return game;
   }
-  function replay(quest, machines, steps) {
-    const g = start(quest, machines);
+  function replay(quest, machines, steps, opts) {
+    const g = start(quest, machines, opts);
     for (const st of steps) step(g, st);
     return g;
   }
-  const COUNTED = new Set(["refl", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg", "byc", "cases", "fix", "spec", "witness", "obtain"]);
+  const COUNTED = new Set(["refl", "reflg", "hyp", "stamp", "make", "rw", "rule", "induct", "assume", "dup", "apply", "have", "rwg", "byc", "cases", "fix", "spec", "witness", "obtain"]);
   const count = steps => steps.reduce((n, s) => n + (COUNTED.has(s.op) ? 1 : 0), 0);
   /* close every open workshop that has its goal on the bench (tests, and step lists from before qed) */
   function closeAll(game) {
@@ -689,8 +728,8 @@
     return game;
   }
   /* a step list with a qed after each step that brings a workshop's goal onto its bench */
-  function withQed(quest, machines, steps) {
-    const g = closeAll(start(quest, machines));
+  function withQed(quest, machines, steps, opts) {
+    const g = closeAll(start(quest, machines, opts));
     for (const st of steps) { if (st.op !== "qed") step(g, st); closeAll(g); }
     return g.steps;
   }
@@ -710,7 +749,8 @@
     const c = ctxAt(game, st.at), apply = plan(game, st), before = c.bench;
     if (st.op === "rwg" || st.op === "unfoldg") { const g = c.goal; try { apply(); return c.goal; } finally { c.goal = g; } }
     c.bench = before.slice();
-    try { apply(); return c.bench[st.op === "rule" ? st.b - st.others.filter(o => o < st.b).length : st.b].s; }
+    const gone = st.op === "rule" ? st.others.filter(o => o < st.b && !before[o].pin).length : 0;
+    try { apply(); return c.bench[st.b - gone + (before[st.b].pin && ["rw", "rule", "spec"].includes(st.op) ? 1 : 0)].s; }
     finally { c.bench = before; }
   }
   /* b = "g" scans the goal instead: translations and rewrites, no rules */
@@ -736,13 +776,15 @@
     // rewrites: equalities on a number part, biconditionals on a statement part (or on the whole block)
     if (node) {
       const kind = isForm(node) ? "↔" : "=";
-      const ms = [...c.hyps.map((h, i) => ({ id: "h" + i, name: "given", stmt: h, hyp: true })), ...game.machines].filter(m => m.stmt && !m.premises && m.stmt[0] === kind);
+      const ms = [...c.hyps.map((h, i) => ({ id: "h" + i, name: "given", stmt: h, hyp: true })),
+        ...c.bench.map((x, i) => ({ id: "b" + i, name: "block " + (i + 1), stmt: x.s, hyp: true })).filter((m, i) => onGoal || i !== b),
+        ...game.machines].filter(m => m.stmt && !m.premises && m.stmt[0] === kind);
       for (const m of ms) for (const dir of ["lr", "rl"]) {
         const [from, to] = dir === "lr" ? [m.stmt[1], m.stmt[2]] : [m.stmt[2], m.stmt[1]];
         add(onGoal ? { op: "rwg", at: where || "", path: path || [], m: m.id, dir } : { op: "rw", at: where || "", b, path: path || [], m: m.id, dir }, { name: m.name, from, to, hyp: !!m.hyp, loose: !m.hyp && isVar(from) }, m.hyp ? [] : left(to, [from]));
       }
     }
-    if (!(path && path.length) && !onGoal) for (const m of [...c.hyps.map((h, i) => heldRule(c, "h" + i)).filter(Boolean), ...game.machines.filter(x => x.premises)]) {
+    if (!(path && path.length) && !onGoal) for (const m of [...c.hyps.map((h, i) => heldRule(c, "h" + i)).filter(Boolean), ...c.bench.map((x, i) => (i === b ? null : heldRule(c, "b" + i))).filter(Boolean), ...game.machines.filter(x => x.premises)]) {
       const n = m.premises.length;
       const rest = c.bench.map((_, i) => i).filter(i => i !== b);
       const picks = n === 1 ? [[]] : n === 2 ? rest.map(i => [i]) : n === 3 ? rest.flatMap(i => rest.filter(j => j !== i).map(j => [i, j])) : [];
@@ -803,7 +845,7 @@
     try { me = ctxAt(game, where); } catch (e) { return null; }
     if (me.kids || me.closed) return null;
     const key = c => show(c.goal) + "|" + c.hyps.map(show).join("|");
-    const mine = me.bench.map(b => show(b.s)), ref = start(game.quest, machines);
+    const mine = me.bench.map(b => show(b.s)), ref = start(game.quest, machines, { pin: game.pin });
     let best = null;
     for (const st of proof) {
       if (st.at === where) {
@@ -823,7 +865,8 @@
     }
     if (!best) return null;
     const { st, map } = best;
-    return { ...st, ...(st.b != null ? { b: map[st.b] } : {}), ...(st.others ? { others: st.others.map(o => map[o]) } : {}) };
+    const bm = /^b(\d+)$/.exec(st.m || "");
+    return { ...st, ...(st.b != null ? { b: map[st.b] } : {}), ...(st.others ? { others: st.others.map(o => map[o]) } : {}), ...(bm ? { m: "b" + map[+bm[1]] } : {}) };
   }
 
   /* Numbers (as BigInt, powers get large) and truth under an assignment (numbers for small letters, booleans for
