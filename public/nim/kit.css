@@ -95,3 +95,8 @@
 .spoiler.hidden .spoiler-body { filter: blur(9px); user-select: none; pointer-events: none; }
 .spoiler-btn { position: absolute; left: 50%; top: 90px; transform: translateX(-50%); z-index: 2; }
 .spoiler:not(.hidden) .spoiler-btn { position: static; transform: none; margin-top: 8px; }
+
+/* undo / redo (#36) */
+.nk-undo { display: flex; gap: 8px; flex-wrap: wrap; }
+.nk-undo .btn:disabled { opacity: .35; cursor: default; }
+.nk-practice { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }

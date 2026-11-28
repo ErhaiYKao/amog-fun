@@ -37,6 +37,9 @@
   .pc.you { background: radial-gradient(circle at 35% 30%, #d9fbff, var(--g1) 55%, #1b8594); }
   .pc.amog { background: radial-gradient(circle at 35% 30%, #ffd9da, var(--g2) 55%, #a8262b); }
   .pc.moved { box-shadow: 0 0 0 3px var(--bg-2), 0 0 0 5px var(--line-2); }
+  .pc.amog.moved { box-shadow: 0 0 0 3px var(--bg-2), 0 0 0 5px var(--g2); }
+  .pc.was { border: 2px dashed var(--g2); opacity: .7; }
+  .cell.trail { box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--g2) 60%, transparent); }
   .gapn { font-family: var(--mono); font-size: 11px; color: var(--faint); text-align: center; }
 </style>
 </head>
@@ -109,14 +112,18 @@
     },
     render(el, s, ctx) {
       let h = `<div class="nc">`;
+      // Amog's last move: an outline where his piece was and a trail to where it went (#36)
+      const lm = ctx.last && ctx.last.who === 1 ? { r: ctx.last.m.r, from: ctx.last.before.rows[ctx.last.m.r][1], to: ctx.last.m.c } : null;
       s.rows.forEach(([a, b], r) => {
         h += `<div class="row" style="grid-template-columns: repeat(${COLS}, 1fr) 28px">`;
         for (let c = 0; c < COLS; c++) {
           const reach = !ctx.locked && c < b && c !== a;
           const m = { r, c };
           const pc = c === a ? `<span class="pc you ${s.moved && s.moved.r === r && s.moved.who === 0 ? "moved" : ""}"></span>`
-            : c === b ? `<span class="pc amog ${s.moved && s.moved.r === r && s.moved.who === 1 ? "moved" : ""}"></span>` : "";
-          h += `<button class="cell ${(c + r) % 2 ? "" : "dk"} ${reach ? "reach" : ""} ${reach && ctx.isGood(m) ? "good" : ""}" data-r="${r}" data-c="${c}" ${reach ? `aria-label="row ${r + 1}, column ${c + 1}"` : "tabindex=-1"}>${pc}</button>`;
+            : c === b ? `<span class="pc amog ${s.moved && s.moved.r === r && s.moved.who === 1 ? "moved" : ""}"></span>`
+            : lm && lm.r === r && c === lm.from ? `<span class="pc was"></span>` : "";
+          const trail = lm && lm.r === r && c > Math.min(lm.from, lm.to) && c < Math.max(lm.from, lm.to);
+          h += `<button class="cell ${(c + r) % 2 ? "" : "dk"} ${reach ? "reach" : ""} ${trail ? "trail" : ""} ${reach && ctx.isGood(m) ? "good" : ""}" data-r="${r}" data-c="${c}" ${reach ? `aria-label="row ${r + 1}, column ${c + 1}"` : "tabindex=-1"}>${pc}</button>`;
         }
         h += `<span class="gapn">${ctx.hint ? b - a - 1 : ""}</span></div>`;
       });

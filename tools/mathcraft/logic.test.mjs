@@ -541,7 +541,7 @@ test("numerals are definitions: 2 is S(1), seen through by S(…) patterns, fold
 test("Amog's proof is the natural one; where a trick is shorter it is kept as the best known", () => {
   const all = allDone(Q.QUESTS.length);
   const shorts = Q.QUESTS.filter(q => q.short);
-  assert.deepEqual(shorts.filter(q => !/Block press/.test(q.short.hint)).map(q => q.id), ["lnn", "lcp", "lre", "lk", "iaa", "sn10", "sn01", "snself"]);
+  assert.deepEqual(shorts.filter(q => !/Block press/.test(q.short.hint)).map(q => q.id), ["lnn", "lcp", "lre", "lk", "iaa", "sn10", "sn01", "snself", "oadd", "onil"]);
   // stamping saves a step wherever refl is followed by one rewrite (airetho): those are best known, never the par
   assert.ok(["zz", "zadd", "comm", "assoc", "qex", "mz", "massoc", "p1", "ppow"].every(id => /Block press/.test(Q.QUESTS[idx(id)].short.hint)));
   assert.equal(L.count(Q.QUESTS[idx("p1")].short.proof), 5, "airetho's 1^a = 1 in five");
@@ -931,7 +931,7 @@ test("order: a ≤ b is a definition, ∃c. a + c = b, read as its ∃ by Witnes
   assert.equal(L.show(L.ctxAt(g, "aaow").goal), "a+c = c");
   assert.throws(() => L.step(g, { op: "spec", at: "aao", b: 0, t: "0" }), /∀/);
   L.step(g, { op: "unfold", at: "aao", b: 0, path: [] });
-  assert.equal(bench(g, "aao")[0], "∃d. b+d = c");
+  assert.equal(bench(g, "aao")[0], "∃e. b+e = c", "the bound letter is not one the workshop already uses (d is the first witness)");
   L.step(g, { op: "unfold", at: "aao", b: 0, path: [], as: "≤" });
   assert.equal(bench(g, "aao")[0], "b ≤ c");
   // an equality rewrites inside a ≤
@@ -941,4 +941,11 @@ test("order: a ≤ b is a definition, ∃c. a + c = b, read as its ∃ by Witnes
   assert.ok(!L.holds(L.parse("a<=0->a=0"), { a: 2 }, 5));
   const quant = Q.machinesFor(idx("qen"), allDone(Q.QUESTS.length)).map(m => m.id);
   assert.ok(!ids.some(id => quant.includes(id)));
+});
+
+test("first hints are nudges, and airetho's Order records are the best knowns", () => {
+  for (const q of Q.QUESTS) if (q.nudge) assert.notEqual(q.nudge, q.hint, q.id);
+  assert.ok(Q.QUESTS.filter(q => q.nudge).length > 60);
+  assert.equal(L.count(Q.QUESTS[idx("onil")].short.proof), 4);
+  assert.equal(L.count(Q.QUESTS[idx("oadd")].short.proof), 7);
 });

@@ -218,9 +218,10 @@
 
   /* ---------- definitions ---------- */
   const DEFS = "∧∨⊤↔∃≤", F = ["⊥"], isF = t => t[0] === "⊥";
-  function unfold(t) {
+  function unfold(t, avoid) {
     if (t[0] === "≤") {                                                   // a ≤ b: some number added to a gives b
-      const taken = new Set([...vars(t[1]), ...vars(t[2])]), x = [..."cdefghijklmnopqrstuvwxyzab"].find(l => !taken.has(l)) || "c'";
+      // the bound letter: none that either side uses, nor (avoid) any the workshop already speaks about (airetho)
+      const taken = new Set([...vars(t[1]), ...vars(t[2]), ...(avoid || [])]), x = [..."cdefghijklmnopqrstuvwxyzab"].find(l => !taken.has(l)) || "c'";
       return ["∃", V(x), eq(plus(t[1], V(x)), t[2])];
     }
     if (t[0] === "∃") return ["→", ["∀", t[1], ["→", t[2], F]], F];
@@ -444,13 +445,14 @@
     for (const t of [...c.hyps, c.goal, ...c.bench.map(b => b.s)]) vars(t, out);
     return out;
   }
+  const inPlay = (game, c) => new Set([...game.names, ...spoken(c)]);
   /* a letter for a new fixed number: the one asked for if this workshop doesn't speak about it, else the first free one */
   const newName = (c, want) => fresh(want && /^[a-z]$/.test(want) ? want : "a", spoken(c));
 
   /* the definition of a statement part, or with `as` what it folds into */
-  function translate(sub, as) {
+  function translate(sub, as, avoid) {
     if (!sub) throw new Error("no such part");
-    const to = as ? folds(sub).find(f => f[0] === as) : unfold(sub);
+    const to = as ? folds(sub).find(f => f[0] === as) : unfold(sub, avoid);
     if (!to) throw new Error(as ? "that isn't the definition of " + (as === "#" ? "a numeral" : as) : "only ∧, ∨, ↔, ⊤, ∃, ≤ and numerals unfold");
     return to;
   }
@@ -593,12 +595,12 @@
         };
       }
       case "unfold": {
-        const b = block(st.b), s = put(b.s, st.path || [], translate(at(b.s, st.path || []), st.as));
+        const b = block(st.b), s = put(b.s, st.path || [], translate(at(b.s, st.path || []), st.as, inPlay(game, c)));
         return () => { c.bench[st.b] = { s, deps: b.deps }; };
       }
       case "unfoldg": {
         if (c.kids) throw new Error("this workshop is already split");
-        const s = put(c.goal, st.path || [], translate(at(c.goal, st.path || []), st.as));
+        const s = put(c.goal, st.path || [], translate(at(c.goal, st.path || []), st.as, inPlay(game, c)));
         return () => { c.goal = s; };
       }
       case "byc": {
@@ -727,7 +729,7 @@
     const left = (to, from) => [...vars(to)].filter(v => !from.some(f => vars(f).has(v))).sort();
     const node = at(blk.s, path || []);
     if (node) {
-      const def = unfold(node), to = [def, ...folds(node)].filter(Boolean);
+      const def = unfold(node, inPlay(game, c)), to = [def, ...folds(node)].filter(Boolean);
       for (const t of to) add({ op: onGoal ? "unfoldg" : "unfold", at: where || "", ...(onGoal ? {} : { b }), path: path || [], ...(t === def ? {} : { as: t[0] }) },
         { name: t === def ? "unfold the definition" : "fold into " + (t[0] === "#" ? "a numeral" : t[0]), from: node, to: t, free: true }, []);
     }

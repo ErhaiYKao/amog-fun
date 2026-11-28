@@ -9,7 +9,8 @@
       "puzzle"
     ],
     "group": "long",
-    "short": "Prove theorems by crafting them; each one becomes a machine."
+    "short": "Prove theorems by crafting them; each one becomes a machine.",
+    "featured": 2
   },
   {
     "slug": "vertex",
@@ -172,8 +173,7 @@
       "physics"
     ],
     "group": "long",
-    "short": "Rockets with real physics, from soda bottle to Andromeda.",
-    "featured": 2
+    "short": "Rockets with real physics, from soda bottle to Andromeda."
   },
   {
     "slug": "axis-order-incremental",

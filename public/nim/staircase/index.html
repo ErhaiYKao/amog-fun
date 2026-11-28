@@ -42,6 +42,10 @@
   .block span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
   .ground { font-family: var(--mono); font-size: 12px; color: var(--muted); }
   .arrive .block { box-shadow: inset 0 3px 0 var(--g2); }
+  /* Amog's last push: the coins that came down are ringed in his colour, and outlines show where they were */
+  .coin.last { box-shadow: 0 0 0 2px var(--g2); }
+  .coin.gone { display: block; background: none; border: 1.5px dashed var(--g2); opacity: .7; }
+  .ground.last { color: var(--g2); }
 </style>
 </head>
 <body>
@@ -98,15 +102,16 @@
     describe: m => `pushed ${m.k} from step ${m.i} to ${m.i - 1 ? "step " + (m.i - 1) : "the ground"}`,
     render(el, s, ctx) {
       const n = s.c.length - 1;
+      const lm = ctx.last && ctx.last.who === 1 ? ctx.last.m : null;      // Amog's last push: k coins from step i to i - 1 (#36)
       let h = `<div class="stairs ${ctx.locked ? "" : "on"}">`;
       s.c.forEach((x, i) => {
-        if (i === 0) { h += `<div class="step"><div class="ground">ground<br>${x} coin${x === 1 ? "" : "s"}</div><div class="block" style="height:10px"></div></div>`; return; }
+        if (i === 0) { h += `<div class="step"><div class="ground ${lm && lm.i === 1 ? "last" : ""}">ground<br>${x} coin${x === 1 ? "" : "s"}${lm && lm.i === 1 ? `<br>Amog: +${lm.k}` : ""}</div><div class="block" style="height:10px"></div></div>`; return; }
         const good = Array.from({ length: x }, (_, b) => ctx.isGood({ i, k: x - b }));
         const lowest = good.indexOf(true); // the biggest winning push on this step; everything above it rides along
         const coins = Array.from({ length: x }, (_, b) =>
-          `<button class="coin live ${good[b] ? "good" : lowest >= 0 && b > lowest ? "rides" : ""}" data-i="${i}" data-k="${x - b}" aria-label="push ${x - b} from step ${i}"></button>`).join("");
+          `<button class="coin live ${lm && lm.i - 1 === i && b >= x - lm.k ? "last" : ""} ${good[b] ? "good" : lowest >= 0 && b > lowest ? "rides" : ""}" data-i="${i}" data-k="${x - b}" aria-label="push ${x - b} from step ${i}"></button>`).join("");
         const tag = good.map((g, b) => (g ? x - b : 0)).filter(Boolean).map(k => `push ${k}`).join(" or ");
-        h += `<div class="step ${s.to === i ? "arrive" : ""}">${tag ? `<div class="push">${tag} ↓</div>` : ""}<div class="stack">${coins}</div><div class="block ${i % 2 && ctx.hint ? "odd" : ""}" style="height:${16 + (i * 200) / n}px"><span>${i}</span></div></div>`;
+        h += `<div class="step ${s.to === i ? "arrive" : ""}">${tag ? `<div class="push">${tag} ↓</div>` : ""}<div class="stack">${coins}${lm && lm.i === i ? '<span class="coin gone"></span>'.repeat(lm.k) : ""}</div><div class="block ${i % 2 && ctx.hint ? "odd" : ""}" style="height:${16 + (i * 200) / n}px"><span>${i}</span></div></div>`;
       });
       el.innerHTML = h + "</div>";
       el.onclick = e => { const b = e.target.closest(".coin.live"); if (b && !ctx.locked) ctx.play({ i: +b.dataset.i, k: +b.dataset.k }); };

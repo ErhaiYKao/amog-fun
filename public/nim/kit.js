@@ -6,7 +6,9 @@
  *   moves(s, who)           -> legal moves for who (0 = you, 1 = Amog)
  *   apply(s, move, who)     -> new state (don't mutate s)
  *   isP(s, who, opts)       -> true if `who`, to move, loses with perfect play
- *   render(el, s, ctx)      -> draw the board; ctx.play(move) makes your move, ctx.isGood(move) for hints
+ *   render(el, s, ctx)      -> draw the board; ctx.play(move) makes your move, ctx.isGood(move) for hints;
+ *                              ctx.last = { m, who, before } is the move just made (before = the state it was made
+ *                              in), so a variant can mark where the other side moved (#36)
  *   describe(move, who, s)  -> text for the log
  *   math(s, who, opts)      -> HTML (LaTeX ok) for the "show the math" panel
  *   misere(opts)            -> true if the last player to move loses (optional)
@@ -14,8 +16,14 @@
  *   symmetric(s)            -> true if a position is "mirrored" (easy to read); Amog avoids leaving these (optional)
  *   verdict(s, who, opts)   -> HTML replacing the P/N-position line in the math panel (optional; partizan games)
  *   custom: { placeholder, help, parse(text, opts) -> state or error string }  (optional: "custom start" box)
+ *   pending(s)              -> true while the dealt position waits for the player to choose how to start
+ *                              (optional); render then gets ctx.begin(state, first) to start the game (#36)
  *   inkKey(s)               -> which annotation sheet goes with this board (optional; e.g. the board size)
  * })
+ *
+ * Undo and redo (#36): undo takes back your last move and Amog's reply (or reopens a finished game), redo puts them
+ * back exactly as they were. A game where undo was used is practice: it doesn't count in the score and earns no
+ * achievements (a point already scored by the game being undone is taken back).
  *
  * Annotations (the ✎ bar under every board): pen strokes on a canvas over the board, saved per variant
  * (and per inkKey) in localStorage `amog.nim.<id>.ink.<key>`. Strokes are stored relative to the board's
@@ -68,6 +76,8 @@
     const opts = Object.assign(Object.fromEntries(allOpts.map(o => [o.key, o.def])), store.get(K + ".opts", {}));
     const score = store.get(K + ".score", [0, 0]);
     let s, turn, over, gid = 0, timer, log = [], hint = store.get(K + ".hint", false), peeked = false;
+    let waiting = false;   // the position is dealt but the player hasn't chosen how to start
+    let last = null, past = [], future = [], practice = false, counted = null;   // counted: who got this game's point
 
     root.innerHTML = `<div class="nk">
       <div class="nk-board-wrap"><div class="nk-stage" id="nk-stage"><div class="nk-board" id="nk-board"></div><canvas class="nk-ink" id="nk-ink"></canvas>
@@ -78,7 +88,8 @@
         <div class="nk-status" id="nk-status"></div>
         <div class="nk-controls">${allOpts.map(o => `<div class="nk-field"><span>${esc(o.label)}</span><div class="seg" data-key="${o.key}">${o.choices.map(([v, l]) => `<button data-v="${esc(v)}">${esc(l)}</button>`).join("")}</div></div>`).join("")}
           ${cfg.custom ? `<div class="nk-field"><span>Custom start</span><form class="nk-custom" id="nk-cform"><input id="nk-cin" spellcheck="false" autocomplete="off" placeholder="${esc(cfg.custom.placeholder)}"><button class="btn">Play</button></form><div class="nk-chelp" id="nk-chelp">${esc(cfg.custom.help || "")}</div></div>` : ""}
-          <button class="btn" id="nk-new">New game</button></div>
+          <div class="nk-undo"><button class="btn" id="nk-undo" title="take back your last move and Amog's reply (the game then no longer counts)">undo</button><button class="btn" id="nk-redo">redo</button><button class="btn" id="nk-new">New game</button></div>
+          <div class="nk-practice" id="nk-practice" hidden>Practice game: undo was used, so it doesn't count in the score or for achievements.</div></div>
         <label class="nk-hint"><input type="checkbox" id="nk-hintbox"> show the math</label>
         <div class="nk-math" id="nk-math"></div>
         <ol class="nk-log" id="nk-log"></ol>
@@ -104,6 +115,8 @@
     $("nk-hintbox").checked = hint;
     $("nk-hintbox").addEventListener("change", e => { hint = e.target.checked; if (hint && !over) peeked = true; store.set(K + ".hint", hint); render(); });
     $("nk-new").addEventListener("click", () => newGame());
+    $("nk-undo").addEventListener("click", undo);
+    $("nk-redo").addEventListener("click", redo);
     $("nk-again").addEventListener("click", () => newGame(lastCustom));
     let lastCustom = null;
     if (cfg.custom) {
@@ -132,15 +145,50 @@
       if (!from) lastCustom = null;
       s = from ? structuredClone(from) : cfg.create(opts);
       turn = opts.first === "you" ? 0 : 1;
+      waiting = !!(cfg.pending && cfg.pending(s));
       over = false;
       log = [];
+      last = null; past = []; future = []; practice = false; counted = null;
       peeked = hint;
       $("nk-over").classList.remove("show");
+      render();
+      if (turn === 1 && !waiting) later();
+    }
+    function begin(st, first) {
+      if (!waiting) return;
+      waiting = false; s = st; turn = first;
       render();
       if (turn === 1) later();
     }
 
+    // everything undo and redo put back
+    const snap = () => ({ s: structuredClone(s), turn, over, log: log.slice(), last, ot: $("nk-ot").textContent, op: $("nk-op").textContent });
+    function restore(x) {
+      clearTimeout(timer);
+      gid++;
+      ({ s, turn, over, log, last } = x);
+      s = structuredClone(s); log = log.slice();
+      $("nk-ot").textContent = x.ot; $("nk-op").textContent = x.op;
+      $("nk-over").classList.toggle("show", over);
+      render();
+    }
+    function undo() {
+      if (!past.length) return;
+      future.push(snap());
+      if (counted != null) { score[counted]--; counted = null; store.set(K + ".score", score); }   // the game being undone no longer counts
+      practice = true;
+      restore(past.pop());
+    }
+    function redo() {
+      if (!future.length) return;
+      past.push(snap());
+      restore(future.pop());
+      if (!over && turn === 1) later();
+    }
+
     function doMove(m, who) {
+      if (who === 0) { past.push(snap()); future = []; }
+      last = { m, who, before: s };
       log.unshift({ who, text: cfg.describe(m, who, s) });
       s = cfg.apply(s, m, who);
       turn = 1 - who;
@@ -192,8 +240,8 @@
     function finish() {
       over = true;
       const winner = misere() ? turn : 1 - turn;
-      score[winner]++;
-      if (winner === 0 && window.AmogAch) achieve();
+      if (!practice) { score[winner]++; counted = winner; }
+      if (winner === 0 && window.AmogAch && !practice) achieve();
       store.set(K + ".score", score);
       const lastWho = 1 - turn;
       const how = misere() ? `${lastWho === 0 ? "You" : "Amog"} made the last move, which loses in misère play.` : `${lastWho === 0 ? "You" : "Amog"} made the last move.`;
@@ -214,24 +262,27 @@
 
     function render() {
       // when a variant prefers some winning moves (e.g. advancing), only hint those
-      const prefWin = hint && !over && turn === 0 && cfg.prefer && cfg.moves(s, 0).some(m => cfg.prefer(m, s, 0) && good(m));
+      const prefWin = hint && !over && !waiting && turn === 0 && cfg.prefer && cfg.moves(s, 0).some(m => cfg.prefer(m, s, 0) && good(m));
       const ctx = {
-        turn, over, opts, locked: over || turn !== 0,
-        hint: hint && !over && turn === 0,
-        isGood: m => hint && !over && turn === 0 && good(m) && (!prefWin || cfg.prefer(m, s, 0)),
-        play: m => { if (!over && turn === 0) doMove(m, 0); },
+        turn, over, opts, last, waiting, begin, locked: over || waiting || turn !== 0,
+        hint: hint && !over && !waiting && turn === 0,
+        isGood: m => hint && !over && !waiting && turn === 0 && good(m) && (!prefWin || cfg.prefer(m, s, 0)),
+        play: m => { if (!over && !waiting && turn === 0) doMove(m, 0); },
       };
       board.classList.toggle("locked", ctx.locked);
       cfg.render(board, s, ctx);
       ink.render();
+      $("nk-undo").disabled = !past.length;
+      $("nk-redo").disabled = !future.length;
+      $("nk-practice").hidden = !practice;
       $("nk-wy").textContent = score[0];
       $("nk-wa").textContent = score[1];
-      $("nk-you").classList.toggle("active", !over && turn === 0);
-      $("nk-amog").classList.toggle("active", !over && turn === 1);
+      $("nk-you").classList.toggle("active", !over && !waiting && turn === 0);
+      $("nk-amog").classList.toggle("active", !over && !waiting && turn === 1);
       $("nk-status").textContent = over ? $("nk-ot").textContent + " " + $("nk-op").textContent
-        : turn === 0 ? "Your move." + (misere() ? " (Misère: don't take the last one.)" : "") : "Amog is thinking…";
+        : waiting ? "Choose how to start." : turn === 0 ? "Your move." + (misere() ? " (Misère: don't take the last one.)" : "") : "Amog is thinking…";
       const mathEl = $("nk-math");
-      if (hint && !over) {
+      if (hint && !over && !waiting) {
         const p = cfg.isP(s, turn, opts);
         const tail = turn === 0 && !p ? " Moves that win are outlined in green." : "";
         mathEl.innerHTML = cfg.math(s, turn, opts) + (cfg.verdict

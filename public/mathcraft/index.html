@@ -25,8 +25,8 @@
 <script src="/assets/ach.js" defer></script>
 <script src="/assets/ink.js" defer></script>
 <script src="/assets/math.js" defer></script>
-<script src="/mathcraft/logic.js?v=20"></script>
-<script src="/mathcraft/quests.js?v=20"></script>
+<script src="/mathcraft/logic.js?v=21"></script>
+<script src="/mathcraft/quests.js?v=21"></script>
 <style>
   .head .sig { font-family: var(--mono); font-size: 13px; color: var(--g1); }
   .head h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 72px); line-height: 1; margin: 6px 0 8px; }
@@ -163,8 +163,10 @@
   #floor .sub { font-family: var(--mono); font-size: 11px; color: var(--faint); margin: 12px 0 6px; }
   #floor .label + .sub { margin-top: 0; }
   #floor input.find { width: 100%; margin: 0 0 10px; }
-  #floor details.oneway { margin-top: 12px; }
-  #floor details.oneway summary { font-family: var(--mono); font-size: 11px; color: var(--faint); cursor: pointer; margin-bottom: 6px; }
+  #floor details.wgroup { margin: 0 0 6px; }
+  #floor details.wgroup summary { font-family: var(--mono); font-size: 12px; color: var(--muted); cursor: pointer; padding: 5px 0; }
+  #floor details.wgroup summary span { color: var(--faint); margin-left: 4px; }
+  #floor details.wgroup[open] summary { color: var(--ink); margin-bottom: 4px; }
   .card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px 8px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; color: var(--ink); cursor: pointer; text-align: center; transition: transform .12s, border-color .12s; }
   .card:hover { transform: translateY(-2px); border-color: var(--muted); }
   .card.on { border-color: var(--g3); box-shadow: 0 0 0 1px var(--g3); }
@@ -237,7 +239,6 @@
   .tour > span:first-child { flex: 1 1 260px; }
   .tour .mini.quiet { border-color: transparent; background: none; color: var(--muted); }
   .spot { outline: 2px solid #f5c04a; outline-offset: 3px; border-radius: 8px; }
-  #floor .sub b { font-weight: 500; color: var(--muted); }
   .foot { margin-top: 40px; }
 </style>
 </head>
@@ -320,7 +321,9 @@
   // item: the quest, bounty or lemma on the bench (null on the "your own" page)
   // openM: the machine whose interface is open ("refl", "induct", "h0", or a machine id); dir: its lever
   // picked: blocks fed to an open rule so far; sel: { b, path } for the Scanner list (path [] = whole block)
-  let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = 0;   // hint: 1 = the idea, 2 = also point at the next step
+  let save = load(), item = null, game = null, where = "", sel = null, msg = "", hint = 0;   // hint: 1 = the written hint, 2 = also point at the next step
+  let more = false; // the fuller written hint is showing (the first one is a nudge, airetho)
+  let wname = "";   // the letter typed for Take a witness (blank: one is picked)
   let setOpen = false;   // the settings box under the top row
   let tab = null;   // the world (or "bounty" / "own") whose quests the map lists; null = the open item's
   let numT = "";    // the number typed into Specialise or Witness
@@ -543,7 +546,7 @@
   };
   const and = a => (a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
 
-  function reset() { sel = null; msg = ""; hint = 0; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; numT = ""; fillVals = {}; flash = -1; lemmaText = ""; }
+  function reset() { sel = null; msg = ""; hint = 0; more = false; wname = ""; openM = null; dir = "lr"; picked = []; typed = ""; letter = ""; numT = ""; fillVals = {}; flash = -1; lemmaText = ""; }
   function open(id) {
     item = [...Q.QUESTS, ...Q.BOUNTIES, ...lemmas()].find(q => q.id === id) || Q.QUESTS[0];
     const ms = machinesOf(item);
@@ -924,7 +927,13 @@
         ${q.own ? `<button class="mini" data-do="remove">delete</button>` : ""}
         ${q.own ? `<span class="row"><input class="term name" id="lname" value="${esc(q.name)}" maxlength="40" autocomplete="off" spellcheck="false" aria-label="the lemma's name"><button class="mini" data-do="rename">rename</button></span>` : ""}
         <span class="meta">${steps}${best && save.cmp ? ` · your best ${best}` : ""}${pays}</span></div>`;
-    if (hint && quest) h += `<p>${q.hint}</p>` + (game.root.done ? "" : `<div class="row hint"><button class="mini ${hint === 2 ? "on" : ""}" data-do="step">${hint === 2 ? "stop pointing" : "what do I do next?"}</button><span class="meta">points at the next step from where you are, one step at a time</span></div>`);
+    if (hint && quest) {
+      // first a nudge, then the fuller hint, then pointing at the next step (airetho)
+      const full = !q.nudge || more || hint === 2;
+      h += `<p>${full ? q.hint : q.nudge}</p><div class="row hint">` +
+        (!full ? `<button class="mini" data-do="more">more</button><span class="meta">a fuller hint</span>`
+          : game.root.done ? "" : `<button class="mini ${hint === 2 ? "on" : ""}" data-do="step">${hint === 2 ? "stop pointing" : "what do I do next?"}</button><span class="meta">points at the next step from where you are, one step at a time</span>`) + `</div>`;
+    }
     // once the quest is beaten: Amog's hint for the shortest way (#33), so the hint above can stay a nudge
     const lazy = q.short ? `“There might be a way to do this by ${q.short.hint}, but I'm too lazy to work it out.”` : q.amog;
     if (quest && finished(q) && lazy && save.cmp) h += `<details class="curious"><summary>Amog's hint${q.short ? " for a shorter way" : ""}</summary><p>${lazy}</p></details>`;
@@ -976,9 +985,14 @@
       : explicitImp(c.goal) && has("assume") ? `<button class="use" data-do="gassume" title="run Assume on this goal">assume</button>`
       : c.goal[0] === "∀" && has("fix") ? `<button class="use" data-do="gfix" title="run Fix on this goal">fix</button>` : "";
     h += `<div class="given goalline ${c.done ? "done" : ""}" data-goal title="the goal${canApply() ? ": drop a block P → (this goal) here to apply it, or the goal itself to use it" : ""}"><span class="meta">${c.done ? "done ✓" : "goal"}</span><span class="scroll">${st(c.goal, tappable ? { live: true, sel: sel && sel.b === "g" ? pstr(sel.path) : null } : {}, "goalst")}</span>${quick}${gTip ? `<span class="meta">${gTip}</span>` : ""}</div>`;
-    const fixedNums = fixedAt(where);
-    if (fixedNums.length) h += `<div class="given nums"><span class="tag" title="numbers in scope: arbitrary, but one and the same all through this workshop">numbers</span>` +
-      fixedNums.map(([v, how]) => `<span class="num" title="${how === "fix" ? "fixed by Fix: an arbitrary number" : "the witness taken from an ∃"}"><span class="st small">${v}&thinsp;:&thinsp;ℕ</span> <span class="meta">${how === "fix" ? "fixed" : "witness"}</span></span>`).join("") + `</div>`;
+    // every letter this workshop speaks about, with its type (airetho): numbers, statements, predicates
+    const how = new Map(fixedAt(where)), inScope = new Set(how.keys()), pr = {}, all = [c.goal, ...c.hyps, ...c.bench.map(b => b.s)];
+    all.forEach(t => { L.vars(t, inScope); L.preds(t, pr); });
+    const letters = [...inScope].sort((x, y) => L.upper(x) - L.upper(y) || (x < y ? -1 : 1));
+    const typeOf = v => (!L.upper(v) ? "ℕ" : v in pr ? Array(pr[v]).fill("ℕ").join(" × ") + " → Prop" : "Prop");
+    const note = v => ({ fix: ["fixed", "fixed by Fix: an arbitrary number"], obtain: ["witness", "the witness taken from an ∃ or a ≤"] }[how.get(v)] || ["", !L.upper(v) ? "a number: arbitrary, but one and the same all through this workshop" : v in pr ? "a predicate: some statement about numbers" : "a statement: true or false, you are not told which"]);
+    if (letters.length) h += `<div class="given nums"><span class="tag" title="the letters in play here, and what kind of thing each one is">variables</span>` +
+      letters.map(v => `<span class="num" title="${note(v)[1]}"><span class="st small"><i>${v}</i>&thinsp;:&thinsp;${typeOf(v)}</span>${note(v)[0] ? ` <span class="meta">${note(v)[0]}</span>` : ""}</span>`).join("") + `</div>`;
     c.hyps.forEach((s, i) => {
       h += `<div class="given"><span class="tag">${hypName(i)}</span><span class="scroll">${st(s, {}, "small")}</span>
         <button class="mini tiny ${openM === "h" + i ? "on" : ""}" data-m="h${i}">open</button></div>`;
@@ -1063,7 +1077,9 @@
         h += `<p class="what">${BLURB.have}</p><div class="row"><input class="term" id="lemma" value="${esc(lemmaText)}" placeholder="a statement, like a+0 = 0+a" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="the lemma to craft"><button class="mini" data-do="have">open a workshop</button></div>`;
       } else if (m.kind === "unfold") {
         h += `<p class="what">${BLURB.unfold}</p><div class="row"><span class="meta">¬<i>P</i> is only a way of writing <i>P</i> → ⊥:</span><button class="mini tiny ${save.plain ? "on" : ""}" data-do="plain">${save.plain ? "showing P → ⊥ everywhere" : "show ¬P as P → ⊥"}</button></div>`;
-      } else if (m.kind === "cases" || m.kind === "obtain") {
+      } else if (m.kind === "obtain") {
+        h += `<p class="what">${BLURB.obtain}</p><div class="row"><input class="term" id="wname" maxlength="1" value="${esc(wname)}" placeholder="letter" style="width:84px" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="a letter for the witness"><span class="meta">a name for the number, if you like (blank: one is picked), then tap the block</span></div>`;
+      } else if (m.kind === "cases") {
         h += `<p class="what">${BLURB[m.kind]}</p>`;
       } else if (m.kind === "fix") {
         h += `<p class="what">${BLURB.fix}</p><div class="row"><button class="mini" data-do="fix">run</button></div>`;
@@ -1133,8 +1149,7 @@
       const m = mach(id);
       return `<button class="card ${m.locked ? "locked" : ""} ${m.locked && wanted.includes(id) ? "want" : ""} ${openM === id ? "on" : ""}" data-m="${id}" title="${esc(m.premises ? m.premises.map(L.show).join(", ") + " gives " + L.show(m.concl) : m.stmt ? L.show(m.stmt) : "")}">${icon(m.kind)}<span class="cname">${esc(m.name)}</span>${m.locked ? `<span class="price">soon</span>` : ""}</button>`;
     };
-    const SUBS = { axioms: "taken as given, never proved", tactics: "they change the goal or split the work; they make no block", theorems: "crafted by you; each one is a machine now", lemmas: "your own, from the playground" };
-    const group = (title, ids) => (ids.length ? `<p class="sub"><b>${title}</b> · ${SUBS[title]}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
+    const group = (title, ids) => (ids.length ? `<p class="sub">${title}</p><div class="floor">${ids.map(card).join("")}</div>` : "");
     // a machine that arrived by finishing this very quest is not on its floor: the next quest brings it (it used to sit here greyed out, "buy for ∎0")
     const gates = GATES.filter(id => (mine.includes(id) || wanted.includes(id)) && Q.sees(world, Q.gate(id).w) && shown(id));
     const theorems = mine.filter(id => quests.has(id)), hidden = theorems.filter(id => !shown(id)).length + GATES.filter(id => up(id) && !shown(id)).length;
@@ -1151,11 +1166,22 @@
       moved.add(neu);
     }
     const place = ids => ids.flatMap(id => (id in swap ? (swap[id] ? [swap[id]] : []) : moved.has(id) ? [] : [id]));
+    // theorems by subject (airetho): one collapsible group per world once there are enough of them. A group is open
+    // if the player left it open (their own world's by default), or if the open machine or the hint is in it.
+    const byWorld = ids => {
+      const ws = Q.WORLDS.map(w => [w, ids.filter(id => wOf(id) === w[0])]).filter(x => x[1].length);
+      if (ids.length <= 8 || ws.length < 2) return group("theorems", ids);
+      const fold = save.fold || {};
+      return `<p class="sub">theorems</p>` + ws.map(([[w, name], list]) => {
+        const want = w in fold ? fold[w] : w === world || !world, open = want || list.includes(openM) || list.some(pointed);
+        return `<details class="wgroup" data-w="${w}" data-open="${open ? 1 : 0}" ${open ? "open" : ""}><summary>${name} <span>${list.length}</span></summary><div class="floor">${list.map(card).join("")}</div></details>`;
+      }).join("");
+    };
     put($("floor"), `<p class="label">Machine floor${world ? " · " + Q.WORLDS.find(w => w[0] === world)[1].toLowerCase() : ""}</p>` +
       `<input class="term find" id="find" ${mine.length < 6 && !findQ ? "hidden" : ""} value="${esc(findQ)}" placeholder="search machines" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="search the machines by name or statement">` +
       group("axioms", [...(numbers ? ["refl"] : []), ...place(gates.filter(id => !Q.TACTICS.includes(id)))]) +
       group("tactics", [...gates.filter(id => Q.TACTICS.includes(id)), ...(unfolder ? ["unfold"] : [])]) +
-      group("theorems", place(theorems.filter(shown))) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))) +
+      byWorld(place(theorems.filter(shown))) + group("lemmas", mine.filter(id => !quests.has(id) && !GATES.includes(id))) +
       (!world && !item.worlds && (hidden || save.allw) ? `<button class="mini tiny allw" data-do="allw">${save.allw ? "only the worlds this goal is about" : `show ${hidden} from other worlds`}</button>` : ""));
   }
   /* the search box filters the cards in place, so typing never redraws the floor (and never loses focus) */
@@ -1168,11 +1194,17 @@
       const any = [...f.querySelectorAll(".card")].some(c => c.style.display !== "none"), prev = f.previousElementSibling;
       show(f, any); if (prev && prev.classList.contains("sub")) show(prev, any);
     });
-    const d = fl.querySelector("details.oneway");
-    if (d && q) { const any = [...d.querySelectorAll(".card")].some(c => c.style.display !== "none"); d.open = any; show(d, any); } else if (d) show(d, true);
+    fl.querySelectorAll("details.wgroup").forEach(d => {                  // searching opens the groups with a match
+      const any = [...d.querySelectorAll(".card")].some(c => c.style.display !== "none");
+      show(d, !q || any); d.open = q ? any : d.dataset.open === "1";
+    });
   }
   $("floor").addEventListener("input", e => { if (e.target.id === "find") { findQ = e.target.value; applyFind(); } });
-  $("floor").addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.oneway") && !findQ.trim()) { save.oneway = e.target.open; store(); } }, true);
+  $("floor").addEventListener("toggle", e => {
+    const d = e.target;
+    if (!d.matches || !d.matches("details.wgroup") || findQ.trim() || d.open === (d.dataset.open === "1")) return;
+    d.dataset.open = d.open ? 1 : 0; (save.fold = save.fold || {})[d.dataset.w] = d.open; store();
+  }, true);
   function drawStore() {
     $("store").hidden = !("zz" in save.done) && !Q.SHOP.some(x => !x.gate && save.owned.includes(x.id));   // upgrades come after the first two quests
     put($("store"), `<p class="label">Upgrades</p><ul class="ups">` + Q.SHOP.filter(x => !x.gate).map(x => {
@@ -1205,7 +1237,8 @@
     const d = b.dataset.do;
     if (d === "add") addLemma($("conj").value);
     else if (d === "rename") renameLemma($("lname").value);
-    else if (d === "hint") { hint = hint ? 0 : 1; draw(); }
+    else if (d === "hint") { hint = hint ? 0 : 1; more = false; draw(); }
+    else if (d === "more") { more = true; draw(); }
     else if (d === "step") { hint = hint === 2 ? 1 : 2; draw(); }
     else if (b.dataset.tip) { save.tips[b.dataset.tip] = 1; store(); draw(); }
     else if (b.dataset.buy) buy(b.dataset.buy);
@@ -1242,6 +1275,7 @@
   $("panel").addEventListener("input", e => {
     if (e.target.id === "rterm") { typed = e.target.value; point(coach()); }
     else if (e.target.id === "iv") { letter = e.target.value.trim(); point(coach()); }
+    else if (e.target.id === "wname") wname = e.target.value.trim();
     else if (e.target.dataset.need) { needVals[e.target.dataset.need] = e.target.value.trim(); point(coach()); }
     else if (e.target.dataset.slot) point(coach());
     else if (e.target.id === "lemma") lemmaText = e.target.value;
@@ -1341,7 +1375,7 @@
     if (!t || !blk) return;
     if (m0 && !m0.locked && m0.kind === "apply") { act({ op: "apply", at: where, b: +blk.dataset.b }); return; }
     if (m0 && !m0.locked && m0.kind === "cases") { act({ op: "cases", at: where, b: +blk.dataset.b }); return; }
-    if (m0 && !m0.locked && m0.kind === "obtain") { act({ op: "obtain", at: where, b: +blk.dataset.b }); return; }
+    if (m0 && !m0.locked && m0.kind === "obtain") { act({ op: "obtain", at: where, b: +blk.dataset.b, ...(wname ? { v: wname } : {}) }); return; }
     if (m0 && !m0.locked && m0.kind === "spec") {
       if (!numT.trim()) { msg = "Name the number first: type it in, or pick one that is in play."; return draw(); }
       act({ op: "spec", at: where, b: +blk.dataset.b, t: numT.trim() });

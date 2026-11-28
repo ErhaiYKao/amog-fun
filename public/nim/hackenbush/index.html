@@ -33,6 +33,8 @@
   .tok { width: clamp(38px, 9vw, 58px); height: 26px; border-radius: 8px; border: 0; padding: 0; cursor: default; transition: opacity .1s, transform .1s; }
   .tok.B { background: linear-gradient(180deg, #b9f4fb, var(--g1) 60%, #1b8594); }
   .tok.R { background: linear-gradient(180deg, #ffc7c9, var(--g2) 60%, #a8262b); }
+  .choose { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center; margin-top: 16px; }
+  .choose .nk-label { width: 100%; text-align: center; }
   .tok.ghost { background: transparent; border: 1.5px dashed var(--line-2); }
   .hb.on .tok.mine { cursor: pointer; }
   .hb.on .tok.mine:hover, .hb.on .tok.mine:hover ~ .tok { opacity: .3; transform: translateY(-6px); }
@@ -47,7 +49,7 @@
   <div class="nk-head">
     <div class="sig">hackenbush : Stacks → Surreals</div>
     <h1>Blue-Red Hackenbush</h1>
-    <p>Stacks of coloured tokens. Pick your side under "Your side": <span style="color:var(--g1)">blue</span> or <span style="color:var(--g2)">red</span>. Amog gets the other colour. On your turn remove one token of your colour, and every token above it falls off too. Whoever has no token to take loses.</p>
+    <p>Stacks of coloured tokens: one player is <span style="color:var(--g1)">blue</span>, the other <span style="color:var(--g2)">red</span>. On your turn remove one token of your colour, and every token above it falls off too. Whoever has no token to take loses. Each game opens with a choice: take a colour and move first, or move second and let Amog pick his colour. (Set "Start" to "as set below" to fix your side and the first move yourself.)</p>
   </div>
   <nav class="nk-nav" id="nk-nav"></nav>
   <div id="nim"></div>
@@ -88,22 +90,32 @@
   };
   const moves = (s, who) => s.stacks.flatMap((st, i) => st.flatMap((c, j) => (c === colorOf(s, who) ? [{ i, j }] : [])));
   const apply = (s, m) => ({ side: s.side, stacks: s.stacks.map((st, i) => (i === m.i ? st.slice(0, m.j) : st)), cut: { i: m.i, n: s.stacks[m.i].length - m.j } });
+  const MARGIN = 0.25;   // dealt positions are within a quarter of a move of even (#36): intuition alone won't call them
   const isP = (s, who) => (who === 0 ? sgn(s) * total(s) <= 0 : sgn(s) * total(s) >= 0);
   NimKit.start({
     id: "hackenbush",
     options: [
+      { key: "deal", label: "Start", choices: [["choose", "you choose"], ["set", "as set below"]], def: "choose" },
       { key: "side", label: "Your side", choices: [["B", "blue"], ["R", "red"]], def: "B" },
       { key: "stacks", label: "Stacks", choices: [["3", "3"], ["4", "4"], ["5", "5"]], def: "4" },
     ],
     create(o) {
-      // like the other variants: whoever moves first has a (narrow) win
       const side = o.side === "R" ? "R" : "B";
-      const sign = (o.first === "you" ? 1 : -1) * (side === "B" ? 1 : -1);
+      const deal = () => ({ side, stacks: Array.from({ length: +o.stacks }, () => Array.from({ length: 2 + Math.floor(Math.random() * 5) }, () => NimKit.pick(["B", "R"]))), cut: null });
       let s;
-      do s = { side, stacks: Array.from({ length: +o.stacks }, () => Array.from({ length: 2 + Math.floor(Math.random() * 5) }, () => NimKit.pick(["B", "R"]))), cut: null };
-      while (!(sign * total(s) > 0 && sign * total(s) <= 1.5));
+      if (o.deal !== "set") {
+        // "you choose" (#36): a position too close to call by counting, and the player picks a colour and the
+        // first move, or leaves both to Amog. Each of the three outcomes is dealt about as often as the others.
+        const want = NimKit.pick([-1, 0, 1]);
+        do s = deal(); while (Math.sign(total(s)) !== want || Math.abs(total(s)) > MARGIN);
+        return { ...s, pick: true };
+      }
+      // like the other variants: whoever moves first has a win, and a narrow one
+      const sign = (o.first === "you" ? 1 : -1) * (side === "B" ? 1 : -1);
+      do s = deal(); while (!(sign * total(s) > 0 && sign * total(s) <= MARGIN));
       return s;
     },
+    pending: s => !!s.pick,
     custom: {
       placeholder: "e.g. BBR RB BRRB",
       help: "one word per stack, bottom to top (B/R, ≤ 6 stacks of ≤ 8)",
@@ -125,6 +137,20 @@
       const root = document.documentElement.style;
       root.setProperty("--you", s.side === "B" ? "var(--g1)" : "var(--g2)");
       root.setProperty("--amog", s.side === "B" ? "var(--g2)" : "var(--g1)");
+      if (ctx.waiting) {
+        // nobody has a colour yet: show the towers and the three ways to start
+        el.innerHTML = `<div class="hb">${s.stacks.map(st => `<div class="col"><div class="val"></div><div class="tower">${st.map(c => `<span class="tok ${c}"></span>`).join("")}</div></div>`).join("")}</div>
+          <div class="choose"><span class="nk-label">how do you want to start?</span>
+            <button class="btn" data-go="B">play blue, move first</button><button class="btn" data-go="R">play red, move first</button><button class="btn" data-go="2">move second, Amog picks his colour</button></div>`;
+        el.onclick = e => {
+          const b = e.target.closest("[data-go]"); if (!b) return;
+          const go = b.dataset.go, V = total(s);
+          // moving first, Amog takes the colour the position favours (either, if it favours neither)
+          const mine = go === "2" ? (V > 0 ? "R" : V < 0 ? "B" : NimKit.pick(["B", "R"])) : go;
+          ctx.begin({ side: mine, stacks: s.stacks, cut: null }, go === "2" ? 1 : 0);
+        };
+        return;
+      }
       el.innerHTML = `<div class="hb ${ctx.locked ? "" : "on"}">${s.stacks.map((st, i) => {
         const toks = st.map((c, j) => {
           const mine = c === s.side && !ctx.locked, m = { i, j };
